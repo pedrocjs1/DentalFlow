@@ -1,0 +1,44 @@
+import type { FastifyInstance } from "fastify";
+import { authRoutes } from "./auth/index.js";
+import { patientRoutes } from "./patients/index.js";
+import { appointmentRoutes } from "./appointments/index.js";
+import { campaignRoutes } from "./campaigns/index.js";
+import { dashboardRoutes } from "./dashboard/index.js";
+import { whatsappWebhookRoutes } from "./webhooks/whatsapp.js";
+import { stripeWebhookRoutes } from "./webhooks/stripe.js";
+import { mercadoPagoWebhookRoutes } from "./webhooks/mercadopago.js";
+import { medicalHistoryRoutes } from "./clinical/medical-history.js";
+import { odontogramRoutes } from "./clinical/odontogram.js";
+import { treatmentPlanRoutes } from "./clinical/treatment-plan.js";
+import { visitNotesRoutes } from "./clinical/visit-notes.js";
+import { periodontogramRoutes } from "./clinical/periodontogram.js";
+import { agendaRoutes } from "./agenda/index.js";
+import { googleCalendarRoutes } from "./google-calendar/index.js";
+import { configuracionRoutes } from "./configuracion/index.js";
+import { dentistRoutes } from "./dentists/index.js";
+import { treatmentTypeRoutes } from "./treatment-types/index.js";
+import { chairRoutes } from "./chairs/index.js";
+import { pipelineRoutes } from "./pipeline/index.js";
+
+export async function registerRoutes(app: FastifyInstance): Promise<void> {
+  await app.register(authRoutes);
+  await app.register(dashboardRoutes);
+  await app.register(patientRoutes);
+  await app.register(appointmentRoutes);
+  await app.register(campaignRoutes);
+  await app.register(medicalHistoryRoutes);
+  await app.register(odontogramRoutes);
+  await app.register(treatmentPlanRoutes);
+  await app.register(visitNotesRoutes);
+  await app.register(periodontogramRoutes);
+  await app.register(agendaRoutes);
+  await app.register(googleCalendarRoutes);
+  await app.register(configuracionRoutes);
+  await app.register(dentistRoutes);
+  await app.register(treatmentTypeRoutes);
+  await app.register(chairRoutes);
+  await app.register(pipelineRoutes);
+  await app.register(whatsappWebhookRoutes);
+  await app.register(stripeWebhookRoutes);
+  await app.register(mercadoPagoWebhookRoutes);
+}

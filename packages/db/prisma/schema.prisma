@@ -1,0 +1,763 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════
+// MULTI-TENANCY & AUTH
+// ═══════════════════════════════════════
+
+model Tenant {
+  id                    String             @id @default(cuid())
+  name                  String
+  slug                  String             @unique
+  plan                  Plan               @default(STARTER)
+  phone                 String?
+  email                 String?
+  address               String?
+  city                  String?
+  country               String             @default("AR")
+  timezone              String             @default("America/Argentina/Buenos_Aires")
+  logoUrl               String?
+  welcomeMessage        String?
+  currency              String             @default("ARS")
+  settings              Json               @default("{}")
+  whatsappPhoneNumberId String?
+  whatsappBusinessId    String?
+  whatsappAccessToken   String?
+  stripeCustomerId      String?
+  mpCustomerId          String?
+  subscriptionStatus    SubscriptionStatus @default(TRIALING)
+  trialEndsAt           DateTime?
+  isActive              Boolean            @default(true)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  users                 User[]
+  patients              Patient[]
+  appointments          Appointment[]
+  dentists              Dentist[]
+  chairs                Chair[]
+  conversations         Conversation[]
+  campaigns             Campaign[]
+  pipelineStages        PipelineStage[]
+  automations           Automation[]
+  treatments            TreatmentType[]
+  workingHours          WorkingHours[]
+  faqEntries            FaqEntry[]
+  medicalHistories      MedicalHistory[]
+  odontogramFindings    OdontogramFinding[]
+  treatmentPlans        TreatmentPlan[]
+  treatmentPlanItems    TreatmentPlanItem[]
+  visitNotes            ClinicalVisitNote[]
+  periodontogramEntries PeriodontogramEntry[]
+  dentistWorkingHours   DentistWorkingHours[]
+  googleCalendarTokens  GoogleCalendarToken[]
+  dentistTreatments     DentistTreatment[]
+}
+
+enum Plan {
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+}
+
+model User {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  email        String
+  name         String
+  passwordHash String
+  role         UserRole  @default(RECEPTIONIST)
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  DENTIST
+  RECEPTIONIST
+}
+
+// ═══════════════════════════════════════
+// CLÍNICA & AGENDA
+// ═══════════════════════════════════════
+
+model Dentist {
+  id                  String                @id @default(cuid())
+  tenantId            String
+  tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId              String?
+  name                String
+  specialty           String?
+  licenseNumber       String?
+  phone               String?
+  email               String?
+  photoUrl            String?
+  birthdate           DateTime?
+  color               String                @default("#3B82F6")
+  isActive            Boolean               @default(true)
+  createdAt           DateTime              @default(now())
+  appointments        Appointment[]
+  workingHours        DentistWorkingHours[]
+  googleCalendarToken GoogleCalendarToken?
+  treatments          DentistTreatment[]
+
+  @@index([tenantId])
+}
+
+model Chair {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  isActive     Boolean       @default(true)
+  appointments Appointment[]
+
+  @@index([tenantId])
+}
+
+model WorkingHours {
+  id         String  @id @default(cuid())
+  tenantId   String
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int
+  startTime  String
+  endTime    String
+  breakStart String?
+  breakEnd   String?
+  isActive   Boolean @default(true)
+
+  @@unique([tenantId, dayOfWeek])
+  @@index([tenantId])
+}
+
+model TreatmentType {
+  id           String             @id @default(cuid())
+  tenantId     String
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  durationMin  Int                @default(30)
+  price        Decimal?           @db.Decimal(10, 2)
+  color        String?
+  isActive     Boolean            @default(true)
+  appointments Appointment[]
+  dentists     DentistTreatment[]
+
+  @@index([tenantId])
+}
+
+model DentistTreatment {
+  id              String        @id @default(cuid())
+  tenantId        String
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dentistId       String
+  dentist         Dentist       @relation(fields: [dentistId], references: [id], onDelete: Cascade)
+  treatmentTypeId String
+  treatmentType   TreatmentType @relation(fields: [treatmentTypeId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+
+  @@unique([dentistId, treatmentTypeId])
+  @@index([tenantId])
+  @@index([dentistId])
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  tenantId        String
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patientId       String
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  dentistId       String
+  dentist         Dentist           @relation(fields: [dentistId], references: [id])
+  chairId         String?
+  chair           Chair?            @relation(fields: [chairId], references: [id])
+  treatmentTypeId String?
+  treatmentType   TreatmentType?    @relation(fields: [treatmentTypeId], references: [id])
+  startTime       DateTime
+  endTime         DateTime
+  status          AppointmentStatus @default(CONFIRMED)
+  notes           String?
+  source          AppointmentSource @default(MANUAL)
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  reminderSent    Boolean           @default(false)
+  googleEventId   String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  conversationId  String?
+
+  @@index([tenantId])
+  @@index([tenantId, dentistId, startTime])
+  @@index([tenantId, patientId])
+  @@index([tenantId, startTime])
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentSource {
+  MANUAL
+  CHATBOT
+  ONLINE
+  PHONE
+  DENTALINK
+}
+
+// ═══════════════════════════════════════
+// PACIENTES & CRM
+// ═══════════════════════════════════════
+
+model Patient {
+  id           String        @id @default(cuid())
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  firstName    String
+  lastName     String
+  phone        String
+  email        String?
+  birthdate    DateTime?
+  gender       Gender?
+  address      String?
+  notes        String?
+  tags         String[]      @default([])
+  source       PatientSource @default(MANUAL)
+  externalId   String?
+  lastVisitAt  DateTime?
+  nextVisitDue DateTime?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  appointments       Appointment[]
+  conversations      Conversation[]
+  pipelineEntry      PatientPipeline?
+  campaignSends      CampaignSend[]
+  clinicalNotes      ClinicalNote[]
+  medicalHistory     MedicalHistory?
+  odontogramFindings OdontogramFinding[]
+  treatmentPlans     TreatmentPlan[]
+  visitNotes         ClinicalVisitNote[]
+  periodontogram     PeriodontogramEntry[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@index([tenantId, phone])
+  @@index([tenantId, birthdate])
+  @@index([tenantId, nextVisitDue])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum PatientSource {
+  MANUAL
+  CHATBOT
+  ONLINE
+  REFERRAL
+  CAMPAIGN
+  DENTALINK
+}
+
+model ClinicalNote {
+  id        String   @id @default(cuid())
+  patientId String
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  authorId  String
+  content   String
+  type      NoteType @default(GENERAL)
+  createdAt DateTime @default(now())
+
+  @@index([patientId])
+}
+
+enum NoteType {
+  GENERAL
+  TREATMENT
+  DIAGNOSIS
+  FOLLOW_UP
+}
+
+// ═══════════════════════════════════════
+// HISTORIAL CLÍNICO
+// ═══════════════════════════════════════
+
+model MedicalHistory {
+  id                String    @id @default(cuid())
+  patientId         String    @unique
+  patient           Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId          String
+  tenant            Tenant    @relation(fields: [tenantId], references: [id])
+  bloodType         String?
+  allergies         String[]  @default([])
+  medications       String[]  @default([])
+  hasDiabetes       Boolean   @default(false)
+  hasHypertension   Boolean   @default(false)
+  hasHeartDisease   Boolean   @default(false)
+  hasAsthma         Boolean   @default(false)
+  hasHIV            Boolean   @default(false)
+  hasEpilepsy       Boolean   @default(false)
+  otherDiseases     String?
+  hasBruxism        Boolean   @default(false)
+  isSmoker          Boolean   @default(false)
+  smokingDetails    String?
+  surgicalHistory   String?
+  hospitalizations  String?
+  isPregnant        Boolean   @default(false)
+  lastDoctorVisit   DateTime?
+  consentSigned     Boolean   @default(false)
+  consentSignedAt   DateTime?
+  consentNotes      String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([tenantId])
+}
+
+model OdontogramFinding {
+  id          String           @id @default(cuid())
+  patientId   String
+  patient     Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id])
+  toothFdi    Int
+  surface     ToothSurface?
+  condition   ToothCondition
+  status      OdontogramStatus @default(EXISTING)
+  notes       String?
+  recordedBy  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([tenantId])
+  @@index([patientId])
+  @@index([patientId, toothFdi])
+}
+
+enum ToothSurface {
+  OCCLUSAL
+  MESIAL
+  DISTAL
+  VESTIBULAR
+  LINGUAL
+}
+
+enum ToothCondition {
+  HEALTHY
+  CARIES
+  RESTORATION_AMALGAM
+  RESTORATION_RESIN
+  RESTORATION_IONOMER
+  CROWN
+  ENDODONTICS
+  EXTRACTION
+  IMPLANT
+  PROSTHESIS
+  FRACTURE
+  SEALANT
+  ABSENT
+}
+
+enum OdontogramStatus {
+  EXISTING
+  PLANNED
+}
+
+model TreatmentPlan {
+  id        String      @id @default(cuid())
+  patientId String
+  patient   Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId  String
+  tenant    Tenant      @relation(fields: [tenantId], references: [id])
+  title     String      @default("Plan de Tratamiento")
+  notes     String?
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  items     TreatmentPlanItem[]
+
+  @@index([tenantId])
+  @@index([patientId])
+}
+
+model TreatmentPlanItem {
+  id            String              @id @default(cuid())
+  planId        String
+  plan          TreatmentPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant              @relation(fields: [tenantId], references: [id])
+  toothFdi      Int?
+  procedureName String
+  status        TreatmentItemStatus @default(PENDING)
+  unitCost      Decimal             @default(0) @db.Decimal(10, 2)
+  quantity      Int                 @default(1)
+  notes         String?
+  sortOrder     Int                 @default(0)
+  completedAt   DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([planId])
+  @@index([tenantId])
+}
+
+enum TreatmentItemStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model ClinicalVisitNote {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  authorId      String
+  visitDate     DateTime @default(now())
+  toothNumbers  Int[]    @default([])
+  procedureName String?
+  materials     String?
+  content       String
+  nextStep      String?
+  attachments   Json     @default("[]")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([patientId])
+  @@index([patientId, visitDate])
+}
+
+model PeriodontogramEntry {
+  id          String   @id @default(cuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  recordedBy  String
+  recordedAt  DateTime @default(now())
+  findings    Json     @default("{}")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([patientId])
+  @@index([patientId, recordedAt])
+}
+
+// ═══════════════════════════════════════
+// PIPELINE CRM
+// ═══════════════════════════════════════
+
+model PipelineStage {
+  id            String            @id @default(cuid())
+  tenantId      String
+  tenant        Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name          String
+  order         Int
+  color         String            @default("#6B7280")
+  isDefault     Boolean           @default(false)
+  // Automation config
+  autoMessageEnabled    Boolean   @default(false)
+  autoMessageDelayHours Int       @default(24)
+  autoMessageTemplate   String?
+  autoMoveEnabled       Boolean   @default(false)
+  autoMoveDelayHours    Int       @default(48)
+  autoMoveTargetStageId String?
+  discountEnabled       Boolean   @default(false)
+  discountPercent       Int       @default(10)
+  discountMessage       String?
+  patients      PatientPipeline[]
+
+  @@unique([tenantId, order])
+  @@index([tenantId])
+}
+
+model PatientPipeline {
+  id                    String        @id @default(cuid())
+  patientId             String        @unique
+  patient               Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  stageId               String
+  stage                 PipelineStage @relation(fields: [stageId], references: [id])
+  movedAt               DateTime      @default(now())
+  notes                 String?
+  interestTreatment     String?
+  lastAutoMessageSentAt DateTime?
+
+  @@index([stageId])
+  @@index([movedAt])
+}
+
+// ═══════════════════════════════════════
+// CONVERSACIONES & MENSAJES (WhatsApp)
+// ═══════════════════════════════════════
+
+model Conversation {
+  id                 String             @id @default(cuid())
+  tenantId           String
+  tenant             Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  patientId          String
+  patient            Patient            @relation(fields: [patientId], references: [id])
+  channel            Channel            @default(WHATSAPP)
+  status             ConversationStatus @default(OPEN)
+  assignedToId       String?
+  lastMessageAt      DateTime?
+  lastMessagePreview String?
+  aiEnabled          Boolean            @default(true)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  messages Message[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, patientId])
+}
+
+enum Channel {
+  WHATSAPP
+  EMAIL
+  WEB_CHAT
+  SMS
+}
+
+enum ConversationStatus {
+  OPEN
+  AI_HANDLING
+  HUMAN_NEEDED
+  CLOSED
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  conversationId    String
+  conversation      Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  direction         MessageDirection
+  content           String
+  type              MessageType      @default(TEXT)
+  mediaUrl          String?
+  whatsappMessageId String?
+  metadata          Json?
+  sentAt            DateTime         @default(now())
+  deliveredAt       DateTime?
+  readAt            DateTime?
+
+  @@index([conversationId])
+  @@index([conversationId, sentAt])
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  AUDIO
+  DOCUMENT
+  TEMPLATE
+  INTERACTIVE
+}
+
+// ═══════════════════════════════════════
+// CAMPAÑAS & MARKETING
+// ═══════════════════════════════════════
+
+model Campaign {
+  id              String         @id @default(cuid())
+  tenantId        String
+  tenant          Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  type            CampaignType
+  channel         Channel        @default(WHATSAPP)
+  status          CampaignStatus @default(DRAFT)
+  templateName    String?
+  templateParams  Json?
+  messageContent  String?
+  subject         String?
+  segmentFilter   Json?
+  triggerType     TriggerType?
+  triggerConfig   Json?
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  completedAt     DateTime?
+  totalSent       Int            @default(0)
+  totalDelivered  Int            @default(0)
+  totalRead       Int            @default(0)
+  totalClicked    Int            @default(0)
+  totalReplied    Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  sends CampaignSend[]
+
+  @@index([tenantId])
+  @@index([tenantId, type, status])
+}
+
+enum CampaignType {
+  MANUAL
+  BIRTHDAY
+  REMINDER_6M
+  REMINDER_24H
+  REACTIVATION
+  PROMO
+  WELCOME
+  POST_VISIT
+  CUSTOM
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+enum TriggerType {
+  DATE_FIELD
+  EVENT
+  TIME_AFTER_EVENT
+  CRON
+}
+
+model CampaignSend {
+  id                String     @id @default(cuid())
+  campaignId        String
+  campaign          Campaign   @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  patientId         String
+  patient           Patient    @relation(fields: [patientId], references: [id])
+  status            SendStatus @default(PENDING)
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  readAt            DateTime?
+  clickedAt         DateTime?
+  repliedAt         DateTime?
+  errorMessage      String?
+  whatsappMessageId String?
+
+  @@index([campaignId])
+  @@index([patientId])
+}
+
+enum SendStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+}
+
+// ═══════════════════════════════════════
+// AUTOMATIZACIONES
+// ═══════════════════════════════════════
+
+model Automation {
+  id              String    @id @default(cuid())
+  tenantId        String
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name            String
+  triggerEvent    String
+  conditions      Json      @default("[]")
+  actions         Json      @default("[]")
+  isActive        Boolean   @default(true)
+  executionCount  Int       @default(0)
+  lastExecutedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, triggerEvent])
+}
+
+// ═══════════════════════════════════════
+// FAQs (para el chatbot)
+// ═══════════════════════════════════════
+
+model FaqEntry {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String
+  category  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+// ═══════════════════════════════════════
+// AGENDA — HORARIOS POR DENTISTA & GOOGLE CALENDAR
+// ═══════════════════════════════════════
+
+model DentistWorkingHours {
+  id         String  @id @default(cuid())
+  tenantId   String
+  tenant     Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dentistId  String
+  dentist    Dentist @relation(fields: [dentistId], references: [id], onDelete: Cascade)
+  dayOfWeek  Int     // 1=Mon, 2=Tue, ..., 6=Sat, 0=Sun
+  startTime  String  // "09:00"
+  endTime    String  // "18:00"
+  isActive   Boolean @default(true)
+
+  @@unique([dentistId, dayOfWeek])
+  @@index([tenantId])
+}
+
+model GoogleCalendarToken {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dentistId    String   @unique
+  dentist      Dentist  @relation(fields: [dentistId], references: [id], onDelete: Cascade)
+  accessToken  String   // AES-256-GCM encrypted
+  refreshToken String   // AES-256-GCM encrypted
+  expiresAt    DateTime
+  calendarId   String   @default("primary")
+  syncEnabled  Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+}

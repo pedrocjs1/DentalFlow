@@ -1,0 +1,1 @@
+export { DentalinkClient } from "./dentalink";
