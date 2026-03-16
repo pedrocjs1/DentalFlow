@@ -19,6 +19,9 @@ import { dentistRoutes } from "./dentists/index.js";
 import { treatmentTypeRoutes } from "./treatment-types/index.js";
 import { chairRoutes } from "./chairs/index.js";
 import { pipelineRoutes } from "./pipeline/index.js";
+import { conversationRoutes } from "./conversations/index.js";
+import { adminRoutes } from "./admin/index.js";
+import { whatsappRoutes } from "./whatsapp/index.js";
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(authRoutes);
@@ -38,6 +41,9 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(treatmentTypeRoutes);
   await app.register(chairRoutes);
   await app.register(pipelineRoutes);
+  await app.register(conversationRoutes);
+  await app.register(adminRoutes);
+  await app.register(whatsappRoutes);
   await app.register(whatsappWebhookRoutes);
   await app.register(stripeWebhookRoutes);
   await app.register(mercadoPagoWebhookRoutes);

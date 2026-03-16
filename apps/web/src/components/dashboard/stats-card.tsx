@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 
 const ACCENT_STYLES = {
-  teal: { badge: "bg-primary-50 text-primary-700", border: "border-l-4 border-l-primary-400" },
+  teal: { badge: "bg-emerald-50 text-emerald-700", border: "border-l-4 border-l-emerald-400" },
   blue: { badge: "bg-blue-50 text-blue-700", border: "border-l-4 border-l-blue-400" },
   amber: { badge: "bg-amber-50 text-amber-700", border: "border-l-4 border-l-amber-400" },
   purple: { badge: "bg-purple-50 text-purple-700", border: "border-l-4 border-l-purple-400" },
@@ -24,8 +24,8 @@ export function StatsCard({
 }: StatsCardProps) {
   const styles = ACCENT_STYLES[accent];
   return (
-    <div className={cn("bg-white rounded-xl border p-5", styles.border, className)}>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
+    <div className={cn("bg-white rounded-xl border border-gray-200/80 p-5 hover:shadow-md transition-all duration-200", styles.border, className)}>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{title}</p>
       <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
       {description && (
         <p className="text-xs text-gray-400 mt-1">{description}</p>

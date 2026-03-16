@@ -25,6 +25,7 @@ interface PipelineStage {
   color: string;
   order: number;
   patientCount: number;
+  stageValue: number;
   patients: PipelinePatient[];
 }
 
@@ -217,7 +218,7 @@ export function PipelineBoard() {
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <h2 className="text-2xl font-bold text-gray-900">Pipeline CRM</h2>
-        <span className="text-sm text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full">
+        <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full tabular-nums">
           {totalPatients} pacientes
         </span>
 
@@ -231,14 +232,14 @@ export function PipelineBoard() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar paciente..."
-            className="pl-9 pr-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-52"
+            className="pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 w-52 transition-all duration-200"
           />
         </div>
 
         <button
           onClick={fetchPipeline}
           disabled={loading}
-          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-50"
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-50 transition-colors"
           title="Actualizar"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

@@ -241,4 +241,6 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(204).send();
     },
   });
+
+  // WhatsApp configuration has been moved to /api/v1/whatsapp/* (Embedded Signup flow)
 }

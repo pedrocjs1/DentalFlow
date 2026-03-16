@@ -4,9 +4,14 @@ import type { NextRequest } from "next/server";
 const PUBLIC_PATHS = ["/login"];
 
 export function middleware(request: NextRequest) {
-  const token = request.cookies.get("df_token")?.value;
   const { pathname } = request.nextUrl;
 
+  // Admin panel handles its own auth — skip middleware entirely
+  if (pathname.startsWith("/admin")) {
+    return NextResponse.next();
+  }
+
+  const token = request.cookies.get("df_token")?.value;
   const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
 
   if (!token && !isPublic) {

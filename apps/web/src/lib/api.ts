@@ -1,4 +1,6 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// Server-side needs the full URL (no proxy available).
+// Client-side uses relative paths so Next.js rewrites handle the proxy to avoid CORS.
+const SERVER_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 function getToken(): string | null {
   if (typeof document === "undefined") return null;
@@ -6,12 +8,13 @@ function getToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+// Client-side fetch — uses relative URL so Next.js rewrite proxies to backend
 export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -34,7 +37,7 @@ export async function apiFetch<T>(
   return res.json() as Promise<T>;
 }
 
-// Server-side fetch (reads token from cookie string)
+// Server-side fetch (reads token from cookie string) — needs full URL
 export async function apiServerFetch<T>(
   path: string,
   cookieHeader: string
@@ -42,7 +45,7 @@ export async function apiServerFetch<T>(
   const match = cookieHeader.match(/(?:^|; )df_token=([^;]*)/);
   const token = match ? decodeURIComponent(match[1]) : null;
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${SERVER_API_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { CalendarCheck } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -11,13 +12,13 @@ interface Appointment {
   treatmentType: { name: string } | null;
 }
 
-const STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  PENDING: { label: "Pendiente", className: "bg-amber-50 text-amber-700" },
-  CONFIRMED: { label: "Confirmada", className: "bg-green-50 text-green-700" },
-  IN_PROGRESS: { label: "En curso", className: "bg-blue-50 text-blue-700" },
-  COMPLETED: { label: "Completada", className: "bg-gray-50 text-gray-600" },
-  CANCELLED: { label: "Cancelada", className: "bg-red-50 text-red-600" },
-  NO_SHOW: { label: "No asistió", className: "bg-red-50 text-red-600" },
+const STATUS_LABELS: Record<string, { label: string; className: string; borderColor: string }> = {
+  PENDING: { label: "Pendiente", className: "bg-amber-50 text-amber-700", borderColor: "border-l-amber-400" },
+  CONFIRMED: { label: "Confirmada", className: "bg-blue-50 text-blue-700", borderColor: "border-l-blue-400" },
+  IN_PROGRESS: { label: "En curso", className: "bg-primary-50 text-primary-700", borderColor: "border-l-primary-400" },
+  COMPLETED: { label: "Completada", className: "bg-emerald-50 text-emerald-700", borderColor: "border-l-emerald-400" },
+  CANCELLED: { label: "Cancelada", className: "bg-red-50 text-red-600", borderColor: "border-l-red-400" },
+  NO_SHOW: { label: "No asistió", className: "bg-gray-100 text-gray-600", borderColor: "border-l-gray-400" },
 };
 
 function formatTime(dateStr: string) {
@@ -45,21 +46,28 @@ interface Props {
 
 export function AppointmentsList({ title, appointments, emptyMessage, showDate }: Props) {
   return (
-    <div className="bg-white rounded-xl border">
-      <div className="px-5 py-4 border-b">
+    <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm">
+      <div className="px-5 py-4 border-b border-gray-100">
         <h3 className="font-semibold text-gray-900">{title}</h3>
       </div>
 
       {appointments.length === 0 ? (
-        <div className="px-5 py-10 text-center text-gray-400 text-sm">
-          {emptyMessage}
+        <div className="px-5 py-10 text-center">
+          <CalendarCheck className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+          <p className="text-sm text-gray-400">{emptyMessage}</p>
         </div>
       ) : (
-        <ul className="divide-y">
+        <ul className="divide-y divide-gray-100">
           {appointments.map((appt) => {
-            const status = STATUS_LABELS[appt.status] ?? { label: appt.status, className: "bg-gray-50 text-gray-600" };
+            const status = STATUS_LABELS[appt.status] ?? { label: appt.status, className: "bg-gray-50 text-gray-600", borderColor: "border-l-gray-400" };
             return (
-              <li key={appt.id} className="px-5 py-3.5 flex items-center gap-3 hover:bg-gray-50 transition-colors">
+              <li
+                key={appt.id}
+                className={cn(
+                  "px-5 py-3.5 flex items-center gap-3 hover:bg-gray-50/80 transition-colors cursor-pointer border-l-[3px]",
+                  status.borderColor
+                )}
+              >
                 {/* Time */}
                 <div className="text-center min-w-[52px]">
                   <p className="text-sm font-bold text-gray-900">{formatTime(appt.startTime)}</p>
@@ -85,7 +93,7 @@ export function AppointmentsList({ title, appointments, emptyMessage, showDate }
                 </div>
 
                 {/* Status badge */}
-                <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0", status.className)}>
+                <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0", status.className)}>
                   {status.label}
                 </span>
               </li>

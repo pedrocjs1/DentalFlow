@@ -2,6 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentalflow/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
+import { getMonthlyUsage } from "../../services/usage-tracker.js";
+import { PLAN_LIMITS } from "@dentalflow/shared";
 
 export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/dashboard/stats", {
@@ -119,6 +121,22 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
           role: user.role,
         },
       };
+    },
+  });
+
+  // GET /api/v1/dashboard/usage — usage widget for tenant
+  app.get("/api/v1/dashboard/usage", {
+    preHandler: [authMiddleware, tenantMiddleware],
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: { plan: true },
+      });
+      const plan = tenant?.plan ?? "STARTER";
+      const usage = await getMonthlyUsage(user.tenantId);
+      const limits = PLAN_LIMITS[plan];
+      return { plan, usage, limits };
     },
   });
 }

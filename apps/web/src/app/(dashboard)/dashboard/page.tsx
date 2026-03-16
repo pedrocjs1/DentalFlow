@@ -35,23 +35,14 @@ export default async function DashboardPage() {
     .join("; ");
 
   let data: DashboardStats | null = null;
-  let fetchError: string | null = null;
 
   try {
     data = await apiServerFetch<DashboardStats>(
       "/api/v1/dashboard/stats",
       cookieHeader
     );
-  } catch (e) {
-    fetchError = e instanceof Error ? e.message : "Error al cargar datos";
-  }
-
-  if (fetchError || !data) {
-    return (
-      <div className="p-8 text-center text-red-500">
-        <p>Error al cargar el dashboard: {fetchError}</p>
-      </div>
-    );
+  } catch {
+    // Will render fallback UI
   }
 
   return <DashboardClient data={data} />;

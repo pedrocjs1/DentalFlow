@@ -276,10 +276,164 @@ async function main() {
     )
   );
 
+  // ── Demo conversations ───────────────────────────────────────────────────
+  // 4 realistic WhatsApp conversations with messages
+
+  const now = Date.now();
+  const min = 60 * 1000;
+  const hr = 60 * min;
+
+  // Helpers to create relative timestamps
+  const t = (offsetMs: number) => new Date(now + offsetMs);
+
+  // Conv 1 — Ana Martínez asks about ortodoncia, bot handles (AI_HANDLING)
+  const conv1 = await prisma.conversation.upsert({
+    where: { id: "conv-demo-1" },
+    update: {},
+    create: {
+      id: "conv-demo-1",
+      tenantId: tenant.id,
+      patientId: "patient-demo-1",
+      channel: "WHATSAPP",
+      status: "AI_HANDLING",
+      aiEnabled: true,
+      lastMessageAt: t(-5 * min),
+      lastMessagePreview: "¡Perfecto! ¿Querés que te agende para el martes?",
+    },
+  });
+
+  const conv1Messages = [
+    { id: "msg-c1-1", dir: "INBOUND",  offset: -47*min, text: "Hola! Quería consultar sobre ortodoncia, cuánto sale la consulta inicial?", meta: null },
+    { id: "msg-c1-2", dir: "OUTBOUND", offset: -46*min, text: "¡Hola Ana! 😊 La consulta inicial de ortodoncia con el Dr. Carlos Fernández cuesta $4.000. Incluye revisación completa y presupuesto detallado. ¿Te gustaría agendar?", meta: { sentBy: "bot" } },
+    { id: "msg-c1-3", dir: "INBOUND",  offset: -40*min, text: "Sí me interesa! ¿Qué horarios tienen disponibles?", meta: null },
+    { id: "msg-c1-4", dir: "OUTBOUND", offset: -39*min, text: "Tenemos disponibilidad esta semana 📅:\n\n• Martes 15/04 — 10:00 hs\n• Miércoles 16/04 — 15:30 hs\n• Viernes 18/04 — 11:00 hs\n\n¿Cuál te queda mejor?", meta: { sentBy: "bot" } },
+    { id: "msg-c1-5", dir: "INBOUND",  offset: -10*min, text: "El martes a las 10 me viene bien!", meta: null },
+    { id: "msg-c1-6", dir: "OUTBOUND", offset: -5*min,  text: "¡Perfecto! ¿Querés que te agende para el martes?", meta: { sentBy: "bot" } },
+  ];
+
+  // Conv 2 — Carlos López needs human (HUMAN_NEEDED)
+  const conv2 = await prisma.conversation.upsert({
+    where: { id: "conv-demo-2" },
+    update: {},
+    create: {
+      id: "conv-demo-2",
+      tenantId: tenant.id,
+      patientId: "patient-demo-2",
+      channel: "WHATSAPP",
+      status: "HUMAN_NEEDED",
+      aiEnabled: false,
+      lastMessageAt: t(-12*min),
+      lastMessagePreview: "Necesito hablar con alguien de la clínica urgente",
+    },
+  });
+
+  const conv2Messages = [
+    { id: "msg-c2-1", dir: "INBOUND",  offset: -3*hr,   text: "Buenas, quería cancelar mi turno de mañana", meta: null },
+    { id: "msg-c2-2", dir: "OUTBOUND", offset: -3*hr+1*min, text: "Hola Carlos! 😊 Entendido, ¿podés decirme el motivo de la cancelación? Así lo registramos.", meta: { sentBy: "bot" } },
+    { id: "msg-c2-3", dir: "INBOUND",  offset: -2*hr,   text: "Tuve un problema con el seguro médico, necesito que me devuelvan la seña", meta: null },
+    { id: "msg-c2-4", dir: "OUTBOUND", offset: -2*hr+2*min, text: "Entiendo tu situación, Carlos. Las consultas sobre pagos y señas las maneja directamente el equipo de administración. Voy a transferirte con ellos 🙏", meta: { sentBy: "bot" } },
+    { id: "msg-c2-5", dir: "INBOUND",  offset: -30*min, text: "Ok pero cuándo me responden? Ya pasó una hora", meta: null },
+    { id: "msg-c2-6", dir: "INBOUND",  offset: -12*min, text: "Necesito hablar con alguien de la clínica urgente", meta: null },
+  ];
+
+  // Conv 3 — Valentina Sosa, reminder confirmed (AI_HANDLING, no unread)
+  const conv3 = await prisma.conversation.upsert({
+    where: { id: "conv-demo-3" },
+    update: {},
+    create: {
+      id: "conv-demo-3",
+      tenantId: tenant.id,
+      patientId: "patient-demo-3",
+      channel: "WHATSAPP",
+      status: "AI_HANDLING",
+      aiEnabled: true,
+      lastMessageAt: t(-2*hr),
+      lastMessagePreview: "¡Confirmado! Te esperamos mañana a las 14:30 ✅",
+    },
+  });
+
+  const conv3Messages = [
+    { id: "msg-c3-1", dir: "OUTBOUND", offset: -25*hr, text: "¡Hola Valentina! 📅 Te recordamos tu cita mañana miércoles a las 14:30 con la Dra. María González. ¿Confirmás tu asistencia? Respondé SI o NO.", meta: { sentBy: "bot" } },
+    { id: "msg-c3-2", dir: "INBOUND",  offset: -23*hr, text: "SI confirmo gracias", meta: null },
+    { id: "msg-c3-3", dir: "OUTBOUND", offset: -23*hr+1*min, text: "¡Perfecto, Valentina! ✅ Cita confirmada para mañana a las 14:30. Si necesitás cancelar o cambiar, avisanos con anticipación. ¡Hasta mañana! 😊", meta: { sentBy: "bot" } },
+    { id: "msg-c3-4", dir: "INBOUND",  offset: -2*hr-10*min, text: "Hola, una consulta, puedo ir con turno un poco antes? digamos a las 14?", meta: null },
+    { id: "msg-c3-5", dir: "OUTBOUND", offset: -2*hr, text: "¡Confirmado! Te esperamos mañana a las 14:30 ✅", meta: { sentBy: "bot" } },
+  ];
+
+  // Conv 4 — Rodrigo Pérez, past extraction, closed
+  const conv4 = await prisma.conversation.upsert({
+    where: { id: "conv-demo-4" },
+    update: {},
+    create: {
+      id: "conv-demo-4",
+      tenantId: tenant.id,
+      patientId: "patient-demo-4",
+      channel: "WHATSAPP",
+      status: "CLOSED",
+      aiEnabled: false,
+      lastMessageAt: t(-3*24*hr),
+      lastMessagePreview: "Gracias por tu consulta, Rodrigo. ¡Hasta pronto! 🦷",
+    },
+  });
+
+  const conv4Messages = [
+    { id: "msg-c4-1", dir: "INBOUND",  offset: -3*24*hr-2*hr, text: "Buenas tardes, quería preguntar cuánto sale una extracción de muela del juicio", meta: null },
+    { id: "msg-c4-2", dir: "OUTBOUND", offset: -3*24*hr-1*hr-55*min, text: "¡Hola Rodrigo! 😊 La extracción de muela del juicio tiene un costo de $8.000. Incluye anestesia local. Para casos complicados puede variar previa evaluación. ¿Querés agendar una consulta?", meta: { sentBy: "bot" } },
+    { id: "msg-c4-3", dir: "INBOUND",  offset: -3*24*hr-1*hr, text: "Ah ok gracias. Por ahora no, lo voy a pensar", meta: null },
+    { id: "msg-c4-4", dir: "OUTBOUND", offset: -3*24*hr-59*min, text: "¡Claro! Cuando quieras, estamos acá. Recordá que si sentís molestias o dolor, lo antes posible es lo mejor. ¡Hasta pronto! 🦷", meta: { sentBy: "bot" } },
+    { id: "msg-c4-5", dir: "OUTBOUND", offset: -3*24*hr, text: "Gracias por tu consulta, Rodrigo. ¡Hasta pronto! 🦷", meta: { sentBy: "human" } },
+  ];
+
+  // Insert all messages (upsert by fixed ID)
+  const allMessages = [
+    ...conv1Messages.map(m => ({ ...m, convId: conv1.id })),
+    ...conv2Messages.map(m => ({ ...m, convId: conv2.id })),
+    ...conv3Messages.map(m => ({ ...m, convId: conv3.id })),
+    ...conv4Messages.map(m => ({ ...m, convId: conv4.id })),
+  ];
+
+  for (const { id: msgId, dir, offset, text, meta, convId } of allMessages) {
+    const sentAt = t(offset);
+    await prisma.message.upsert({
+      where: { id: msgId },
+      update: {},
+      create: {
+        id: msgId,
+        conversationId: convId,
+        direction: dir as "INBOUND" | "OUTBOUND",
+        type: "TEXT",
+        content: text,
+        metadata: meta ?? undefined,
+        sentAt,
+        // Mark older outbound messages as delivered+read for realism
+        deliveredAt: dir === "OUTBOUND" ? new Date(sentAt.getTime() + 10 * 1000) : null,
+        readAt: dir === "OUTBOUND" && offset < -30*min ? new Date(sentAt.getTime() + 60 * 1000) : null,
+      },
+    });
+  }
+
+  console.log("Demo conversations and messages seeded!");
+
+  // ─── Super Admin ────────────────────────────────────────────────────────────
+  const adminPassword = await bcrypt.hash("DentalFlow2026!", 10);
+  await prisma.adminUser.upsert({
+    where: { email: "admin@dentalflow.app" },
+    update: {},
+    create: {
+      email: "admin@dentalflow.app",
+      passwordHash: adminPassword,
+      name: "Super Admin",
+    },
+  });
+  console.log("Super admin seeded: admin@dentalflow.app");
+
   console.log("Seed completed successfully!");
   console.log("\nDemo credentials:");
   console.log("  Email: admin@clinica-demo.com");
   console.log("  Password: password123");
+  console.log("\nSuper Admin credentials:");
+  console.log("  Email: admin@dentalflow.app");
+  console.log("  Password: DentalFlow2026!");
 }
 
 main()

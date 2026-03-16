@@ -846,8 +846,284 @@ GOOGLE_REDIRECT_URI=http://localhost:3001/api/v1/google-calendar/callback`}
           )}
         </div>
       </div>
+
+      {/* WhatsApp Business Integration */}
+      <WhatsAppConfig />
     </>
   );
+}
+
+// ─── WhatsApp Embedded Signup component ──────────────────────────────────────
+
+interface WhatsAppConnectionStatus {
+  status: "DISCONNECTED" | "CONNECTED" | "ERROR";
+  displayNumber: string | null;
+  phoneNumberId: string | null;
+  wabaId: string | null;
+  connectedAt: string | null;
+  webhookUrl: string;
+}
+
+function WhatsAppConfig() {
+  const { toast, showToast } = useToast();
+  const [waStatus, setWaStatus] = useState<WhatsAppConnectionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+
+  useEffect(() => {
+    apiFetch<WhatsAppConnectionStatus>("/api/v1/whatsapp/status")
+      .then(setWaStatus)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function handleEmbeddedSignup() {
+    const appId = process.env.NEXT_PUBLIC_WHATSAPP_APP_ID;
+    const configId = process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID;
+
+    if (!appId || !configId) {
+      showToast({ type: "error", message: "WhatsApp Embedded Signup no está configurado. Contactá al soporte." });
+      return;
+    }
+
+    setConnecting(true);
+
+    try {
+      // Load Facebook SDK dynamically if not loaded
+      await loadFacebookSDK(appId);
+
+      // Launch the Embedded Signup flow
+      const result = await new Promise<{ authResponse?: { code?: string; accessToken?: string } }>((resolve, reject) => {
+        window.FB.login(
+          (response: { authResponse?: { code?: string; accessToken?: string } }) => {
+            if (response.authResponse?.accessToken || response.authResponse?.code) {
+              resolve(response);
+            } else {
+              reject(new Error("El flujo fue cancelado o no se obtuvo autorización."));
+            }
+          },
+          {
+            config_id: configId,
+            response_type: "code token",
+            override_default_response_type: true,
+            extras: {
+              feature: "whatsapp_embedded_signup",
+              featureType: "only_waba_sharing",
+              sessionInfoVersion: "3",
+            },
+          }
+        );
+      });
+
+      const authResponse = result.authResponse!;
+
+      // Send to backend — prefer token (no exchange needed), fallback to code
+      const res = await apiFetch<{
+        success: boolean;
+        displayNumber: string;
+        phoneNumberId: string;
+        wabaId: string;
+      }>("/api/v1/whatsapp/embedded-signup-complete", {
+        method: "POST",
+        body: JSON.stringify({
+          code: authResponse.code,
+          accessToken: authResponse.accessToken,
+        }),
+      });
+
+      setWaStatus({
+        status: "CONNECTED",
+        displayNumber: res.displayNumber,
+        phoneNumberId: res.phoneNumberId,
+        wabaId: res.wabaId,
+        connectedAt: new Date().toISOString(),
+        webhookUrl: waStatus?.webhookUrl ?? "",
+      });
+
+      showToast({ type: "success", message: `WhatsApp conectado correctamente: ${res.displayNumber}` });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al conectar WhatsApp";
+      showToast({ type: "error", message });
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm("¿Estás seguro de que querés desconectar WhatsApp? Se desactivarán el chatbot y las campañas por WhatsApp.")) {
+      return;
+    }
+    setDisconnecting(true);
+    try {
+      await apiFetch("/api/v1/whatsapp/disconnect", { method: "DELETE" });
+      setWaStatus((prev) => prev ? { ...prev, status: "DISCONNECTED", displayNumber: null, phoneNumberId: null, wabaId: null, connectedAt: null } : prev);
+      showToast({ type: "success", message: "WhatsApp desconectado." });
+    } catch {
+      showToast({ type: "error", message: "Error al desconectar." });
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
+  async function handleSendTest() {
+    setSendingTest(true);
+    try {
+      await apiFetch("/api/v1/whatsapp/send-test", { method: "POST" });
+      showToast({ type: "success", message: "Mensaje de prueba enviado al teléfono de la clínica." });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error al enviar mensaje de prueba";
+      showToast({ type: "error", message });
+    } finally {
+      setSendingTest(false);
+    }
+  }
+
+  const isConnected = waStatus?.status === "CONNECTED";
+
+  return (
+    <div className="bg-white rounded-xl border overflow-hidden mt-5">
+      <Toast toast={toast} />
+      <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center shadow-sm">
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+            <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 01-4.243-1.212l-.257-.154-2.87.852.852-2.87-.154-.257A8 8 0 1112 20z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">WhatsApp Business</h3>
+          <p className="text-xs text-gray-500">Chatbot IA + mensajes automáticos por WhatsApp</p>
+        </div>
+        <div className="ml-auto">
+          {isConnected ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> Conectado
+            </span>
+          ) : waStatus?.status === "ERROR" ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-red-100 text-red-700 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Error
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" /> No conectado
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="px-6 py-5">
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin" />
+            Cargando...
+          </div>
+        ) : isConnected ? (
+          /* ─── Connected state ─── */
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-gray-500">Número:</span>
+                <span className="ml-2 font-semibold text-gray-800">{waStatus.displayNumber}</span>
+              </div>
+              <div>
+                <span className="text-gray-500">Conectado el:</span>
+                <span className="ml-2 text-gray-800">
+                  {waStatus.connectedAt
+                    ? new Date(waStatus.connectedAt).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })
+                    : "—"}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={handleSendTest} disabled={sendingTest}>
+                {sendingTest ? "Enviando..." : "Enviar mensaje de prueba"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleDisconnect} disabled={disconnecting} className="text-red-600 border-red-200 hover:bg-red-50">
+                {disconnecting ? "Desconectando..." : "Desconectar"}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          /* ─── Disconnected state — Embedded Signup CTA ─── */
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600 leading-relaxed">
+              Conectá tu número de WhatsApp para activar el chatbot IA, campañas automáticas y comunicación directa con tus pacientes.
+            </p>
+            <div className="bg-gray-50 border rounded-lg p-4 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">¿Qué necesitás?</p>
+              <ul className="text-xs text-gray-600 space-y-1 list-disc list-inside">
+                <li>Una cuenta de Facebook (personal del propietario)</li>
+                <li>Un número de teléfono para WhatsApp Business (que NO esté registrado en WhatsApp personal)</li>
+                <li>Acceso al teléfono para recibir un código de verificación SMS</li>
+              </ul>
+            </div>
+            <button
+              onClick={handleEmbeddedSignup}
+              disabled={connecting}
+              className="inline-flex items-center gap-2.5 bg-[#25D366] hover:bg-[#1EBE57] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-6 py-3 rounded-xl transition-colors shadow-sm text-sm"
+            >
+              {connecting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Conectando...
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+                    <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.832-1.438A9.955 9.955 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a8 8 0 01-4.243-1.212l-.257-.154-2.87.852.852-2.87-.154-.257A8 8 0 1112 20z"/>
+                  </svg>
+                  Conectar WhatsApp
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Facebook SDK loader ─────────────────────────────────────────────────────
+
+declare global {
+  interface Window {
+    FB: {
+      login: (
+        callback: (response: { authResponse?: { code?: string } }) => void,
+        options: Record<string, unknown>
+      ) => void;
+      init: (params: Record<string, unknown>) => void;
+    };
+    fbAsyncInit: () => void;
+  }
+}
+
+function loadFacebookSDK(appId: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.FB) {
+      resolve();
+      return;
+    }
+
+    window.fbAsyncInit = () => {
+      window.FB.init({
+        appId,
+        cookie: true,
+        xfbml: true,
+        version: "v21.0",
+      });
+      resolve();
+    };
+
+    const script = document.createElement("script");
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+  });
 }
 
 // ─── Tab: Equipo / Mi Cuenta ──────────────────────────────────────────────────

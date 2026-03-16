@@ -72,13 +72,28 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       }
 
       const now = new Date();
-      const entries = await prisma.patientPipeline.findMany({
-        where: { patient: patientWhere },
-        include: {
-          patient: { select: buildPatientCardSelect(now) },
-        },
-        orderBy: { movedAt: "asc" },
-      });
+      const [entries, treatmentTypes] = await Promise.all([
+        prisma.patientPipeline.findMany({
+          where: { patient: patientWhere },
+          include: {
+            patient: { select: buildPatientCardSelect(now) },
+          },
+          orderBy: { movedAt: "asc" },
+        }),
+        // Fetch treatment prices once for value computation
+        prisma.treatmentType.findMany({
+          where: { tenantId: user.tenantId },
+          select: { name: true, price: true },
+        }),
+      ]);
+
+      // Build normalized name → price map (lowercase key)
+      const priceByName = new Map<string, number>();
+      for (const tt of treatmentTypes) {
+        if (tt.price) {
+          priceByName.set(tt.name.toLowerCase().trim(), parseFloat(tt.price.toString()));
+        }
+      }
 
       // Group by stageId
       const byStage = new Map<string, typeof entries>(stages.map((s) => [s.id, []]));
@@ -87,18 +102,39 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return {
-        stages: stages.map((s) => ({
-          ...s,
-          patients: (byStage.get(s.id) ?? []).map((e) => ({
-            pipelineId: e.id,
-            movedAt: e.movedAt,
-            notes: e.notes,
-            interestTreatment: e.interestTreatment,
-            lastAutoMessageSentAt: e.lastAutoMessageSentAt,
-            ...e.patient,
-          })),
-          patientCount: (byStage.get(s.id) ?? []).length,
-        })),
+        stages: stages.map((s) => {
+          const stageEntries = byStage.get(s.id) ?? [];
+
+          // Compute potential monetary value for this stage
+          let stageValue = 0;
+          for (const entry of stageEntries) {
+            if (entry.interestTreatment) {
+              // Patient told us which treatment they're interested in
+              stageValue += priceByName.get(entry.interestTreatment.toLowerCase().trim()) ?? 0;
+            } else {
+              // Fall back to their next upcoming appointment treatment
+              const apptTreatmentName = (entry.patient as { appointments?: Array<{ treatmentType?: { name: string } | null }> })
+                .appointments?.[0]?.treatmentType?.name;
+              if (apptTreatmentName) {
+                stageValue += priceByName.get(apptTreatmentName.toLowerCase().trim()) ?? 0;
+              }
+            }
+          }
+
+          return {
+            ...s,
+            stageValue,
+            patients: stageEntries.map((e) => ({
+              pipelineId: e.id,
+              movedAt: e.movedAt,
+              notes: e.notes,
+              interestTreatment: e.interestTreatment,
+              lastAutoMessageSentAt: e.lastAutoMessageSentAt,
+              ...e.patient,
+            })),
+            patientCount: stageEntries.length,
+          };
+        }),
       };
     },
   });

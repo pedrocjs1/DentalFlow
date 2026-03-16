@@ -10,15 +10,19 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // DentalFlow brand colors
+        // DentalFlow brand — professional medical blue
         primary: {
-          DEFAULT: "#0D9488",
-          50: "#F0FDFA",
-          100: "#CCFBF1",
-          500: "#14B8A6",
-          600: "#0D9488",
-          700: "#0F766E",
-          900: "#134E4A",
+          DEFAULT: "#2563eb",
+          50: "#eff6ff",
+          100: "#dbeafe",
+          200: "#bfdbfe",
+          300: "#93c5fd",
+          400: "#60a5fa",
+          500: "#3b82f6",
+          600: "#2563eb",
+          700: "#1d4ed8",
+          800: "#1e40af",
+          900: "#1e3a8a",
         },
         // shadcn/ui CSS variable tokens
         border: "hsl(var(--border))",

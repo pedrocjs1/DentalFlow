@@ -26,9 +26,13 @@ model Tenant {
   welcomeMessage        String?
   currency              String             @default("ARS")
   settings              Json               @default("{}")
-  whatsappPhoneNumberId String?
-  whatsappBusinessId    String?
-  whatsappAccessToken   String?
+  // WhatsApp Embedded Signup — each clinic connects their own WABA
+  wabaId                String?            // WhatsApp Business Account ID
+  whatsappPhoneNumberId String?            // Meta phone_number_id
+  whatsappDisplayNumber String?            // Human-readable phone number
+  whatsappAccessToken   String?            // Encrypted access token (AES-256-GCM)
+  whatsappConnectedAt   DateTime?
+  whatsappStatus        WhatsAppStatus     @default(DISCONNECTED)
   stripeCustomerId      String?
   mpCustomerId          String?
   subscriptionStatus    SubscriptionStatus @default(TRIALING)
@@ -58,6 +62,7 @@ model Tenant {
   dentistWorkingHours   DentistWorkingHours[]
   googleCalendarTokens  GoogleCalendarToken[]
   dentistTreatments     DentistTreatment[]
+  usageRecords          UsageRecord[]
 }
 
 enum Plan {
@@ -72,6 +77,12 @@ enum SubscriptionStatus {
   PAST_DUE
   CANCELLED
   PAUSED
+}
+
+enum WhatsAppStatus {
+  DISCONNECTED
+  CONNECTED
+  ERROR
 }
 
 model User {
@@ -760,4 +771,46 @@ model GoogleCalendarToken {
   updatedAt    DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// ═══════════════════════════════════════
+// SUPER ADMIN
+// ═══════════════════════════════════════
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ═══════════════════════════════════════
+// USAGE TRACKING
+// ═══════════════════════════════════════
+
+model UsageRecord {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type      UsageType
+  quantity  Int       @default(1)
+  period    String
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId])
+  @@index([tenantId, type, period])
+  @@index([period])
+}
+
+enum UsageType {
+  WHATSAPP_MESSAGE
+  AI_INTERACTION
+  AI_TOKENS
+  CAMPAIGN_SEND
+  EMAIL_SEND
 }

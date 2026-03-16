@@ -1,0 +1,14 @@
+import type { FastifyInstance } from "fastify";
+import { adminAuthRoutes } from "./auth.js";
+import { adminDashboardRoutes } from "./dashboard.js";
+import { adminTenantRoutes } from "./tenants.js";
+import { adminWhatsAppNumberRoutes } from "./whatsapp-numbers.js";
+import { adminUsageRoutes } from "./usage.js";
+
+export async function adminRoutes(app: FastifyInstance): Promise<void> {
+  await app.register(adminAuthRoutes);
+  await app.register(adminDashboardRoutes);
+  await app.register(adminTenantRoutes);
+  await app.register(adminWhatsAppNumberRoutes);
+  await app.register(adminUsageRoutes);
+}
