@@ -31,6 +31,10 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Project docs with secrets
+CLAUDE.md
+WHATSAPP_SETUP.md
+
 # Misc
 .DS_Store
 *.pem
