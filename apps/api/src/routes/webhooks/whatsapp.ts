@@ -33,7 +33,7 @@ export async function whatsappWebhookRoutes(app: FastifyInstance): Promise<void>
 
   // ─── POST: Receive messages & status updates ────────────────────────────────
   app.post("/api/v1/webhooks/whatsapp", {
-    // Need raw body for signature verification
+    config: { rawBody: true },  // opt-in to capture raw body for this route
     handler: async (request, reply) => {
       const body = request.body as Record<string, unknown>;
 
@@ -41,8 +41,8 @@ export async function whatsappWebhookRoutes(app: FastifyInstance): Promise<void>
       const appSecret = process.env.WHATSAPP_APP_SECRET;
       if (appSecret && appSecret !== "placeholder") {
         const signature = (request.headers["x-hub-signature-256"] as string) ?? "";
-        const rawBody = JSON.stringify(body);
-        if (!verifyWebhookSignature(rawBody, signature, appSecret)) {
+        const payload = (request as unknown as { rawBody?: string }).rawBody ?? JSON.stringify(body);
+        if (!verifyWebhookSignature(payload, signature, appSecret)) {
           app.log.warn("WhatsApp webhook signature verification failed");
           return reply.status(401).send({ error: "Invalid signature" });
         }

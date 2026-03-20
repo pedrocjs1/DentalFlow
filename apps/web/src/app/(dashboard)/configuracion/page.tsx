@@ -871,6 +871,7 @@ function WhatsAppConfig() {
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
 
   useEffect(() => {
     apiFetch<WhatsAppConnectionStatus>("/api/v1/whatsapp/status")
@@ -898,7 +899,7 @@ function WhatsAppConfig() {
       const result = await new Promise<{ authResponse?: { code?: string; accessToken?: string } }>((resolve, reject) => {
         window.FB.login(
           (response: { authResponse?: { code?: string; accessToken?: string } }) => {
-            if (response.authResponse?.accessToken || response.authResponse?.code) {
+            if (response.authResponse?.code) {
               resolve(response);
             } else {
               reject(new Error("El flujo fue cancelado o no se obtuvo autorización."));
@@ -906,11 +907,11 @@ function WhatsAppConfig() {
           },
           {
             config_id: configId,
-            response_type: "code token",
+            response_type: "code",
             override_default_response_type: true,
             extras: {
-              feature: "whatsapp_embedded_signup",
-              featureType: "only_waba_sharing",
+              setup: {},
+              featureType: "",
               sessionInfoVersion: "3",
             },
           }
@@ -952,12 +953,10 @@ function WhatsAppConfig() {
   }
 
   async function handleDisconnect() {
-    if (!confirm("¿Estás seguro de que querés desconectar WhatsApp? Se desactivarán el chatbot y las campañas por WhatsApp.")) {
-      return;
-    }
+    setShowDisconnectModal(false);
     setDisconnecting(true);
     try {
-      await apiFetch("/api/v1/whatsapp/disconnect", { method: "DELETE" });
+      await apiFetch("/api/v1/whatsapp/disconnect", { method: "DELETE", body: JSON.stringify({}) });
       setWaStatus((prev) => prev ? { ...prev, status: "DISCONNECTED", displayNumber: null, phoneNumberId: null, wabaId: null, connectedAt: null } : prev);
       showToast({ type: "success", message: "WhatsApp desconectado." });
     } catch {
@@ -970,7 +969,7 @@ function WhatsAppConfig() {
   async function handleSendTest() {
     setSendingTest(true);
     try {
-      await apiFetch("/api/v1/whatsapp/send-test", { method: "POST" });
+      await apiFetch("/api/v1/whatsapp/send-test", { method: "POST", body: JSON.stringify({}) });
       showToast({ type: "success", message: "Mensaje de prueba enviado al teléfono de la clínica." });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Error al enviar mensaje de prueba";
@@ -985,6 +984,41 @@ function WhatsAppConfig() {
   return (
     <div className="bg-white rounded-xl border overflow-hidden mt-5">
       <Toast toast={toast} />
+
+      {/* ─── Disconnect confirmation modal ─── */}
+      {showDisconnectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowDisconnectModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl max-w-sm w-full mx-4 p-6">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Desconectar WhatsApp</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                ¿Estás seguro? Se desactivarán el chatbot y las campañas por WhatsApp.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => setShowDisconnectModal(false)}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleDisconnect}
+                  className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors"
+                >
+                  Desconectar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="px-6 py-4 border-b bg-gray-50 flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-[#25D366] flex items-center justify-center shadow-sm">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" fill="currentColor">
@@ -1040,7 +1074,7 @@ function WhatsAppConfig() {
               <Button size="sm" onClick={handleSendTest} disabled={sendingTest}>
                 {sendingTest ? "Enviando..." : "Enviar mensaje de prueba"}
               </Button>
-              <Button size="sm" variant="outline" onClick={handleDisconnect} disabled={disconnecting} className="text-red-600 border-red-200 hover:bg-red-50">
+              <Button size="sm" variant="outline" onClick={() => setShowDisconnectModal(true)} disabled={disconnecting} className="text-red-600 border-red-200 hover:bg-red-50">
                 {disconnecting ? "Desconectando..." : "Desconectar"}
               </Button>
             </div>

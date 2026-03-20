@@ -35,9 +35,9 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         app.log.info("Using direct access token from FB.login()");
         accessToken = directToken;
       } else if (code?.trim()) {
-        // Exchange code for access token (fallback)
-        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-        const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${encodeURIComponent(code)}&redirect_uri=${encodeURIComponent(appUrl + "/")}`;
+        // Exchange code for access token
+        // FB.login() popup flow does not use redirect_uri, so we must omit it here
+        const tokenUrl = `https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${encodeURIComponent(code)}`;
         app.log.info("Exchanging code for access token");
         const tokenRes = await fetch(tokenUrl);
         const tokenData = (await tokenRes.json()) as { access_token?: string; error?: { message?: string } };
@@ -49,6 +49,28 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         accessToken = tokenData.access_token;
       } else {
         throw new AppError(400, "INVALID_INPUT", "Se requiere accessToken o code de autorización");
+      }
+
+      // Step 1b: Exchange short-lived token for a long-lived token (~60 days)
+      try {
+        const llUrl = `https://graph.facebook.com/v21.0/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(accessToken)}`;
+        const llRes = await fetch(llUrl);
+        const llData = (await llRes.json()) as { access_token?: string; token_type?: string; expires_in?: number; error?: { message?: string } };
+
+        if (llData.access_token) {
+          app.log.info(
+            { expiresIn: llData.expires_in },
+            "Exchanged for long-lived token successfully"
+          );
+          accessToken = llData.access_token;
+        } else {
+          app.log.warn(
+            { error: llData.error },
+            "Long-lived token exchange failed — continuing with short-lived token"
+          );
+        }
+      } catch (err) {
+        app.log.warn({ err }, "Long-lived token exchange request failed — continuing with short-lived token");
       }
 
       // Step 2: Debug the token to get WABA ID and granted scopes
@@ -78,39 +100,30 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         throw new AppError(400, "NO_WABA", "No se encontró una cuenta de WhatsApp Business. Asegurate de completar todo el flujo.");
       }
 
-      // Extract Phone Number ID from whatsapp_business_messaging scope
-      const messagingScope = debugData.data.granular_scopes?.find(
-        (s) => s.scope === "whatsapp_business_messaging"
-      );
-      let phoneNumberId = messagingScope?.target_ids?.[0];
+      // Fetch the real Phone Number ID from the WABA
+      // Note: debug_token granular_scopes target_ids for whatsapp_business_messaging
+      // returns the WABA ID, NOT the phone number ID — so we always query the WABA.
+      const phonesUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name`;
+      const phonesRes = await fetch(phonesUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const phonesData = (await phonesRes.json()) as {
+        data?: Array<{ id: string; display_phone_number: string; verified_name: string }>;
+        error?: { message?: string };
+      };
 
-      // If not in scopes, fetch it from the WABA
-      if (!phoneNumberId) {
-        const phonesUrl = `https://graph.facebook.com/v21.0/${wabaId}/phone_numbers`;
-        const phonesRes = await fetch(phonesUrl, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        const phonesData = (await phonesRes.json()) as {
-          data?: Array<{ id: string; display_phone_number: string; verified_name: string }>;
-        };
-        phoneNumberId = phonesData.data?.[0]?.id;
-      }
-
-      if (!phoneNumberId) {
+      if (!phonesData.data?.length) {
+        app.log.error({ wabaId, error: phonesData.error }, "No phone numbers found on WABA");
         throw new AppError(400, "NO_PHONE", "No se encontró un número de teléfono registrado en la cuenta.");
       }
 
-      // Step 3: Get the display phone number
-      const phoneInfoUrl = `https://graph.facebook.com/v21.0/${phoneNumberId}?fields=display_phone_number,verified_name`;
-      const phoneInfoRes = await fetch(phoneInfoUrl, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      const phoneInfo = (await phoneInfoRes.json()) as {
-        display_phone_number?: string;
-        verified_name?: string;
-      };
+      const phoneNumberId = phonesData.data[0].id;
+      const displayNumber = phonesData.data[0].display_phone_number ?? "Número conectado";
 
-      const displayNumber = phoneInfo.display_phone_number ?? "Número conectado";
+      app.log.info(
+        { wabaId, phoneNumberId, displayNumber },
+        "Fetched phone number from WABA"
+      );
 
       // Step 4: Subscribe our app to the WABA's webhook
       const subscribeUrl = `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`;

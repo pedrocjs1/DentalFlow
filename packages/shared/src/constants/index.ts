@@ -7,7 +7,7 @@ export const BIRTHDAY_DISCOUNT_PERCENT = 15;
 export const BIRTHDAY_DISCOUNT_DAYS_VALID = 30;
 export const CHATBOT_MAX_TOKENS = 300;
 export const CHATBOT_TEMPERATURE = 0.3;
-export const ANTHROPIC_MODEL = "claude-sonnet-4-20250514";
+export const ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 export const WHATSAPP_API_VERSION = "v21.0";
 
 // Plan pricing (USD/month)

@@ -32,7 +32,6 @@ yarn-error.log*
 pnpm-debug.log*
 
 # Project docs with secrets
-CLAUDE.md
 WHATSAPP_SETUP.md
 
 # Misc
@@ -49,5 +48,4 @@ coverage/
 
 # OS
 Thumbs.db
-CLAUDE.md
 WHATSAPP_SETUP.md
