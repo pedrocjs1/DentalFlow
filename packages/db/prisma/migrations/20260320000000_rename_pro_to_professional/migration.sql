@@ -1,0 +1,2 @@
+-- Rename Plan enum value PRO -> PROFESSIONAL
+ALTER TYPE "Plan" RENAME VALUE 'PRO' TO 'PROFESSIONAL';

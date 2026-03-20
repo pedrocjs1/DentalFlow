@@ -17,7 +17,7 @@ interface Tenant {
 
 const PLAN_BADGE: Record<string, string> = {
   STARTER: "bg-gray-700 text-gray-300",
-  PRO: "bg-blue-500/20 text-blue-300",
+  PROFESSIONAL: "bg-blue-500/20 text-blue-300",
   ENTERPRISE: "bg-purple-500/20 text-purple-300",
 };
 
@@ -108,7 +108,7 @@ export default function AdminClinicasPage() {
         >
           <option value="">Todos los planes</option>
           <option value="STARTER">Starter</option>
-          <option value="PRO">Pro</option>
+          <option value="PROFESSIONAL">Professional</option>
           <option value="ENTERPRISE">Enterprise</option>
         </select>
       </div>

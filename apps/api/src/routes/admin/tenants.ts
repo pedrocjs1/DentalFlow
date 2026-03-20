@@ -17,7 +17,7 @@ export async function adminTenantRoutes(app: FastifyInstance): Promise<void> {
 
       const tenants = await prisma.tenant.findMany({
         where: {
-          ...(q.plan ? { plan: q.plan as "STARTER" | "PRO" | "ENTERPRISE" } : {}),
+          ...(q.plan ? { plan: q.plan as "STARTER" | "PROFESSIONAL" | "ENTERPRISE" } : {}),
           ...(q.status ? { subscriptionStatus: q.status as "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED" } : {}),
           ...(q.search ? {
             OR: [
@@ -89,7 +89,7 @@ export async function adminTenantRoutes(app: FastifyInstance): Promise<void> {
       const body = request.body as {
         name: string;
         slug: string;
-        plan?: "STARTER" | "PRO" | "ENTERPRISE";
+        plan?: "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
         adminEmail: string;
         adminName: string;
         adminPassword: string;
@@ -141,7 +141,7 @@ export async function adminTenantRoutes(app: FastifyInstance): Promise<void> {
       const { id } = request.params as { id: string };
       const body = request.body as {
         name?: string;
-        plan?: "STARTER" | "PRO" | "ENTERPRISE";
+        plan?: "STARTER" | "PROFESSIONAL" | "ENTERPRISE";
         subscriptionStatus?: "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED";
         isActive?: boolean;
         trialEndsAt?: string;

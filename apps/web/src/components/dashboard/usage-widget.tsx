@@ -2,7 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, AlertTriangle } from "lucide-react";
+
+interface OverageData {
+  overLimit: boolean;
+  atWarning: boolean;
+  percentUsed: number;
+  extraBlocksUsed: number;
+  extraCostUSD: number;
+  extraBlockPrice: number;
+  extraBlockSize: number;
+}
 
 interface UsageData {
   plan: string;
@@ -16,6 +26,7 @@ interface UsageData {
     aiInteractions: number;
     dentists: number;
   };
+  overage?: OverageData;
 }
 
 function UsageRow({
@@ -64,13 +75,13 @@ function UsageRow({
 
 const PLAN_LABEL: Record<string, string> = {
   STARTER: "Starter",
-  PRO: "Pro",
+  PROFESSIONAL: "Professional",
   ENTERPRISE: "Enterprise",
 };
 
 const PLAN_COLORS: Record<string, string> = {
   STARTER: "bg-gray-100 text-gray-700",
-  PRO: "bg-primary-50 text-primary-700",
+  PROFESSIONAL: "bg-primary-50 text-primary-700",
   ENTERPRISE: "bg-purple-50 text-purple-700",
 };
 
@@ -96,7 +107,7 @@ export function UsageWidget() {
     );
   }
 
-  const { plan, usage, limits } = data;
+  const { plan, usage, limits, overage } = data;
   const hasLimits = limits.whatsappMessages !== -1 || limits.aiInteractions !== -1;
 
   return (
@@ -138,12 +149,35 @@ export function UsageWidget() {
         </div>
       )}
 
-      {plan === "STARTER" && (
+      {overage?.overLimit && (
+        <div className="flex items-start gap-2 text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 border border-red-100">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-semibold">Límite del plan excedido</p>
+            <p className="text-red-500 mt-0.5">
+              {overage.extraBlocksUsed} bloque{overage.extraBlocksUsed !== 1 ? "s" : ""} extra
+              {" "}(${overage.extraCostUSD} USD adicionales este mes)
+            </p>
+          </div>
+        </div>
+      )}
+
+      {overage?.atWarning && !overage.overLimit && (
+        <div className="flex items-start gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 border border-amber-100">
+          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          <p>Estás al {overage.percentUsed}% de tu límite de IA mensual</p>
+        </div>
+      )}
+
+      {(plan === "STARTER" || plan === "PROFESSIONAL") && (
         <p className="text-xs text-gray-400 border-t border-gray-100 pt-3">
           ¿Necesitás más?{" "}
           <a href="/configuracion" className="text-primary-600 hover:underline font-medium">
             Actualizar plan
           </a>
+          <span className="block mt-1 text-gray-400">
+            Bloque extra: $20 USD / 1,000 llamadas IA
+          </span>
         </p>
       )}
     </div>

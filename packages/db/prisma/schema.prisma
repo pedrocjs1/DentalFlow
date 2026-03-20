@@ -67,7 +67,7 @@ model Tenant {
 
 enum Plan {
   STARTER
-  PRO
+  PROFESSIONAL
   ENTERPRISE
 }
 

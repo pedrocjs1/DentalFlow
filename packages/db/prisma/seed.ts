@@ -13,7 +13,7 @@ async function main() {
     create: {
       name: "Clínica Dental Demo",
       slug: "clinica-demo",
-      plan: "PRO",
+      plan: "PROFESSIONAL",
       phone: "+5491100000000",
       email: "demo@dentalflow.app",
       address: "Av. Corrientes 1234, Piso 3",

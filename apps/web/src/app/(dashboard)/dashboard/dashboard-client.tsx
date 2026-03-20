@@ -39,7 +39,7 @@ interface DashboardData {
 
 const PLAN_LABELS: Record<string, string> = {
   STARTER: "Starter",
-  PRO: "Pro",
+  PROFESSIONAL: "Professional",
   ENTERPRISE: "Enterprise",
 };
 

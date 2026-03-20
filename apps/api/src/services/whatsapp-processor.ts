@@ -24,7 +24,7 @@ import {
   type PatientContext,
   type ConversationMessage,
 } from "@dentalflow/ai";
-import { recordUsage } from "./usage-tracker.js";
+import { recordUsage, checkPlanLimit } from "./usage-tracker.js";
 import { decryptToken } from "./encryption.js";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -686,6 +686,23 @@ export async function processIncomingMessage(
     }
 
     try {
+      // Check AI usage limit BEFORE calling Anthropic
+      const limitCheck = await checkPlanLimit(tenant.id, "AI_INTERACTION", log);
+      if (limitCheck.atWarning) {
+        log.warn(
+          { tenantId: tenant.id, percentUsed: limitCheck.percentUsed, usage: limitCheck.usage, limit: limitCheck.limit },
+          `AI usage at ${limitCheck.percentUsed}% — tenant approaching plan limit`
+        );
+      }
+      if (limitCheck.overLimit) {
+        log.warn(
+          { tenantId: tenant.id, usage: limitCheck.usage, limit: limitCheck.limit, extraBlocks: limitCheck.extraBlocksUsed, extraCost: limitCheck.extraCostUSD },
+          "AI usage OVER plan limit — continuing (overage billing applies)"
+        );
+      }
+      // NOTE: We NEVER block the chatbot response — patients must always get a reply.
+      // Overage is tracked and billed separately.
+
       const [clinicCtx, patientCtx, history] = await Promise.all([
         buildClinicContext(tenant.id, tenant.name, tenant.address),
         buildPatientContext(tenant.id, {
@@ -704,8 +721,12 @@ export async function processIncomingMessage(
         messageContent
       );
 
-      // Track AI interaction usage
-      recordUsage(tenant.id, "AI_INTERACTION", 1, { conversationId: conversation.id }).catch(() => {});
+      // Track AI interaction usage AFTER successful call
+      recordUsage(tenant.id, "AI_INTERACTION", 1, {
+        conversationId: conversation.id,
+        overLimit: limitCheck.overLimit,
+        extraBlock: limitCheck.overLimit ? limitCheck.extraBlocksUsed : 0,
+      }).catch(() => {});
 
       // Handle tool calls first
       let responseText = chatbotResult.text;

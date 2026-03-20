@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentalflow/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
-import { getMonthlyUsage } from "../../services/usage-tracker.js";
-import { PLAN_LIMITS } from "@dentalflow/shared";
+import { getMonthlyUsage, checkPlanLimit } from "../../services/usage-tracker.js";
+import { PLAN_LIMITS, AI_EXTRA_BLOCK_PRICE, AI_EXTRA_BLOCK_SIZE } from "@dentalflow/shared";
 
 export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/dashboard/stats", {
@@ -136,7 +136,21 @@ export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
       const plan = tenant?.plan ?? "STARTER";
       const usage = await getMonthlyUsage(user.tenantId);
       const limits = PLAN_LIMITS[plan];
-      return { plan, usage, limits };
+      const aiLimit = await checkPlanLimit(user.tenantId, "AI_INTERACTION");
+      return {
+        plan,
+        usage,
+        limits,
+        overage: {
+          overLimit: aiLimit.overLimit,
+          atWarning: aiLimit.atWarning,
+          percentUsed: aiLimit.percentUsed,
+          extraBlocksUsed: aiLimit.extraBlocksUsed,
+          extraCostUSD: aiLimit.extraCostUSD,
+          extraBlockPrice: AI_EXTRA_BLOCK_PRICE,
+          extraBlockSize: AI_EXTRA_BLOCK_SIZE,
+        },
+      };
     },
   });
 }

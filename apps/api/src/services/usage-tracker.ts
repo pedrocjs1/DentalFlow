@@ -5,7 +5,7 @@
  */
 
 import { prisma } from "@dentalflow/db";
-import { PLAN_LIMITS } from "@dentalflow/shared";
+import { PLAN_LIMITS, USAGE_WARNING_THRESHOLD, USAGE_LIMIT_THRESHOLD, AI_EXTRA_BLOCK_SIZE, AI_EXTRA_BLOCK_PRICE } from "@dentalflow/shared";
 import type { FastifyBaseLogger } from "fastify";
 
 type UsageType = "WHATSAPP_MESSAGE" | "AI_INTERACTION" | "AI_TOKENS" | "CAMPAIGN_SEND" | "EMAIL_SEND";
@@ -75,11 +75,22 @@ export async function getMonthlyUsage(
 
 // ─── Check if tenant can send (soft limit enforcement) ───────────────────────
 
+export interface PlanLimitResult {
+  allowed: boolean;
+  usage: number;
+  limit: number;
+  overLimit: boolean;
+  atWarning: boolean;       // >= 80% usage
+  percentUsed: number;
+  extraBlocksUsed: number;  // how many extra blocks (1000 calls) beyond the limit
+  extraCostUSD: number;     // estimated extra cost
+}
+
 export async function checkPlanLimit(
   tenantId: string,
   type: "WHATSAPP_MESSAGE" | "AI_INTERACTION",
   log?: FastifyBaseLogger
-): Promise<{ allowed: boolean; usage: number; limit: number; overLimit: boolean }> {
+): Promise<PlanLimitResult> {
   const tenant = await prisma.tenant.findUnique({
     where: { id: tenantId },
     select: { plan: true },
@@ -94,27 +105,45 @@ export async function checkPlanLimit(
 
   // -1 = unlimited
   if (limitValue === -1) {
-    return { allowed: true, usage: 0, limit: -1, overLimit: false };
+    return { allowed: true, usage: 0, limit: -1, overLimit: false, atWarning: false, percentUsed: 0, extraBlocksUsed: 0, extraCostUSD: 0 };
   }
 
   const usage = await getMonthlyUsage(tenantId);
   const current = type === "WHATSAPP_MESSAGE" ? usage.whatsappMessages : usage.aiInteractions;
 
+  const percentUsed = Math.round((current / limitValue) * 100);
   const overLimit = current >= limitValue;
+  const atWarning = !overLimit && current >= limitValue * USAGE_WARNING_THRESHOLD;
 
-  if (overLimit && log) {
+  // Calculate extra blocks used beyond plan limit
+  const overageCount = Math.max(0, current - limitValue);
+  const extraBlocksUsed = Math.ceil(overageCount / AI_EXTRA_BLOCK_SIZE);
+  const extraCostUSD = extraBlocksUsed * AI_EXTRA_BLOCK_PRICE;
+
+  if (atWarning && log) {
     log.warn(
-      { tenantId, type, current, limit: limitValue },
-      "Tenant exceeded plan limit — allowing through (overage)"
+      { tenantId, type, current, limit: limitValue, percentUsed },
+      `Tenant at ${percentUsed}% of plan limit — approaching limit`
     );
   }
 
-  // Soft block: allow through but flag it
+  if (overLimit && log) {
+    log.warn(
+      { tenantId, type, current, limit: limitValue, extraBlocksUsed, extraCostUSD },
+      "Tenant exceeded plan limit — allowing through (overage billing)"
+    );
+  }
+
+  // Soft block: always allow through — overage is billed
   return {
-    allowed: true, // Always allow (overage model)
+    allowed: true,
     usage: current,
     limit: limitValue,
     overLimit,
+    atWarning,
+    percentUsed,
+    extraBlocksUsed,
+    extraCostUSD,
   };
 }
 

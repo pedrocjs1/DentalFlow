@@ -24,7 +24,7 @@ interface TenantDetail {
   limits: Record<string, number>;
 }
 
-const PLANS = ["STARTER", "PRO", "ENTERPRISE"];
+const PLANS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
 const STATUSES = ["ACTIVE", "TRIALING", "PAST_DUE", "CANCELLED", "PAUSED"];
 
 export default function AdminTenantDetailPage() {
