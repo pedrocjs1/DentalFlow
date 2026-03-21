@@ -148,6 +148,25 @@ async function main() {
 
   await prisma.workingHours.createMany({ data: workingHoursData, skipDuplicates: true });
 
+  // Create dentist working hours (Mon-Fri 9-18 for both dentists)
+  for (const d of [dentist, dentist2]) {
+    for (const day of [1, 2, 3, 4, 5]) {
+      await prisma.dentistWorkingHours.upsert({
+        where: { dentistId_dayOfWeek: { dentistId: d.id, dayOfWeek: day } },
+        update: {},
+        create: {
+          tenantId: tenant.id,
+          dentistId: d.id,
+          dayOfWeek: day,
+          startTime: "09:00",
+          endTime: "18:00",
+          isActive: true,
+        },
+      });
+    }
+  }
+  console.log("Dentist working hours seeded");
+
   // Remove old pipeline entries and stages that conflict (safe to do in dev)
   const oldStageIds = (await prisma.pipelineStage.findMany({
     where: { tenantId: tenant.id, id: { notIn: ["stage-demo-1","stage-demo-2","stage-demo-3","stage-demo-4","stage-demo-5","stage-demo-6","stage-demo-7","stage-demo-8"] } },

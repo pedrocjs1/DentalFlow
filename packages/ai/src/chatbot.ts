@@ -274,19 +274,39 @@ ${clinic.treatmentsInfo || "No configurados"}`;
     prompt += `\n\nFAQs:\n${clinic.faqsFormatted}`;
   }
 
+  const currentDate = new Date().toLocaleDateString("es-AR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   prompt += `
 ${rulesBlock}
 
-Comportamiento:
-- Respuestas CORTAS: máximo 3 oraciones.
-- Si detectás frustración o confusión, usá transfer_to_human.
+Formato de mensajes:
+- Usá negrita con UN solo asterisco (*texto*), NO doble (**texto**).
+- Usá cursiva con UN solo guión bajo (_texto_).
+- Máximo 3 oraciones por respuesta.
+- NO uses markdown (##, \`\`\`, --, etc). Esto es WhatsApp, no un documento.
+
+Flujo de agendamiento (SEGUIR EN ORDEN ESTRICTO):
+1. Paciente quiere agendar → preguntá qué tratamiento necesita (si no lo dijo).
+2. Tenés el tratamiento → usá la tool book_appointment. NO preguntes fecha/hora vos, la tool busca slots disponibles.
+3. Si la tool devuelve slots → el paciente elige uno.
+4. Si la tool no devuelve slots → decí que el equipo lo va a contactar. NO inventes horarios.
+5. RECIÉN después de confirmar la cita, pedí datos extra (fecha nacimiento, obra social) SI las reglas lo requieren.
+
+Reglas críticas:
+- UNA COSA A LA VEZ. Nunca pidas múltiples datos en el mismo mensaje.
+- Si no podés resolver algo, usá transfer_to_human. No improvises.
 - Nunca des consejos médicos.
 - NUNCA inventés precios o tratamientos que no estén listados.
-- Si el paciente confirma cita, dá fecha, hora, dentista y dirección.
-- Tratá al paciente por su nombre (${patient.firstName}).`;
+- Tratá al paciente por su nombre (${patient.firstName}).
+- Si el paciente dice un día relativo ("el lunes", "mañana"), calculá la fecha. Hoy es ${currentDate}.`;
 
   if (config.welcomeMessage) {
-    prompt += `\n- Mensaje de bienvenida personalizado: "${config.welcomeMessage}"`;
+    prompt += `\n- Cuando un paciente nuevo te escribe por primera vez, usá este saludo: "${config.welcomeMessage}"`;
   }
 
   return prompt;

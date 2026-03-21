@@ -215,6 +215,29 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 
 ## CHANGELOG
 
+### 2026-03-21 — System prompt mejorado + sanitize WhatsApp + fix slots
+
+**System prompt reescrito (chatbot.ts buildSystemPrompt):**
+- Formato WhatsApp explícito: *negrita* con 1 asterisco, _cursiva_ con 1 guión bajo, NO markdown
+- Flujo de agendamiento estricto en 5 pasos: tratamiento → book_appointment tool → slots → elegir → datos extra
+- Regla "UNA COSA A LA VEZ" — nunca pedir múltiples datos en el mismo mensaje
+- Fecha actual inyectada en el prompt para que el bot calcule "mañana", "el lunes", etc.
+
+**sanitizeForWhatsApp() (whatsapp-processor.ts):**
+- Convierte **bold** → *bold*, __italic__ → _italic_
+- Elimina ### headers, ``` bloques de código, backticks inline
+- Reemplaza "- item" → "• item"
+- Aplicada en TODOS los puntos de envío: bot response, audio reply, transfer messages, human messages
+
+**Fix tool handler vs Haiku text:**
+- Cuando hay tool calls con respuestas, se usa SOLO el texto del tool handler
+- El texto de Haiku se descarta (solía contradecir: "voy a buscar horarios" + tool: "no hay slots")
+
+**Fix findAvailableSlots — slots vacíos:**
+- DentistWorkingHours estaba vacía → siempre devolvía 0 slots
+- Fallback implementado: si un dentista no tiene DentistWorkingHours propias, usa WorkingHours del tenant
+- Seed actualizado: DentistWorkingHours para ambos dentistas L-V 9:00-18:00 (10 rows)
+
 ### 2026-03-20 — Bot Config 3 capas + Debounce + Audio handling
 
 **Configuración del bot por clínica (BotConfig):**
@@ -290,6 +313,20 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## ERRORES CONOCIDOS Y SOLUCIONES (para no repetir)
+
+**Error: "No encontré horarios disponibles" para TODOS los tratamientos**
+- Causa: La tabla DentistWorkingHours estaba vacía. findAvailableSlots solo buscaba horarios en DentistWorkingHours, no en WorkingHours del tenant.
+- Solución: (1) Fallback en findAvailableSlots: si dentista no tiene DentistWorkingHours propias, usar WorkingHours del tenant. (2) Seed actualizado para crear DentistWorkingHours.
+- Regla: Siempre verificar que los dentistas tengan horarios configurados. Si no, los WorkingHours del tenant se usan como fallback.
+
+**Error: Bot envía **doble asterisco** que WhatsApp no renderiza como negrita**
+- Causa: Haiku/Sonnet generan markdown con ** para bold. WhatsApp usa * simple.
+- Solución: sanitizeForWhatsApp() convierte **texto** → *texto*, __texto__ → _texto_, elimina ###, ```, y convierte "- " → "• "
+- Archivo: apps/api/src/services/whatsapp-processor.ts
+
+**Error: Bot envía 2 textos contradictorios (ej: "voy a buscar horarios" + "no hay horarios")**
+- Causa: handleToolCalls producía el texto definitivo, pero se concatenaba con el texto de Haiku que decía otra cosa
+- Solución: Cuando hay tool calls con respuestas, usar SOLO el texto del tool handler, descartar el texto de Haiku
 
 **Error: "Body cannot be empty when content-type is set to 'application/json'" (Fastify 400)**
 - Causa: El frontend envía POST/DELETE con Content-Type: application/json pero sin body

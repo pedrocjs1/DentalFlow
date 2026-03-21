@@ -76,6 +76,31 @@ const AUDIO_REPLIES: Record<string, string> = {
   en: "Hi! At the moment I can only read text messages. Could you type your question? 😊",
 };
 
+// ─── Sanitize text for WhatsApp formatting ───────────────────────────────────
+// WhatsApp uses single asterisks for bold, single underscores for italic.
+// Markdown syntax (**, __, ###, ```, - lists) must be converted or stripped.
+
+function sanitizeForWhatsApp(text: string): string {
+  return text
+    // Replace **bold** with *bold* (WhatsApp bold)
+    .replace(/\*\*(.+?)\*\*/g, "*$1*")
+    // Replace __italic__ with _italic_ (WhatsApp italic)
+    .replace(/__(.+?)__/g, "_$1_")
+    // Remove ### headers (and ## and #)
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove ``` code blocks (opening and closing)
+    .replace(/```[\s\S]*?```/g, (match) => {
+      // Keep the content inside, strip the backticks
+      return match.replace(/```\w*\n?/g, "").trim();
+    })
+    // Remove inline backticks
+    .replace(/`([^`]+)`/g, "$1")
+    // Replace "- item" lists with "• item"
+    .replace(/^- /gm, "• ")
+    // Clean up excessive blank lines
+    .replace(/\n{3,}/g, "\n\n");
+}
+
 // ─── Resolve tenant from WhatsApp phone_number_id ─────────────────────────────
 // Each clinic connects their own WABA via Embedded Signup.
 // Lookup is by whatsappPhoneNumberId on the Tenant model.
@@ -547,6 +572,7 @@ async function findAvailableSlots(
     }
   }
 
+  // Fetch dentists with their own working hours
   const dentists = await prisma.dentist.findMany({
     where: {
       tenantId,
@@ -560,6 +586,12 @@ async function findAvailableSlots(
 
   if (dentists.length === 0) return [];
 
+  // Fallback: if dentists don't have their own working hours,
+  // use the clinic-wide WorkingHours from the tenant
+  const tenantWorkingHours = await prisma.workingHours.findMany({
+    where: { tenantId, isActive: true },
+  });
+
   const slots: AvailableSlot[] = [];
   const now = new Date();
 
@@ -572,7 +604,9 @@ async function findAvailableSlots(
     for (const dentist of dentists) {
       if (slots.length >= 3) break;
 
-      const wh = dentist.workingHours.find((h) => h.dayOfWeek === dow);
+      // Use dentist's own hours if available, otherwise fall back to clinic hours
+      const wh = dentist.workingHours.find((h) => h.dayOfWeek === dow)
+        ?? tenantWorkingHours.find((h) => h.dayOfWeek === dow);
       if (!wh) continue;
 
       const [startH, startM] = wh.startTime.split(":").map(Number);
@@ -740,7 +774,7 @@ export async function processIncomingMessage(
     log.info({ conversationId: conversation.id, type: msg.type }, "Audio message received — sending text-only notice");
 
     if (conversation.aiEnabled && conversation.status !== "HUMAN_NEEDED") {
-      const audioReply = AUDIO_REPLIES[tenant.botConfig.botLanguage] ?? AUDIO_REPLIES.es;
+      const audioReply = sanitizeForWhatsApp(AUDIO_REPLIES[tenant.botConfig.botLanguage] ?? AUDIO_REPLIES.es);
       const waAudioReplyId = await sendWhatsAppTextMessage({
         phoneNumberId: tenant.resolvedPhoneNumberId,
         accessToken: tenant.resolvedAccessToken,
@@ -808,7 +842,7 @@ export async function processIncomingMessage(
         },
       };
       const intentKey = isFrustration ? "FRUSTRATION" : "HUMAN";
-      const transferMsg = transferMsgs[intentKey][tenant.botConfig.botLanguage] ?? transferMsgs[intentKey].es;
+      const transferMsg = sanitizeForWhatsApp(transferMsgs[intentKey][tenant.botConfig.botLanguage] ?? transferMsgs[intentKey].es);
 
       const waTransferId = await sendWhatsAppTextMessage({
         phoneNumberId: tenant.resolvedPhoneNumberId,
@@ -997,9 +1031,9 @@ async function processDebouncedMessages(
         log
       );
       if (toolResponses.length > 0) {
-        responseText = responseText
-          ? `${responseText}\n\n${toolResponses.join("\n\n")}`
-          : toolResponses.join("\n\n");
+        // Tool handlers produce the definitive response — don't mix with Haiku's text
+        // which often conflicts (e.g., Haiku says "voy a agendar" while tool says "no hay slots")
+        responseText = toolResponses.join("\n\n");
       }
     }
 
@@ -1007,6 +1041,9 @@ async function processDebouncedMessages(
       log.warn({ conversationId }, "Chatbot returned empty response");
       return;
     }
+
+    // Sanitize for WhatsApp formatting
+    responseText = sanitizeForWhatsApp(responseText);
 
     // Send the response via WhatsApp
     const waMessageId = await sendWhatsAppTextMessage({
@@ -1195,7 +1232,7 @@ export async function sendHumanMessageViaWhatsApp(
       phoneNumberId: whatsappPhoneNumberId,
       accessToken: plainToken,
       to: conversation.patient.phone,
-      message: content,
+      message: sanitizeForWhatsApp(content),
     });
 
     // Track usage
