@@ -20,10 +20,13 @@ import {
 } from "@dentalflow/messaging";
 import {
   generateChatbotResponse,
+  routeIntent,
+  type BotConfig,
   type ClinicContext,
   type PatientContext,
   type ConversationMessage,
 } from "@dentalflow/ai";
+import { SONNET_USAGE_MULTIPLIER } from "@dentalflow/shared";
 import { recordUsage, checkPlanLimit } from "./usage-tracker.js";
 import { decryptToken } from "./encryption.js";
 import type { FastifyBaseLogger } from "fastify";
@@ -37,7 +40,41 @@ interface ResolvedTenant {
   phone: string | null;
   resolvedPhoneNumberId: string;
   resolvedAccessToken: string;
+  botConfig: BotConfig;
+  messageDebounceSeconds: number;
 }
+
+// ─── Debounce state (in-memory, per conversation) ─────────────────────────────
+// When a patient sends multiple messages quickly, we accumulate them and
+// process once the typing pause exceeds the debounce window.
+
+const debounceTimers = new Map<string, NodeJS.Timeout>();
+const pendingMessages = new Map<string, string[]>();
+
+// Processing lock: prevents a second AI call while the first batch is still being processed.
+// If new messages arrive during processing, they accumulate in pendingMessages and get
+// processed automatically when the current batch finishes.
+const processingLock = new Map<string, boolean>();
+
+// Context needed to process the debounced batch — stored when first message arrives
+interface DebouncedContext {
+  tenant: ResolvedTenant;
+  conversationId: string;
+  patientId: string;
+  patientFirstName: string;
+  patientLastName: string;
+  pipelineEntry: { stage: { name: string }; interestTreatment?: string | null } | null;
+  recipientPhone: string; // msg.from
+}
+const pendingContexts = new Map<string, DebouncedContext>();
+
+// ─── Audio response messages (0 tokens) ───────────────────────────────────────
+
+const AUDIO_REPLIES: Record<string, string> = {
+  es: "¡Hola! Por el momento solo puedo leer mensajes de texto. ¿Podrías escribirme tu consulta? 😊",
+  pt: "Olá! No momento só consigo ler mensagens de texto. Poderia me escrever sua consulta? 😊",
+  en: "Hi! At the moment I can only read text messages. Could you type your question? 😊",
+};
 
 // ─── Resolve tenant from WhatsApp phone_number_id ─────────────────────────────
 // Each clinic connects their own WABA via Embedded Signup.
@@ -57,6 +94,16 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
       phone: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
+      welcomeMessage: true,
+      botTone: true,
+      botLanguage: true,
+      askBirthdate: true,
+      askInsurance: true,
+      offerDiscounts: true,
+      maxDiscountPercent: true,
+      proactiveFollowUp: true,
+      leadRecontactHours: true,
+      messageDebounceSeconds: true,
     },
   });
 
@@ -80,6 +127,18 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
     phone: tenant.phone,
     resolvedPhoneNumberId: tenant.whatsappPhoneNumberId,
     resolvedAccessToken: accessToken,
+    botConfig: {
+      botTone: tenant.botTone as BotConfig["botTone"],
+      botLanguage: tenant.botLanguage as BotConfig["botLanguage"],
+      welcomeMessage: tenant.welcomeMessage,
+      askBirthdate: tenant.askBirthdate,
+      askInsurance: tenant.askInsurance,
+      offerDiscounts: tenant.offerDiscounts,
+      maxDiscountPercent: tenant.maxDiscountPercent,
+      proactiveFollowUp: tenant.proactiveFollowUp,
+      leadRecontactHours: tenant.leadRecontactHours,
+    },
+    messageDebounceSeconds: tenant.messageDebounceSeconds,
   };
 }
 
@@ -675,7 +734,41 @@ export async function processIncomingMessage(
     "Inbound message saved"
   );
 
-  // 6. If AI is enabled → run chatbot
+  // 6. Handle audio messages — reply with a fixed text (0 tokens, 0 cost)
+  // WhatsApp sends voice notes as type "audio"
+  if (msg.type === "audio") {
+    log.info({ conversationId: conversation.id, type: msg.type }, "Audio message received — sending text-only notice");
+
+    if (conversation.aiEnabled && conversation.status !== "HUMAN_NEEDED") {
+      const audioReply = AUDIO_REPLIES[tenant.botConfig.botLanguage] ?? AUDIO_REPLIES.es;
+      const waAudioReplyId = await sendWhatsAppTextMessage({
+        phoneNumberId: tenant.resolvedPhoneNumberId,
+        accessToken: tenant.resolvedAccessToken,
+        to: msg.from,
+        message: audioReply,
+      });
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "OUTBOUND",
+          type: "TEXT",
+          content: audioReply,
+          whatsappMessageId: waAudioReplyId,
+          metadata: { sentBy: "bot", audioNotice: true },
+          sentAt: new Date(),
+        },
+      });
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), lastMessagePreview: audioReply.slice(0, 100) },
+      });
+      // Track WhatsApp message but NOT AI interaction (no tokens used)
+      recordUsage(tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId: conversation.id }).catch(() => {});
+    }
+    return; // Do NOT process audio through chatbot
+  }
+
+  // 7. If AI is enabled → run chatbot (with debounce)
   if (conversation.aiEnabled && conversation.status !== "HUMAN_NEEDED") {
     // Ensure conversation is in AI_HANDLING status
     if (conversation.status !== "AI_HANDLING") {
@@ -685,118 +778,110 @@ export async function processIncomingMessage(
       });
     }
 
-    try {
-      // Check AI usage limit BEFORE calling Anthropic
-      const limitCheck = await checkPlanLimit(tenant.id, "AI_INTERACTION", log);
-      if (limitCheck.atWarning) {
-        log.warn(
-          { tenantId: tenant.id, percentUsed: limitCheck.percentUsed, usage: limitCheck.usage, limit: limitCheck.limit },
-          `AI usage at ${limitCheck.percentUsed}% — tenant approaching plan limit`
-        );
-      }
-      if (limitCheck.overLimit) {
-        log.warn(
-          { tenantId: tenant.id, usage: limitCheck.usage, limit: limitCheck.limit, extraBlocks: limitCheck.extraBlocksUsed, extraCost: limitCheck.extraCostUSD },
-          "AI usage OVER plan limit — continuing (overage billing applies)"
-        );
-      }
-      // NOTE: We NEVER block the chatbot response — patients must always get a reply.
-      // Overage is tracked and billed separately.
+    // ─── Layer 1: Intent Router (0 tokens) — check for immediate actions ────
+    const routerResult = routeIntent(messageContent, tenant.botConfig.botLanguage);
+    log.info({ intent: routerResult.intent, confidence: routerResult.confidence }, "Intent router result");
 
-      const [clinicCtx, patientCtx, history] = await Promise.all([
-        buildClinicContext(tenant.id, tenant.name, tenant.address),
-        buildPatientContext(tenant.id, {
-          id: patient.id,
-          firstName: patient.firstName,
-          lastName: patient.lastName,
-          pipelineEntry: patient.pipelineEntry,
-        }),
-        getConversationHistory(conversation.id),
-      ]);
+    // FRUSTRATION and HUMAN intents bypass debounce — respond immediately
+    if (routerResult.intent === "FRUSTRATION" || (routerResult.intent === "HUMAN" && routerResult.confidence === "high")) {
+      // Clear any pending debounce for this conversation
+      clearDebounce(conversation.id);
 
-      const chatbotResult = await generateChatbotResponse(
-        clinicCtx,
-        patientCtx,
-        history,
-        messageContent
-      );
+      const isFrustration = routerResult.intent === "FRUSTRATION";
+      log.info({ patientId: patient.id }, `${isFrustration ? "Frustration" : "Human request"} detected — transferring`);
 
-      // Track AI interaction usage AFTER successful call
-      recordUsage(tenant.id, "AI_INTERACTION", 1, {
-        conversationId: conversation.id,
-        overLimit: limitCheck.overLimit,
-        extraBlock: limitCheck.overLimit ? limitCheck.extraBlocksUsed : 0,
-      }).catch(() => {});
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { status: "HUMAN_NEEDED", aiEnabled: false },
+      });
 
-      // Handle tool calls first
-      let responseText = chatbotResult.text;
-      if (chatbotResult.toolCalls.length > 0) {
-        const toolResponses = await handleToolCalls(
-          chatbotResult.toolCalls,
-          tenant.id,
-          patient.id,
-          conversation.id,
-          log
-        );
-        // If chatbot gave text + tool calls, append tool responses
-        // If chatbot only gave tool calls, use tool responses as the text
-        if (toolResponses.length > 0) {
-          responseText = responseText
-            ? `${responseText}\n\n${toolResponses.join("\n\n")}`
-            : toolResponses.join("\n\n");
-        }
-      }
+      const transferMsgs: Record<string, Record<string, string>> = {
+        FRUSTRATION: {
+          es: "Entiendo tu frustración. Dejame comunicarte con nuestro equipo para ayudarte mejor. 😊",
+          pt: "Entendo sua frustração. Vou conectá-lo com nossa equipe para ajudá-lo melhor. 😊",
+          en: "I understand your frustration. Let me connect you with our team to help you better. 😊",
+        },
+        HUMAN: {
+          es: "¡Claro! Dejame comunicarte con nuestro equipo. Te van a responder a la brevedad. 😊",
+          pt: "Claro! Vou conectá-lo com nossa equipe. Eles responderão em breve. 😊",
+          en: "Sure! Let me connect you with our team. They'll get back to you shortly. 😊",
+        },
+      };
+      const intentKey = isFrustration ? "FRUSTRATION" : "HUMAN";
+      const transferMsg = transferMsgs[intentKey][tenant.botConfig.botLanguage] ?? transferMsgs[intentKey].es;
 
-      if (!responseText) {
-        log.warn({ conversationId: conversation.id }, "Chatbot returned empty response");
-        return;
-      }
-
-      // Send the response via WhatsApp
-      const waMessageId = await sendWhatsAppTextMessage({
+      const waTransferId = await sendWhatsAppTextMessage({
         phoneNumberId: tenant.resolvedPhoneNumberId,
         accessToken: tenant.resolvedAccessToken,
         to: msg.from,
-        message: responseText,
+        message: transferMsg,
       });
-
-      // Track outbound WhatsApp message usage
-      recordUsage(tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId: conversation.id }).catch(() => {});
-
-      // Save outbound message
       await prisma.message.create({
         data: {
           conversationId: conversation.id,
           direction: "OUTBOUND",
           type: "TEXT",
-          content: responseText,
-          whatsappMessageId: waMessageId,
-          metadata: { sentBy: "bot" },
+          content: transferMsg,
+          whatsappMessageId: waTransferId,
+          metadata: { sentBy: "bot", intent: intentKey },
           sentAt: new Date(),
         },
       });
-
-      // Update conversation preview
       await prisma.conversation.update({
         where: { id: conversation.id },
-        data: {
-          lastMessageAt: new Date(),
-          lastMessagePreview: responseText.slice(0, 100),
-        },
+        data: { lastMessageAt: new Date(), lastMessagePreview: transferMsg.slice(0, 100) },
       });
-
-      log.info(
-        { conversationId: conversation.id, waMessageId },
-        "Bot response sent"
-      );
-    } catch (err) {
-      log.error({ err, conversationId: conversation.id }, "Chatbot error — marking as HUMAN_NEEDED");
-      // On chatbot error, mark conversation as needing human attention
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { status: "HUMAN_NEEDED" },
-      });
+      return;
     }
+
+    // ─── Debounce: accumulate messages, process after pause ─────────────────
+    const convId = conversation.id;
+    const debounceMs = tenant.messageDebounceSeconds * 1000;
+
+    // Accumulate the message text
+    if (!pendingMessages.has(convId)) {
+      pendingMessages.set(convId, []);
+    }
+    pendingMessages.get(convId)!.push(messageContent);
+
+    // Store/update context (always use latest patient data)
+    pendingContexts.set(convId, {
+      tenant,
+      conversationId: convId,
+      patientId: patient.id,
+      patientFirstName: patient.firstName,
+      patientLastName: patient.lastName,
+      pipelineEntry: patient.pipelineEntry ?? null,
+      recipientPhone: msg.from,
+    });
+
+    // If a batch is currently being processed by the AI, just accumulate — no timer needed.
+    // The processing function will pick up these messages when it finishes.
+    if (processingLock.get(convId)) {
+      log.info(
+        { conversationId: convId, pendingCount: pendingMessages.get(convId)!.length },
+        "Message queued — AI processing in progress, will be included in next batch"
+      );
+      return;
+    }
+
+    // Clear existing timer and set a new one
+    if (debounceTimers.has(convId)) {
+      clearTimeout(debounceTimers.get(convId)!);
+    }
+
+    log.info(
+      { conversationId: convId, pendingCount: pendingMessages.get(convId)!.length, debounceMs },
+      "Message debounced — waiting for more"
+    );
+
+    const timer = setTimeout(() => {
+      processDebouncedMessages(convId, log).catch((err) => {
+        log.error({ err, conversationId: convId }, "Error processing debounced messages");
+      });
+    }, debounceMs);
+
+    debounceTimers.set(convId, timer);
   } else {
     // AI disabled or HUMAN_NEEDED — make sure status reflects it
     if (conversation.status !== "HUMAN_NEEDED") {
@@ -806,6 +891,191 @@ export async function processIncomingMessage(
       });
     }
     log.info({ conversationId: conversation.id }, "AI disabled — waiting for human response");
+  }
+}
+
+// ─── Clear debounce state for a conversation ─────────────────────────────────
+
+function clearDebounce(conversationId: string): void {
+  if (debounceTimers.has(conversationId)) {
+    clearTimeout(debounceTimers.get(conversationId)!);
+    debounceTimers.delete(conversationId);
+  }
+  pendingMessages.delete(conversationId);
+  pendingContexts.delete(conversationId);
+  processingLock.delete(conversationId);
+}
+
+// ─── Process accumulated debounced messages ──────────────────────────────────
+
+async function processDebouncedMessages(
+  conversationId: string,
+  log: FastifyBaseLogger
+): Promise<void> {
+  // Drain pending messages and acquire processing lock
+  const messages = pendingMessages.get(conversationId);
+  const ctx = pendingContexts.get(conversationId);
+
+  // Clean up debounce state but KEEP context (may be needed for follow-up batch)
+  debounceTimers.delete(conversationId);
+  pendingMessages.delete(conversationId);
+  // Don't delete pendingContexts yet — new messages arriving during processing will re-set it
+
+  if (!messages || messages.length === 0 || !ctx) {
+    log.warn({ conversationId }, "Debounce fired but no pending messages — skipping");
+    processingLock.delete(conversationId);
+    return;
+  }
+
+  // Acquire processing lock — new messages arriving will queue instead of starting a new timer
+  processingLock.set(conversationId, true);
+
+  // Concatenate all accumulated messages
+  const combinedMessage = messages.join("\n");
+  log.info(
+    { conversationId, messageCount: messages.length, combinedLength: combinedMessage.length },
+    "Processing debounced messages as single input"
+  );
+
+  try {
+    // ─── Layer 2/3: AI (Haiku → Sonnet escalation) ───────────────────────
+    const limitCheck = await checkPlanLimit(ctx.tenant.id, "AI_INTERACTION", log);
+    if (limitCheck.atWarning) {
+      log.warn(
+        { tenantId: ctx.tenant.id, percentUsed: limitCheck.percentUsed },
+        `AI usage at ${limitCheck.percentUsed}% — approaching plan limit`
+      );
+    }
+    if (limitCheck.overLimit) {
+      log.warn(
+        { tenantId: ctx.tenant.id, usage: limitCheck.usage, limit: limitCheck.limit },
+        "AI usage OVER plan limit — continuing (overage billing)"
+      );
+    }
+
+    const [clinicCtx, patientCtx, history] = await Promise.all([
+      buildClinicContext(ctx.tenant.id, ctx.tenant.name, ctx.tenant.address),
+      buildPatientContext(ctx.tenant.id, {
+        id: ctx.patientId,
+        firstName: ctx.patientFirstName,
+        lastName: ctx.patientLastName,
+        pipelineEntry: ctx.pipelineEntry,
+      }),
+      getConversationHistory(conversationId),
+    ]);
+
+    const chatbotResult = await generateChatbotResponse(
+      clinicCtx,
+      patientCtx,
+      history,
+      combinedMessage,
+      ctx.tenant.botConfig
+    );
+
+    // Track AI interaction usage
+    const usageCount = chatbotResult.escalatedToSonnet ? SONNET_USAGE_MULTIPLIER : 1;
+    recordUsage(ctx.tenant.id, "AI_INTERACTION", usageCount, {
+      conversationId,
+      overLimit: limitCheck.overLimit,
+      extraBlock: limitCheck.overLimit ? limitCheck.extraBlocksUsed : 0,
+      escalatedToSonnet: chatbotResult.escalatedToSonnet ?? false,
+      debouncedMessages: messages.length,
+    }).catch(() => {});
+
+    if (chatbotResult.escalatedToSonnet) {
+      log.info({ conversationId }, "Response escalated to Sonnet (3x usage)");
+    }
+
+    // Handle tool calls
+    let responseText = chatbotResult.text;
+    if (chatbotResult.toolCalls.length > 0) {
+      const toolResponses = await handleToolCalls(
+        chatbotResult.toolCalls,
+        ctx.tenant.id,
+        ctx.patientId,
+        conversationId,
+        log
+      );
+      if (toolResponses.length > 0) {
+        responseText = responseText
+          ? `${responseText}\n\n${toolResponses.join("\n\n")}`
+          : toolResponses.join("\n\n");
+      }
+    }
+
+    if (!responseText) {
+      log.warn({ conversationId }, "Chatbot returned empty response");
+      return;
+    }
+
+    // Send the response via WhatsApp
+    const waMessageId = await sendWhatsAppTextMessage({
+      phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
+      accessToken: ctx.tenant.resolvedAccessToken,
+      to: ctx.recipientPhone,
+      message: responseText,
+    });
+
+    // Track outbound WhatsApp usage
+    recordUsage(ctx.tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId }).catch(() => {});
+
+    // Save outbound message
+    await prisma.message.create({
+      data: {
+        conversationId,
+        direction: "OUTBOUND",
+        type: "TEXT",
+        content: responseText,
+        whatsappMessageId: waMessageId,
+        metadata: { sentBy: "bot", debouncedMessages: messages.length },
+        sentAt: new Date(),
+      },
+    });
+
+    // Update conversation preview
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        lastMessageAt: new Date(),
+        lastMessagePreview: responseText.slice(0, 100),
+      },
+    });
+
+    log.info({ conversationId, waMessageId, debouncedCount: messages.length }, "Bot response sent (debounced)");
+  } catch (err) {
+    log.error({ err, conversationId }, "Chatbot error — marking as HUMAN_NEEDED");
+    await prisma.conversation.update({
+      where: { id: conversationId },
+      data: { status: "HUMAN_NEEDED" },
+    });
+  } finally {
+    // Release processing lock
+    processingLock.delete(conversationId);
+
+    // Check if new messages arrived during processing — if so, start a short
+    // debounce to catch any trailing messages, then process the new batch
+    const followUpMessages = pendingMessages.get(conversationId);
+    if (followUpMessages && followUpMessages.length > 0) {
+      log.info(
+        { conversationId, queuedCount: followUpMessages.length },
+        "New messages arrived during AI processing — scheduling follow-up batch"
+      );
+
+      // Short debounce (2s) for trailing messages, then process
+      const followUpDebounceMs = Math.min((ctx.tenant.messageDebounceSeconds * 1000), 2000);
+      if (debounceTimers.has(conversationId)) {
+        clearTimeout(debounceTimers.get(conversationId)!);
+      }
+      const timer = setTimeout(() => {
+        processDebouncedMessages(conversationId, log).catch((err) => {
+          log.error({ err, conversationId }, "Error processing follow-up debounced messages");
+        });
+      }, followUpDebounceMs);
+      debounceTimers.set(conversationId, timer);
+    } else {
+      // No follow-up messages — clean up context
+      pendingContexts.delete(conversationId);
+    }
   }
 }
 

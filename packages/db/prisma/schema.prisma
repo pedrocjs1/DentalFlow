@@ -26,6 +26,19 @@ model Tenant {
   welcomeMessage        String?
   currency              String             @default("ARS")
   settings              Json               @default("{}")
+  // Bot configuration per clinic
+  botTone               String             @default("friendly") // "formal" | "friendly" | "casual"
+  botLanguage           String             @default("es")       // "es" | "pt" | "en"
+  askBirthdate          Boolean            @default(true)
+  askInsurance          Boolean            @default(true)
+  offerDiscounts        Boolean            @default(false)
+  maxDiscountPercent    Int                @default(10)          // 5-25
+  proactiveFollowUp     Boolean            @default(true)
+  leadRecontactHours    Int                @default(4)           // 0 | 2 | 4 | 12 | 24
+  campaignBirthday      Boolean            @default(true)
+  campaignPeriodicReminder Boolean         @default(true)
+  campaignReactivation  Boolean            @default(true)
+  messageDebounceSeconds Int               @default(5)           // 3-15
   // WhatsApp Embedded Signup — each clinic connects their own WABA
   wabaId                String?            // WhatsApp Business Account ID
   whatsappPhoneNumberId String?            // Meta phone_number_id

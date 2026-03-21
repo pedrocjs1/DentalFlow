@@ -1307,10 +1307,501 @@ function TabEquipo() {
   );
 }
 
+// ─── Tab: Chatbot IA ──────────────────────────────────────────────────────────
+
+interface BotConfigData {
+  welcomeMessage: string | null;
+  botTone: string;
+  botLanguage: string;
+  askBirthdate: boolean;
+  askInsurance: boolean;
+  offerDiscounts: boolean;
+  maxDiscountPercent: number;
+  proactiveFollowUp: boolean;
+  leadRecontactHours: number;
+  campaignBirthday: boolean;
+  campaignPeriodicReminder: boolean;
+  campaignReactivation: boolean;
+  messageDebounceSeconds: number;
+}
+
+const TONE_LABELS: Record<string, { label: string; preview: string }> = {
+  formal: {
+    label: "Formal",
+    preview: "Estimado/a paciente, le confirmamos su turno para el día...",
+  },
+  friendly: {
+    label: "Amigable",
+    preview: "¡Hola! 😊 Te confirmo tu turno para el...",
+  },
+  casual: {
+    label: "Muy casual",
+    preview: "¡Hola! 🎉 Ya quedó agendado tu turno, ¡nos vemos pronto! 💪🦷",
+  },
+};
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  es: "Español",
+  pt: "Portugués",
+  en: "Inglés",
+};
+
+const RECONTACT_OPTIONS = [
+  { value: 0, label: "No recontactar" },
+  { value: 2, label: "2 horas" },
+  { value: 4, label: "4 horas" },
+  { value: 12, label: "12 horas" },
+  { value: 24, label: "24 horas" },
+];
+
+const DEBOUNCE_OPTIONS = [
+  { value: 3, label: "3 segundos (rápido)" },
+  { value: 5, label: "5 segundos (recomendado)" },
+  { value: 8, label: "8 segundos (moderado)" },
+  { value: 12, label: "12 segundos (paciente)" },
+  { value: 15, label: "15 segundos (muy paciente)" },
+];
+
+function TabChatbotIA() {
+  const { toast, showToast } = useToast();
+  const [config, setConfig] = useState<BotConfigData | null>(null);
+  const [form, setForm] = useState<Partial<BotConfigData>>({});
+  const [saving, setSaving] = useState(false);
+  const [subTab, setSubTab] = useState<"general" | "horarios" | "reglas" | "campanas">("general");
+  const [workingHours, setWorkingHours] = useState<
+    Array<{ dayOfWeek: number; startTime: string; endTime: string; breakStart: string; breakEnd: string; isActive: boolean }>
+  >([]);
+
+  const DAY_NAMES = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+
+  useEffect(() => {
+    apiFetch("/api/v1/configuracion/bot")
+      .then((data) => {
+        const d = data as BotConfigData;
+        setConfig(d);
+        setForm(d);
+      })
+      .catch(() => showToast({ type: "error", message: "Error al cargar configuración del bot" }));
+
+    apiFetch("/api/v1/configuracion/working-hours")
+      .then((raw) => {
+        const res = raw as { hours: typeof workingHours };
+        if (res.hours.length > 0) {
+          setWorkingHours(res.hours);
+        } else {
+          setWorkingHours(
+            Array.from({ length: 7 }, (_, i) => ({
+              dayOfWeek: i,
+              startTime: "09:00",
+              endTime: "18:00",
+              breakStart: "",
+              breakEnd: "",
+              isActive: i >= 1 && i <= 5,
+            }))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await apiFetch("/api/v1/configuracion/bot", {
+        method: "PUT",
+        body: JSON.stringify(form),
+      });
+      setConfig(updated as BotConfigData);
+      setForm(updated as BotConfigData);
+      showToast({ type: "success", message: "Configuración del bot guardada" });
+    } catch {
+      showToast({ type: "error", message: "Error al guardar configuración" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!config) return <div className="text-sm text-gray-500 py-8 text-center">Cargando...</div>;
+
+  const SUB_TABS = [
+    { key: "general" as const, label: "General" },
+    { key: "horarios" as const, label: "Horarios" },
+    { key: "reglas" as const, label: "Reglas del Bot" },
+    { key: "campanas" as const, label: "Campañas" },
+  ];
+
+  return (
+    <>
+      <Toast toast={toast} />
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 mb-5 border-b">
+        {SUB_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setSubTab(tab.key)}
+            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+              subTab === tab.key
+                ? "border-primary-600 text-primary-700"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Sub-tab: General */}
+      {subTab === "general" && (
+        <Section title="Configuración general del chatbot">
+          <div className="space-y-5">
+            {/* Welcome Message */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Mensaje de bienvenida</label>
+              <textarea
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                rows={3}
+                maxLength={500}
+                placeholder="¡Hola! Bienvenido/a a nuestra clínica dental. ¿En qué puedo ayudarte?"
+                value={form.welcomeMessage ?? ""}
+                onChange={(e) => setForm({ ...form, welcomeMessage: e.target.value || null })}
+              />
+              <p className="text-xs text-gray-400 mt-1">{(form.welcomeMessage ?? "").length}/500 caracteres</p>
+            </div>
+
+            {/* Bot Tone */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Tono del bot</label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {Object.entries(TONE_LABELS).map(([key, { label, preview }]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setForm({ ...form, botTone: key })}
+                    className={`text-left p-3 rounded-lg border-2 transition-all ${
+                      form.botTone === key
+                        ? "border-primary-500 bg-primary-50"
+                        : "border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    <span className="block text-sm font-medium text-gray-900">{label}</span>
+                    <span className="block text-xs text-gray-500 mt-1 italic">&ldquo;{preview}&rdquo;</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Bot Language */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Idioma del bot</label>
+              <select
+                className="w-full sm:w-48 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+                value={form.botLanguage ?? "es"}
+                onChange={(e) => setForm({ ...form, botLanguage: e.target.value })}
+              >
+                {Object.entries(LANGUAGE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Sub-tab: Horarios */}
+      {subTab === "horarios" && (
+        <Section title="Horarios de atención">
+          <p className="text-xs text-gray-500 mb-4">
+            Estos son los mismos horarios configurados en &ldquo;Datos de la clínica&rdquo;. El bot los usa para informar a los pacientes.
+          </p>
+          <div className="space-y-2">
+            {workingHours
+              .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
+              .map((day) => (
+                <div key={day.dayOfWeek} className="flex items-center gap-3 py-2">
+                  <label className="w-24 text-sm font-medium text-gray-700">{DAY_NAMES[day.dayOfWeek]}</label>
+                  <div
+                    className={`flex items-center gap-2 ${!day.isActive ? "opacity-40" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={day.isActive}
+                      disabled
+                      className="h-4 w-4 text-primary-600 rounded"
+                    />
+                    <span className="text-sm text-gray-600">
+                      {day.isActive ? `${day.startTime} - ${day.endTime}` : "Cerrado"}
+                    </span>
+                  </div>
+                </div>
+              ))}
+          </div>
+          <p className="text-xs text-gray-400 mt-4">
+            Para modificar los horarios, andá a la pestaña &ldquo;Datos de la clínica&rdquo;.
+          </p>
+        </Section>
+      )}
+
+      {/* Sub-tab: Reglas del Bot */}
+      {subTab === "reglas" && (
+        <Section title="Reglas del bot">
+          <div className="space-y-5">
+            {/* Ask Birthdate */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Pedir fecha de nacimiento</label>
+                <p className="text-xs text-gray-500 mt-0.5">Necesario para campañas de cumpleaños</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const newVal = !form.askBirthdate;
+                  setForm({
+                    ...form,
+                    askBirthdate: newVal,
+                    // Auto-disable birthday campaign if birthdate is disabled
+                    ...(newVal === false ? { campaignBirthday: false } : {}),
+                  });
+                }}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.askBirthdate ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.askBirthdate ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Ask Insurance */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Pedir obra social / seguro</label>
+                <p className="text-xs text-gray-500 mt-0.5">El bot preguntará al paciente su cobertura médica</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, askInsurance: !form.askInsurance })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.askInsurance ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.askInsurance ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Offer Discounts */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Ofrecer descuentos a leads que no agendan</label>
+                <p className="text-xs text-gray-500 mt-0.5">El bot ofrecerá un descuento para incentivar la reserva</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, offerDiscounts: !form.offerDiscounts })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.offerDiscounts ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.offerDiscounts ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Max Discount Slider — only visible when offerDiscounts is true */}
+            {form.offerDiscounts && (
+              <div className="pl-4 border-l-2 border-primary-200">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Porcentaje máximo de descuento: <span className="text-primary-600 font-bold">{form.maxDiscountPercent ?? 10}%</span>
+                </label>
+                <input
+                  type="range"
+                  min={5}
+                  max={25}
+                  step={5}
+                  value={form.maxDiscountPercent ?? 10}
+                  onChange={(e) => setForm({ ...form, maxDiscountPercent: parseInt(e.target.value) })}
+                  className="w-full sm:w-64 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary-600"
+                />
+                <div className="flex justify-between w-full sm:w-64 text-xs text-gray-400 mt-1">
+                  <span>5%</span>
+                  <span>10%</span>
+                  <span>15%</span>
+                  <span>20%</span>
+                  <span>25%</span>
+                </div>
+              </div>
+            )}
+
+            {/* Proactive Follow-Up */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-1.5">
+                <div>
+                  <label className="text-sm font-medium text-gray-900">Seguimiento proactivo de tratamientos</label>
+                  <p className="text-xs text-gray-500 mt-0.5">El bot recordará al paciente cuándo le toca su próxima visita</p>
+                </div>
+                <span className="text-gray-400 cursor-help" title="El bot recordará al paciente cuándo le toca su próxima visita según el tratamiento realizado">ℹ️</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, proactiveFollowUp: !form.proactiveFollowUp })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.proactiveFollowUp ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.proactiveFollowUp ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Lead Recontact Hours */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tiempo de espera antes de recontactar lead
+              </label>
+              <select
+                className="w-full sm:w-64 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+                value={form.leadRecontactHours ?? 4}
+                onChange={(e) => setForm({ ...form, leadRecontactHours: parseInt(e.target.value) })}
+              >
+                {RECONTACT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Message Debounce Seconds */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Tiempo de espera entre mensajes
+              </label>
+              <select
+                className="w-full sm:w-64 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
+                value={form.messageDebounceSeconds ?? 5}
+                onChange={(e) => setForm({ ...form, messageDebounceSeconds: parseInt(e.target.value) })}
+              >
+                {DEBOUNCE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Cuánto espera el bot antes de responder, para dar tiempo a que el paciente termine de escribir. Recomendado: 5 segundos.
+              </p>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Sub-tab: Campañas */}
+      {subTab === "campanas" && (
+        <Section title="Campañas automáticas">
+          <div className="space-y-5">
+            {/* Birthday Campaign */}
+            <div className={`flex items-start justify-between ${!form.askBirthdate ? "opacity-50" : ""}`}>
+              <div>
+                <label className="text-sm font-medium text-gray-900">Campaña de cumpleaños</label>
+                {!form.askBirthdate ? (
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    Activá &ldquo;Pedir fecha de nacimiento&rdquo; en Reglas para habilitar esta campaña
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-0.5">Enviar saludo y promoción en el cumpleaños del paciente</p>
+                )}
+              </div>
+              <button
+                type="button"
+                disabled={!form.askBirthdate}
+                onClick={() => setForm({ ...form, campaignBirthday: !form.campaignBirthday })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.campaignBirthday && form.askBirthdate ? "bg-primary-600" : "bg-gray-300"
+                } ${!form.askBirthdate ? "cursor-not-allowed" : ""}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.campaignBirthday && form.askBirthdate ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Periodic Reminder Campaign */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Recordatorio de control periódico</label>
+                <p className="text-xs text-gray-500 mt-0.5">Recordar al paciente que le toca una visita de control</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, campaignPeriodicReminder: !form.campaignPeriodicReminder })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.campaignPeriodicReminder ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.campaignPeriodicReminder ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Reactivation Campaign */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Reactivación de pacientes inactivos</label>
+                <p className="text-xs text-gray-500 mt-0.5">Enviar mensaje a pacientes que no visitan la clínica hace tiempo</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, campaignReactivation: !form.campaignReactivation })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.campaignReactivation ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    form.campaignReactivation ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Save Button */}
+      <div className="flex justify-end mt-4">
+        <Button onClick={handleSave} disabled={saving} className="bg-primary-600 hover:bg-primary-700 text-white px-6">
+          {saving ? "Guardando..." : "Guardar cambios"}
+        </Button>
+      </div>
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const TABS = [
   { key: "clinica", label: "Datos de la clínica" },
+  { key: "chatbot", label: "Chatbot IA" },
   { key: "profesionales", label: "Profesionales" },
   { key: "tratamientos", label: "Tratamientos" },
   { key: "sillones", label: "Sillones" },
@@ -1351,6 +1842,7 @@ function ConfiguracionContent() {
       </div>
 
       {activeTab === "clinica" && <TabClinica />}
+      {activeTab === "chatbot" && <TabChatbotIA />}
       {activeTab === "profesionales" && <TabProfesionales />}
       {activeTab === "tratamientos" && <TabTratamientos />}
       {activeTab === "sillones" && <TabSillones />}

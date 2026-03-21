@@ -34,3 +34,18 @@ export const USAGE_LIMIT_THRESHOLD = 1.0;    // 100%
 export const WHATSAPP_MAX_BUTTONS = 3;
 export const WHATSAPP_MAX_LIST_ROWS = 10;
 export const CHATBOT_CONTEXT_MESSAGES = 10;
+export const SONNET_MODEL = "claude-sonnet-4-20250514";
+
+// Bot tone options
+export const BOT_TONES = ["formal", "friendly", "casual"] as const;
+export type BotTone = (typeof BOT_TONES)[number];
+
+// Bot language options
+export const BOT_LANGUAGES = ["es", "pt", "en"] as const;
+export type BotLanguage = (typeof BOT_LANGUAGES)[number];
+
+// Lead recontact options (hours)
+export const LEAD_RECONTACT_OPTIONS = [0, 2, 4, 12, 24] as const;
+
+// Sonnet costs 3x Haiku for usage tracking
+export const SONNET_USAGE_MULTIPLIER = 3;

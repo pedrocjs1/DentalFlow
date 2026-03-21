@@ -24,13 +24,13 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - **Pipeline CRM** — Kanban 8 stages, drag-and-drop persistente, drawer, valor monetario por columna ($), auto config por stage, sync bidireccional con Agenda
 - **Campañas** — wizard 4 pasos, 8 campañas default (idempotente), 15 templates catálogo, segmentación, métricas, retry failed
 - **Conversaciones** — inbox estilo WhatsApp Web, burbujas, delivery status, toggle IA activo/pausado, polling 3-5s, datos demo en seed
-- **Configuración** — 6 tabs (Clínica, Profesionales CRUD completo, Tratamientos, Sillones, Integraciones, Equipo)
+- **Configuración** — 7 tabs (Clínica, Chatbot IA [4 sub-tabs: General/Horarios/Reglas/Campañas], Profesionales CRUD completo, Tratamientos, Sillones, Integraciones, Equipo)
 
 **Integraciones implementadas:**
 - **Google Calendar** — OAuth2 bidireccional por dentista, eventos privados bloqueantes, tareas ignoradas
 - **WhatsApp Cloud API** — webhook HMAC-SHA256, WhatsAppService (text/template/buttons/list/markAsRead), feature flag, status updates
-- **Chatbot IA** — system prompt dinámico por tenant, 6 tools function calling, claude-haiku-4-5-20251001, 300 tokens, temp 0.3
-- **WhatsApp Processor** — flujo completo: mensaje→paciente→conversación→chatbot→respuesta→pipeline→usage
+- **Chatbot IA** — arquitectura 3 capas (Intent Router → Haiku 4.5 → Sonnet escalación), system prompt dinámico por tenant con BotConfig, 6 tools function calling, 300 tokens, temp 0.3
+- **WhatsApp Processor** — flujo completo: mensaje→paciente→conversación→debounce→intent router→chatbot→respuesta→pipeline→usage. Debounce configurable (3-15s, default 5s) con processing lock. Manejo de audios sin IA.
 
 **Super Admin** (/admin): Dashboard Global (MRR, gráfico crecimiento), Clínicas (CRUD+impersonar), WhatsApp (monitoreo+force-disconnect), Uso & Límites
 
@@ -89,10 +89,10 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 
 ### 📋 Pendiente
 - ~~Tech Provider Meta~~ → ✅ Aprobada y publicada
-- Sistema de límites de mensajes mensuales por plan y cobro extra
-- Configuración por clínica (reglas del bot: descuentos sí/no, mensajes de seguimiento, etc.)
+- ~~Sistema de límites de mensajes mensuales por plan y cobro extra~~ → ✅ Implementado
+- ~~Configuración por clínica (reglas del bot)~~ → ✅ Implementado (pestaña Chatbot IA)
+- ~~Refinar system prompt del chatbot~~ → ✅ Optimizado con BotConfig + 3 capas
 - Automatizaciones del pipeline (seguimiento automático por etapa con cron jobs)
-- Refinar system prompt del chatbot
 - Billing (Stripe/MP suscripciones)
 - ~~Landing page~~ → ✅ Completada (apps/landing)
 - Deploy landing (Vercel → dentalflow.app)
@@ -119,13 +119,13 @@ Frontend: Next.js 15 + shadcn/ui + Tailwind | State: Zustand + TanStack Query | 
 
 ## SCHEMA (SIEMPRE leer packages/db/prisma/schema.prisma para estado real)
 
-25+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, Automation, FaqEntry, UsageRecord
+25+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus, botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, Automation, FaqEntry, UsageRecord
 
 ---
 
 ## ENDPOINTS PRINCIPALES
 
-Auth: login, me | Dashboard: stats+usage | Pacientes: CRUD + historial clínico completo | Citas: CRUD con validación GCal+horario+conflictos | Agenda: dentists, blocked-slots | Pipeline: stages+patients+move (stageValue) | Campañas: CRUD + segment-count + setup-defaults(idempotente) + duplicate + sends + retry-failed | Conversaciones: CRUD + messages + toggle IA | Config: clínica/working-hours/equipo/dentists/treatments/chairs | GCal: auth-url/callback/status/disconnect/sync | WhatsApp: embedded-signup-complete/disconnect/status/send-test + webhook | Admin: login/dashboard/tenants/impersonate/usage/whatsapp-monitor/force-disconnect
+Auth: login, me | Dashboard: stats+usage | Pacientes: CRUD + historial clínico completo | Citas: CRUD con validación GCal+horario+conflictos | Agenda: dentists, blocked-slots | Pipeline: stages+patients+move (stageValue) | Campañas: CRUD + segment-count + setup-defaults(idempotente) + duplicate + sends + retry-failed | Conversaciones: CRUD + messages + toggle IA | Config: clínica/working-hours/equipo/dentists/treatments/chairs + **bot** (GET/PUT configuración chatbot con Zod) | GCal: auth-url/callback/status/disconnect/sync | WhatsApp: embedded-signup-complete/disconnect/status/send-test + webhook | Admin: login/dashboard/tenants/impersonate/usage/whatsapp-monitor/force-disconnect
 
 ---
 
@@ -139,16 +139,35 @@ BullMQ job pipeline-automations cada 30min. Valor monetario por columna.
 
 ---
 
-## CHATBOT IA — 6 Tools Function Calling
+## CHATBOT IA — Arquitectura 3 Capas (Code-first, AI-last)
 
-1. book_appointment — busca slots (agenda+GCal+WorkingHours), filtra dentistas por tratamiento, 3 opciones botones
-2. cancel_appointment — cancela, mueve pipeline
-3. reschedule_appointment — reagenda
-4. check_appointment — consulta próxima cita
-5. answer_faq — busca FaqEntry tenant
-6. transfer_to_human — cambia conversación HUMAN_NEEDED
+**Capa 1 — Intent Router (packages/ai/src/intent-router.ts) — 0 tokens:**
+- Regex/keyword matching para 7 intenciones: GREETING, HOURS, CANCEL, LOCATION, TREATMENTS, HUMAN, FRUSTRATION
+- Multi-idioma (es/pt/en), siempre incluye español como fallback
+- FRUSTRATION y HUMAN con confidence "high" → transfer inmediato a humano, sin IA
+- Detección de sentimiento negativo: "queja", "reclamo", "horrible", "pésimo", etc.
 
-System prompt dinámico: clínica(nombre/dirección/horarios) + dentistas(especialidades/tratamientos) + precios + FAQs + paciente(nombre/cita/pipeline) + últimos 10 msgs
+**Capa 2 — Haiku 4.5 (packages/ai/src/chatbot.ts):**
+- 6 tools function calling: book_appointment, cancel_appointment, reschedule_appointment, check_appointment, answer_faq, transfer_to_human
+- System prompt optimizado con BotConfig: tono (formal/friendly/casual), idioma (es/pt/en), reglas activas
+- buildContextAwareSystemPrompt() + getRelevantContext() para optimización de contexto
+- 300 tokens, temp 0.3
+
+**Capa 3 — Escalación Sonnet (claude-sonnet-4-20250514):**
+- Si Haiku devuelve respuesta inadecuada (vacía, muy corta, 3+ msgs sin resolución) → reintenta con Sonnet
+- Si Haiku falla por error → fallback a Sonnet
+- Si Sonnet también falla → transfer_to_human automático
+- Sonnet = 3x en usage tracker (SONNET_USAGE_MULTIPLIER)
+
+**Debounce de mensajes (whatsapp-processor.ts):**
+- Map en memoria por conversación: timers + mensajes pendientes + processing lock
+- Default 5s, configurable por clínica (3-15s) via messageDebounceSeconds
+- Processing lock: si llegan mensajes durante el procesamiento de un batch, se acumulan y se procesan automáticamente al terminar (follow-up con debounce corto 2s)
+- FRUSTRATION/HUMAN bypasean el debounce → respuesta inmediata
+
+**Manejo de audios (0 tokens):**
+- Mensajes tipo "audio" → respuesta fija localizada pidiendo texto, sin llamar a IA
+- No incrementa contador de uso de IA
 
 ---
 
@@ -170,15 +189,18 @@ RESEND_API_KEY, FROM_EMAIL, S3_*, ENCRYPTION_KEY, NODE_ENV
 
 ---
 
-## PLANES Y LÍMITES (nueva arquitectura pensada)
+## PLANES Y LÍMITES (implementado)
 
-| | Plan $100/mes | Plan $200/mes | Plan $250-300/mes |
+| | STARTER $99/mes | PROFESSIONAL $199/mes | ENTERPRISE $299/mes |
 |---|---|---|---|
 | Perfil | Odontólogo independiente | Clínica mediana (<5 sillas) | Clínica grande (5+ sillas) |
-| Conversaciones IA/mes | ~1,000 | ~3,000 | ~5,000+ |
-| Al llegar al límite | Aviso al 80% y 100%, cobro extra $15-20/500 conv | Ídem | Ídem |
+| WhatsApp msgs/mes | 2,000 | 5,000 | 10,000 |
+| IA interactions/mes | 2,000 | 5,000 | 10,000 |
+| Dentistas | 2 | Ilimitados | Ilimitados |
+| Al llegar al límite | Aviso al 80% y 100%, cobro extra $20/1000 interacciones | Ídem | Ídem |
 
-Modelo IA: Haiku 4.5 principal (~$0.005-0.01/conv), Sonnet 4 para escalaciones complejas.
+Constantes en packages/shared/src/constants/index.ts (PLAN_LIMITS, AI_EXTRA_BLOCK_SIZE/PRICE, USAGE_WARNING/LIMIT_THRESHOLD).
+Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se bloquea al paciente — overage se trackea y cobra aparte.
 
 ---
 
@@ -192,6 +214,34 @@ Modelo IA: Haiku 4.5 principal (~$0.005-0.01/conv), Sonnet 4 para escalaciones c
 ---
 
 ## CHANGELOG
+
+### 2026-03-20 — Bot Config 3 capas + Debounce + Audio handling
+
+**Configuración del bot por clínica (BotConfig):**
+- 13 campos nuevos en Tenant: botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds
+- API: GET/PUT /api/v1/configuracion/bot con validación Zod
+- Frontend: nueva pestaña "Chatbot IA" en Configuración con 4 sub-tabs (General, Horarios, Reglas del Bot, Campañas)
+- Lógica: askBirthdate=false auto-desactiva campaignBirthday
+
+**Arquitectura 3 capas para chatbot:**
+- Capa 1: Intent Router (packages/ai/src/intent-router.ts) — regex/keyword, 0 tokens, detecta GREETING/HOURS/CANCEL/LOCATION/TREATMENTS/HUMAN/FRUSTRATION
+- Capa 2: Haiku 4.5 con system prompt optimizado usando BotConfig (tono/idioma/reglas activas)
+- Capa 3: Escalación automática a Sonnet si Haiku falla o respuesta inadecuada (3x usage)
+- Detección de frustración → transfer inmediato a humano sin IA
+
+**Debounce de mensajes WhatsApp:**
+- Acumula mensajes por conversación, procesa en batch después de pausa configurable (default 5s, rango 3-15s)
+- Processing lock: mensajes que llegan durante procesamiento de IA se acumulan y procesan automáticamente en follow-up batch
+- FRUSTRATION/HUMAN bypasean debounce → respuesta inmediata
+- UI: selector "Tiempo de espera entre mensajes" en Configuración > Chatbot IA > Reglas
+
+**Manejo de audios:**
+- Mensajes tipo "audio" → respuesta fija localizada (es/pt/en) sin llamar a IA, 0 tokens
+- No incrementa contador de uso de IA
+
+**Migraciones Prisma:**
+- 20260321013713_add_bot_config_fields
+- 20260321022528_add_message_debounce_seconds
 
 ### 2026-03-19 — WhatsApp Embedded Signup end-to-end + Haiku 4.5
 
@@ -272,6 +322,16 @@ Modelo IA: Haiku 4.5 principal (~$0.005-0.01/conv), Sonnet 4 para escalaciones c
 **Error: "Embedded signup is only available for BSPs or TPs"**
 - Causa: La app de Meta estaba en modo Development (sin publicar)
 - Solución: Publicar la app desde Meta Developer Dashboard → Publicar (app review debe estar aprobada)
+
+**Error: "EPERM: operation not permitted, rename query_engine-windows.dll.node" al ejecutar prisma generate**
+- Causa: El dev server (npm run dev) tiene el archivo DLL del Prisma client bloqueado
+- Solución: Detener el dev server, ejecutar `npx prisma generate --schema packages/db/prisma/schema.prisma`, reiniciar dev server
+- Nota: Las migraciones se aplican correctamente aunque generate falle. Al reiniciar el server se regenera automáticamente.
+
+**Error: Bot responde 2 veces cuando el paciente manda muchos mensajes seguidos**
+- Causa: El debounce timer original expiraba y empezaba a procesar el batch en IA (~3-5s). Si un mensaje nuevo llegaba durante ese procesamiento, creaba un ciclo de debounce independiente → 2 respuestas.
+- Solución: Processing lock por conversación. Mensajes que llegan durante procesamiento se acumulan sin crear timer. Al terminar el batch, se verifica si hay mensajes pendientes y se procesan en follow-up batch con debounce corto.
+- Archivo: apps/api/src/services/whatsapp-processor.ts (processingLock Map)
 
 **Error: "Dominio de host desconocido de JSSDK"**
 - Causa: El dominio de ngrok no estaba en los dominios permitidos del SDK de JavaScript en Meta

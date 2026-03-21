@@ -1,9 +1,26 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { ANTHROPIC_MODEL, CHATBOT_MAX_TOKENS, CHATBOT_TEMPERATURE } from "@dentalflow/shared";
+import {
+  ANTHROPIC_MODEL,
+  CHATBOT_MAX_TOKENS,
+  CHATBOT_TEMPERATURE,
+  SONNET_MODEL,
+} from "@dentalflow/shared";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface BotConfig {
+  botTone: "formal" | "friendly" | "casual";
+  botLanguage: "es" | "pt" | "en";
+  welcomeMessage?: string | null;
+  askBirthdate: boolean;
+  askInsurance: boolean;
+  offerDiscounts: boolean;
+  maxDiscountPercent: number;
+  proactiveFollowUp: boolean;
+  leadRecontactHours: number;
+}
 
 export interface ClinicContext {
   clinicName: string;
@@ -42,6 +59,7 @@ export interface ToolResult {
 export interface ChatbotResponse {
   text: string;
   toolCalls: ToolResult[];
+  escalatedToSonnet?: boolean;
 }
 
 // ─── Tool definitions for Anthropic ───────────────────────────────────────────
@@ -148,65 +166,184 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
   },
 ];
 
-// ─── System prompt builder ────────────────────────────────────────────────────
+// ─── Tone descriptions for system prompt ──────────────────────────────────────
 
-function buildSystemPrompt(clinic: ClinicContext, patient: PatientContext): string {
+const TONE_INSTRUCTIONS: Record<string, string> = {
+  formal: "Usá un tono formal y profesional. Trate al paciente de usted.",
+  friendly:
+    "Usá un tono amigable y profesional. Tuteo natural, emojis moderados (😊, ✅, 📅, 🦷).",
+  casual:
+    "Usá un tono muy casual y cercano. Como un amigo que trabaja en la clínica. Emojis frecuentes.",
+};
+
+const LANGUAGE_INSTRUCTIONS: Record<string, string> = {
+  es: "Respondé SIEMPRE en español.",
+  pt: "Responda SEMPRE em português.",
+  en: "Always respond in English.",
+};
+
+// ─── Determine what context to inject based on conversation flow ──────────────
+
+interface RelevantContext {
+  includeHours: boolean;
+  includeDentists: boolean;
+  includeTreatments: boolean;
+  includeFaqs: boolean;
+  includePatientDetails: boolean;
+}
+
+function getRelevantContext(
+  userMessage: string,
+  conversationHistory: ConversationMessage[]
+): RelevantContext {
+  const allText = [
+    userMessage,
+    ...conversationHistory.slice(-3).map((m) => m.content),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return {
+    includeHours: /horario|hora|abierto|abren|cierran|hor[aá]rio|hours|open|schedule/i.test(allText),
+    includeDentists:
+      /dentista|doctor|profesional|agendar|cita|turno|consulta|dentist|appointment/i.test(allText),
+    includeTreatments:
+      /tratamiento|servicio|precio|cu[aá]nto|limpieza|ortodoncia|treatment|price|cost/i.test(allText),
+    includeFaqs:
+      /pregunta|d[oó]nde|estacionamiento|parking|seguro|obra social|faq/i.test(allText),
+    includePatientDetails: true, // always include basic patient info
+  };
+}
+
+// ─── System prompt builder (optimized) ────────────────────────────────────────
+
+function buildSystemPrompt(
+  clinic: ClinicContext,
+  patient: PatientContext,
+  config: BotConfig
+): string {
+  const ctx = getRelevantContext("", []); // Default: include everything for system prompt
+  // We always include all context in system prompt — the optimization is in keeping it compact
+
   const appointmentInfo = patient.nextAppointment
     ? `Próxima cita: ${patient.nextAppointment.date} a las ${patient.nextAppointment.time} con ${patient.nextAppointment.dentistName} (${patient.nextAppointment.treatmentName})`
     : "No tiene cita agendada";
 
-  return `Sos el asistente virtual de ${clinic.clinicName}, una clínica dental${clinic.clinicAddress ? ` ubicada en ${clinic.clinicAddress}` : ""}.
-Tu rol es ayudar a los pacientes a agendar citas, responder consultas, y brindar información sobre la clínica.
+  const toneInstruction = TONE_INSTRUCTIONS[config.botTone] ?? TONE_INSTRUCTIONS.friendly;
+  const langInstruction = LANGUAGE_INSTRUCTIONS[config.botLanguage] ?? LANGUAGE_INSTRUCTIONS.es;
 
-Horarios de atención:
-${clinic.workingHoursFormatted}
+  // Build rules section — only active rules
+  const rules: string[] = [];
+  if (config.offerDiscounts) {
+    rules.push(
+      `Podés ofrecer hasta ${config.maxDiscountPercent}% de descuento a leads que no agendan.`
+    );
+  }
+  if (config.askBirthdate) {
+    rules.push("Pedí la fecha de nacimiento al registrar nuevos pacientes.");
+  }
+  if (config.askInsurance) {
+    rules.push("Preguntá por la obra social/seguro del paciente.");
+  }
+  if (config.proactiveFollowUp) {
+    rules.push(
+      "Recordale al paciente cuándo le toca su próxima visita según el tratamiento realizado."
+    );
+  }
 
-Dentistas disponibles:
-${clinic.dentistsInfo}
+  const rulesBlock = rules.length > 0 ? `\nReglas activas:\n${rules.map((r) => `- ${r}`).join("\n")}` : "";
 
-Tratamientos que ofrecemos:
-${clinic.treatmentsInfo}
+  let prompt = `Sos el asistente virtual de ${clinic.clinicName}${clinic.clinicAddress ? `, ubicada en ${clinic.clinicAddress}` : ""}.
+${toneInstruction}
+${langInstruction}
 
-Información del paciente actual:
-- Nombre: ${patient.firstName} ${patient.lastName}
-- ${appointmentInfo}
-- Estado en pipeline: ${patient.pipelineStageName ?? "No asignado"}
-${patient.interestTreatment ? `- Tratamiento de interés: ${patient.interestTreatment}` : ""}
+Paciente: ${patient.firstName} ${patient.lastName}
+${appointmentInfo}
+Estado: ${patient.pipelineStageName ?? "No asignado"}
+${patient.interestTreatment ? `Interés: ${patient.interestTreatment}` : ""}
 
-${clinic.faqsFormatted ? `Preguntas frecuentes de la clínica:\n${clinic.faqsFormatted}` : ""}
+Horarios: ${clinic.workingHoursFormatted || "No configurados"}
 
-REGLAS ESTRICTAS:
-1. Respondé SIEMPRE en español, de forma amigable y profesional.
-2. Usá emojis moderadamente (😊, ✅, 📅, 🦷).
-3. Respuestas CORTAS: máximo 3 oraciones por mensaje.
-4. Si el paciente quiere agendar, usá la herramienta book_appointment con el tratamiento que necesita.
-5. Si no podés resolver algo, usá transfer_to_human y decí: "Dejame comunicarte con nuestro equipo para ayudarte mejor 😊"
-6. NUNCA inventés información sobre precios o tratamientos que no estén en la lista.
-7. Si el paciente confirma una cita, respondé con los datos completos: fecha, hora, dentista, dirección.
-8. Tratá al paciente por su nombre (${patient.firstName}).
-9. Si el paciente solo saluda, respondé amablemente y preguntá en qué podés ayudarlo.`;
+Dentistas:
+${clinic.dentistsInfo || "No configurados"}
+
+Tratamientos:
+${clinic.treatmentsInfo || "No configurados"}`;
+
+  if (clinic.faqsFormatted) {
+    prompt += `\n\nFAQs:\n${clinic.faqsFormatted}`;
+  }
+
+  prompt += `
+${rulesBlock}
+
+Comportamiento:
+- Respuestas CORTAS: máximo 3 oraciones.
+- Si detectás frustración o confusión, usá transfer_to_human.
+- Nunca des consejos médicos.
+- NUNCA inventés precios o tratamientos que no estén listados.
+- Si el paciente confirma cita, dá fecha, hora, dentista y dirección.
+- Tratá al paciente por su nombre (${patient.firstName}).`;
+
+  if (config.welcomeMessage) {
+    prompt += `\n- Mensaje de bienvenida personalizado: "${config.welcomeMessage}"`;
+  }
+
+  return prompt;
 }
 
-// ─── Main chatbot function ────────────────────────────────────────────────────
+// ─── Build system prompt with conversation-aware context ──────────────────────
 
-export async function generateChatbotResponse(
+export function buildContextAwareSystemPrompt(
   clinic: ClinicContext,
   patient: PatientContext,
+  config: BotConfig,
   conversationHistory: ConversationMessage[],
   userMessage: string
+): string {
+  // For now, buildSystemPrompt includes all context.
+  // getRelevantContext is available for future optimization to reduce prompt size.
+  const _ctx = getRelevantContext(userMessage, conversationHistory);
+  return buildSystemPrompt(clinic, patient, config);
+}
+
+// ─── Check if response seems inadequate ───────────────────────────────────────
+
+function isInadequateResponse(response: ChatbotResponse, conversationHistory: ConversationMessage[]): boolean {
+  // 1. Empty response with no tool calls
+  if (!response.text && response.toolCalls.length === 0) return true;
+
+  // 2. Very short generic responses
+  const shortInadequate = /^(no entiendo|no comprendo|no s[eé]|disculp[aá])/i;
+  if (response.text && response.text.length < 30 && shortInadequate.test(response.text.trim())) {
+    return true;
+  }
+
+  // 3. Patient sent 3+ messages without resolution (lots of back-and-forth)
+  const recentUserMessages = conversationHistory
+    .slice(-6)
+    .filter((m) => m.role === "user");
+  if (recentUserMessages.length >= 3) {
+    // Check if assistant responses were all short/unhelpful
+    const recentAssistant = conversationHistory
+      .slice(-6)
+      .filter((m) => m.role === "assistant");
+    const allShort = recentAssistant.every((m) => m.content.length < 50);
+    if (allShort && recentAssistant.length >= 2) return true;
+  }
+
+  return false;
+}
+
+// ─── Call Anthropic API ───────────────────────────────────────────────────────
+
+async function callAnthropic(
+  model: string,
+  systemPrompt: string,
+  messages: Anthropic.MessageParam[]
 ): Promise<ChatbotResponse> {
-  const systemPrompt = buildSystemPrompt(clinic, patient);
-
-  const messages: Anthropic.MessageParam[] = [
-    ...conversationHistory.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
-    { role: "user", content: userMessage },
-  ];
-
   const response = await client.messages.create({
-    model: ANTHROPIC_MODEL,
+    model,
     max_tokens: CHATBOT_MAX_TOKENS,
     temperature: CHATBOT_TEMPERATURE,
     system: systemPrompt,
@@ -228,9 +365,83 @@ export async function generateChatbotResponse(
     }
   }
 
-  // If the model only returned tool calls with no text, we need to do a second
-  // pass with tool results to get the actual response text. For now, if there are
-  // tool calls we handle them in the caller and let it decide the response text.
-
   return { text, toolCalls };
+}
+
+// ─── Main chatbot function (with Sonnet escalation) ───────────────────────────
+
+export async function generateChatbotResponse(
+  clinic: ClinicContext,
+  patient: PatientContext,
+  conversationHistory: ConversationMessage[],
+  userMessage: string,
+  config?: BotConfig
+): Promise<ChatbotResponse> {
+  const botConfig: BotConfig = config ?? {
+    botTone: "friendly",
+    botLanguage: "es",
+    askBirthdate: true,
+    askInsurance: true,
+    offerDiscounts: false,
+    maxDiscountPercent: 10,
+    proactiveFollowUp: true,
+    leadRecontactHours: 4,
+  };
+
+  const systemPrompt = buildContextAwareSystemPrompt(
+    clinic,
+    patient,
+    botConfig,
+    conversationHistory,
+    userMessage
+  );
+
+  const messages: Anthropic.MessageParam[] = [
+    ...conversationHistory.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+    { role: "user", content: userMessage },
+  ];
+
+  // Layer 2: Try Haiku first
+  try {
+    const haikuResponse = await callAnthropic(ANTHROPIC_MODEL, systemPrompt, messages);
+
+    // Check if response is adequate
+    if (!isInadequateResponse(haikuResponse, conversationHistory)) {
+      return haikuResponse;
+    }
+
+    // Layer 3: Escalate to Sonnet
+    console.log(
+      `[chatbot] Escalating to Sonnet — inadequate Haiku response for conversation`
+    );
+
+    const sonnetResponse = await callAnthropic(SONNET_MODEL, systemPrompt, messages);
+    sonnetResponse.escalatedToSonnet = true;
+    return sonnetResponse;
+  } catch (err) {
+    // If Haiku fails, try Sonnet as fallback
+    console.error("[chatbot] Haiku call failed, escalating to Sonnet:", err);
+
+    try {
+      const sonnetResponse = await callAnthropic(SONNET_MODEL, systemPrompt, messages);
+      sonnetResponse.escalatedToSonnet = true;
+      return sonnetResponse;
+    } catch (sonnetErr) {
+      // Both failed — return a transfer_to_human response
+      console.error("[chatbot] Sonnet also failed:", sonnetErr);
+      return {
+        text: "",
+        toolCalls: [
+          {
+            toolName: "transfer_to_human",
+            args: { reason: "AI models unavailable — both Haiku and Sonnet failed" },
+          },
+        ],
+        escalatedToSonnet: true,
+      };
+    }
+  }
 }

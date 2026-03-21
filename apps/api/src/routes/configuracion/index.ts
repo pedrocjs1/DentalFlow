@@ -1,11 +1,127 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentalflow/db";
+import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 
+// ─── Bot config validation schema ─────────────────────────────────────────────
+
+const botConfigSchema = z
+  .object({
+    welcomeMessage: z.string().max(500).nullable().optional(),
+    botTone: z.enum(["formal", "friendly", "casual"]).optional(),
+    botLanguage: z.enum(["es", "pt", "en"]).optional(),
+    askBirthdate: z.boolean().optional(),
+    askInsurance: z.boolean().optional(),
+    offerDiscounts: z.boolean().optional(),
+    maxDiscountPercent: z.number().int().min(5).max(25).optional(),
+    proactiveFollowUp: z.boolean().optional(),
+    leadRecontactHours: z.enum(["0", "2", "4", "12", "24"]).transform(Number).optional()
+      .or(z.number().refine((v) => [0, 2, 4, 12, 24].includes(v)).optional()),
+    campaignBirthday: z.boolean().optional(),
+    campaignPeriodicReminder: z.boolean().optional(),
+    campaignReactivation: z.boolean().optional(),
+    messageDebounceSeconds: z.number().int().min(3).max(15).optional(),
+  })
+  .refine(
+    (data) => {
+      // If askBirthdate is explicitly set to false, campaignBirthday must also be false
+      if (data.askBirthdate === false && data.campaignBirthday === true) {
+        return false;
+      }
+      return true;
+    },
+    { message: "No se puede activar la campaña de cumpleaños sin pedir fecha de nacimiento" }
+  );
+
 export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
+
+  // ─── Bot config endpoints ─────────────────────────────────────────────────
+
+  // GET bot config
+  app.get("/api/v1/configuracion/bot", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+        select: {
+          welcomeMessage: true,
+          botTone: true,
+          botLanguage: true,
+          askBirthdate: true,
+          askInsurance: true,
+          offerDiscounts: true,
+          maxDiscountPercent: true,
+          proactiveFollowUp: true,
+          leadRecontactHours: true,
+          campaignBirthday: true,
+          campaignPeriodicReminder: true,
+          campaignReactivation: true,
+          messageDebounceSeconds: true,
+        },
+      });
+      if (!tenant) throw new AppError(404, "TENANT_NOT_FOUND", "Clínica no encontrada");
+      return tenant;
+    },
+  });
+
+  // PUT bot config
+  app.put("/api/v1/configuracion/bot", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const parsed = botConfigSchema.safeParse(request.body);
+      if (!parsed.success) {
+        throw new AppError(400, "VALIDATION_ERROR", parsed.error.errors[0]?.message ?? "Datos inválidos");
+      }
+      const body = parsed.data;
+
+      // Business rule: if askBirthdate → false, auto-disable campaignBirthday
+      const updateData: Record<string, unknown> = {};
+      if (body.welcomeMessage !== undefined) updateData.welcomeMessage = body.welcomeMessage;
+      if (body.botTone !== undefined) updateData.botTone = body.botTone;
+      if (body.botLanguage !== undefined) updateData.botLanguage = body.botLanguage;
+      if (body.askBirthdate !== undefined) {
+        updateData.askBirthdate = body.askBirthdate;
+        if (!body.askBirthdate) updateData.campaignBirthday = false;
+      }
+      if (body.askInsurance !== undefined) updateData.askInsurance = body.askInsurance;
+      if (body.offerDiscounts !== undefined) updateData.offerDiscounts = body.offerDiscounts;
+      if (body.maxDiscountPercent !== undefined) updateData.maxDiscountPercent = body.maxDiscountPercent;
+      if (body.proactiveFollowUp !== undefined) updateData.proactiveFollowUp = body.proactiveFollowUp;
+      if (body.leadRecontactHours !== undefined) updateData.leadRecontactHours = body.leadRecontactHours;
+      if (body.campaignBirthday !== undefined && body.askBirthdate !== false) {
+        updateData.campaignBirthday = body.campaignBirthday;
+      }
+      if (body.campaignPeriodicReminder !== undefined) updateData.campaignPeriodicReminder = body.campaignPeriodicReminder;
+      if (body.campaignReactivation !== undefined) updateData.campaignReactivation = body.campaignReactivation;
+      if (body.messageDebounceSeconds !== undefined) updateData.messageDebounceSeconds = body.messageDebounceSeconds;
+
+      const tenant = await prisma.tenant.update({
+        where: { id: user.tenantId },
+        data: updateData,
+        select: {
+          welcomeMessage: true,
+          botTone: true,
+          botLanguage: true,
+          askBirthdate: true,
+          askInsurance: true,
+          offerDiscounts: true,
+          maxDiscountPercent: true,
+          proactiveFollowUp: true,
+          leadRecontactHours: true,
+          campaignBirthday: true,
+          campaignPeriodicReminder: true,
+          campaignReactivation: true,
+          messageDebounceSeconds: true,
+        },
+      });
+      return tenant;
+    },
+  });
 
   // GET clinic settings
   app.get("/api/v1/configuracion/clinica", {
