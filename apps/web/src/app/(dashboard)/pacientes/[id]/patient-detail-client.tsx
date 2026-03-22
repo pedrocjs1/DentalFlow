@@ -54,8 +54,8 @@ export function PatientDetailClient({
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("odontograma");
 
-  const fullName = `${patient.firstName} ${patient.lastName}`;
-  const initials = `${patient.firstName[0]}${patient.lastName[0]}`;
+  const fullName = patient.lastName ? `${patient.firstName} ${patient.lastName}` : patient.firstName;
+  const initials = (`${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`).toUpperCase() || "?";
   const age = getAge(patient.birthdate);
 
   return (

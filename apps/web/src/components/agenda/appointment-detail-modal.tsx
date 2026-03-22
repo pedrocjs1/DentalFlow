@@ -84,7 +84,7 @@ export function AppointmentDetailModal({ appointment, open, onClose, onRefresh }
               className="h-10 w-10 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
               style={{ backgroundColor: appointment.dentist.color }}
             >
-              {appointment.patient.firstName[0]}{appointment.patient.lastName[0]}
+              {appointment.patient.firstName?.[0] ?? ""}{appointment.patient.lastName?.[0] ?? ""}
             </div>
             <div>
               <p className="font-semibold text-gray-900">

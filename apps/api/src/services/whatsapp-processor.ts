@@ -38,6 +38,7 @@ interface ResolvedTenant {
   name: string;
   address: string | null;
   phone: string | null;
+  timezone: string;
   resolvedPhoneNumberId: string;
   resolvedAccessToken: string;
   botConfig: BotConfig;
@@ -56,6 +57,11 @@ const pendingMessages = new Map<string, string[]>();
 // processed automatically when the current batch finishes.
 const processingLock = new Map<string, boolean>();
 
+// In-memory dedup: tracks recently processed waMessageIds to avoid race conditions
+// where two webhook calls for the same message both pass the DB idempotency check.
+const recentlyProcessedIds = new Set<string>();
+const DEDUP_TTL_MS = 60_000; // Keep IDs for 60s, then clean up
+
 // Context needed to process the debounced batch — stored when first message arrives
 interface DebouncedContext {
   tenant: ResolvedTenant;
@@ -63,6 +69,9 @@ interface DebouncedContext {
   patientId: string;
   patientFirstName: string;
   patientLastName: string;
+  patientEmail: string | null;
+  patientBirthdate: Date | null;
+  patientInsurance: string | null;
   pipelineEntry: { stage: { name: string }; interestTreatment?: string | null } | null;
   recipientPhone: string; // msg.from
 }
@@ -82,6 +91,9 @@ const AUDIO_REPLIES: Record<string, string> = {
 
 function sanitizeForWhatsApp(text: string): string {
   return text
+    // Remove slot metadata tags [2026-...] (for AI context only, not for patient)
+    // Captures any bracket content starting with a 4-digit year
+    .replace(/\s*\[\d{4}[^\]]*\]/g, "")
     // Replace **bold** with *bold* (WhatsApp bold)
     .replace(/\*\*(.+?)\*\*/g, "*$1*")
     // Replace __italic__ with _italic_ (WhatsApp italic)
@@ -101,6 +113,319 @@ function sanitizeForWhatsApp(text: string): string {
     .replace(/\n{3,}/g, "\n\n");
 }
 
+// ─── Timezone-aware date helper ──────────────────────────────────────────────
+// The DB stores dates in UTC. Patient-facing times are in the tenant's timezone.
+// This helper creates a UTC Date that represents the given local time in the tenant's timezone.
+// Argentina (America/Argentina/Buenos_Aires) is always UTC-3 (no DST).
+
+function localTimeToUTC(year: number, month: number, day: number, hour: number, minute: number, timezone: string): Date {
+  // Create a date string in ISO format as if it were UTC, then adjust for timezone offset
+  const fakeUtc = new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0));
+  // Use Intl to get the actual offset for this timezone
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: false,
+    });
+    // Get what UTC time corresponds to the desired local time:
+    // We want: local(result) = year-month-day hour:minute in timezone
+    // Strategy: create the date as UTC, then check what local time that is,
+    // and adjust by the difference.
+    const parts = formatter.formatToParts(fakeUtc);
+    const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value ?? "0");
+    const localHour = getPart("hour");
+    const localDay = getPart("day");
+    // Offset in hours = localHour - hour (simplified, works for same-day)
+    const offsetMs = ((localHour - hour) * 60 + (localDay !== day ? (localDay > day ? 24 * 60 : -24 * 60) : 0)) * 60 * 1000;
+    return new Date(fakeUtc.getTime() - offsetMs);
+  } catch {
+    // Fallback: assume UTC-3 for Argentina
+    return new Date(Date.UTC(year, month - 1, day, hour + 3, minute, 0, 0));
+  }
+}
+
+// Format a UTC date to the tenant's local timezone for display
+function formatDateInTimezone(date: Date, timezone: string, options: Intl.DateTimeFormatOptions): string {
+  return date.toLocaleDateString("es-AR", { ...options, timeZone: timezone });
+}
+
+function formatTimeInTimezone(date: Date, timezone: string): string {
+  return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: timezone });
+}
+
+// ─── Pending booking state (in-memory, per conversation) ────────────────────
+// Stores slot/dentist data between button interactions so we can resolve
+// button presses without calling the AI (Layer 1, 0 tokens).
+
+interface PendingBooking {
+  treatmentType: string;
+  treatmentId?: string;
+  slots?: AvailableSlot[];
+  selectedDentistId?: string;
+  selectedDentistName?: string;
+  selectedSlotIndex?: number;
+  expiresAt: number; // timestamp ms
+}
+const pendingBookings = new Map<string, PendingBooking>();
+const BOOKING_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function setPendingBooking(conversationId: string, booking: Omit<PendingBooking, "expiresAt">): void {
+  pendingBookings.set(conversationId, { ...booking, expiresAt: Date.now() + BOOKING_TTL_MS });
+}
+
+function getPendingBooking(conversationId: string): PendingBooking | null {
+  const booking = pendingBookings.get(conversationId);
+  if (!booking || booking.expiresAt < Date.now()) {
+    pendingBookings.delete(conversationId);
+    return null;
+  }
+  return booking;
+}
+
+// ─── Registration state machine (in-memory, per conversation) ───────────────
+// Tracks step-by-step data collection for new patients (Layer 1, 0 tokens).
+
+type RegistrationStep = "fullName" | "birthDate" | "insurance" | "email" | "address" | "medicalConditions" | "allergies" | "medications" | "habits";
+
+interface RegistrationState {
+  currentStep: RegistrationStep;
+  pendingSteps: RegistrationStep[];
+  expiresAt: number;
+}
+
+const registrationStates = new Map<string, RegistrationState>();
+const REGISTRATION_TTL_MS = 30 * 60 * 1000; // 30 min
+
+function getRegistrationState(conversationId: string): RegistrationState | null {
+  const state = registrationStates.get(conversationId);
+  if (!state || state.expiresAt < Date.now()) {
+    registrationStates.delete(conversationId);
+    return null;
+  }
+  return state;
+}
+
+function buildRegistrationSteps(config: BotConfig): RegistrationStep[] {
+  const steps: RegistrationStep[] = [];
+  if (config.askFullName) steps.push("fullName");
+  if (config.askBirthdate) steps.push("birthDate");
+  if (config.askInsurance) steps.push("insurance");
+  if (config.askEmail) steps.push("email");
+  if (config.askAddress) steps.push("address");
+  if (config.askMedicalConditions) steps.push("medicalConditions");
+  if (config.askAllergies) steps.push("allergies");
+  if (config.askMedications) steps.push("medications");
+  if (config.askHabits) steps.push("habits");
+  return steps;
+}
+
+function getQuestionForStep(step: RegistrationStep): string {
+  switch (step) {
+    case "fullName": return "¿Me decís tu nombre completo? (nombre y apellido)";
+    case "birthDate": return "¿Cuál es tu fecha de nacimiento? (dd/mm/aaaa)";
+    case "insurance": return "¿Tenés obra social o seguro dental? Si sí, ¿cuál?";
+    case "email": return "¿Cuál es tu email? (para confirmaciones y recordatorios)";
+    case "address": return "¿Cuál es tu dirección?";
+    case "medicalConditions": return "¿Tenés alguna de estas condiciones? Diabetes, hipertensión, cardiopatía, asma, epilepsia. Podés responder *no* o decirme cuáles.";
+    case "allergies": return "¿Tenés alguna alergia a medicamentos u otros? Podés responder *no* si no tenés.";
+    case "medications": return "¿Tomás algún medicamento actualmente? Podés responder *no* si no tomás.";
+    case "habits": return "¿Tenés alguno de estos hábitos? Bruxismo (apretás los dientes), fumador/a, embarazada. Podés responder *no*.";
+  }
+}
+
+// Parse and save the patient's response for the current registration step.
+// Returns error message if validation fails, null if OK.
+async function processRegistrationResponse(
+  step: RegistrationStep,
+  text: string,
+  patientId: string,
+  tenantId: string,
+  log: FastifyBaseLogger
+): Promise<string | null> {
+  const t = text.trim();
+
+  switch (step) {
+    case "fullName": {
+      const parts = t.split(/\s+/);
+      if (parts.length < 2 || parts[0].length < 2) {
+        return "Necesito tu nombre y apellido. Por ejemplo: *Juan Pérez*";
+      }
+      const firstName = parts[0];
+      const lastName = parts.slice(1).join(" ");
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: { firstName, lastName },
+      });
+      log.info({ patientId, firstName, lastName }, "Registration: name saved");
+      return null;
+    }
+
+    case "birthDate": {
+      let bDay = 0, bMonth = 0, bYear = 0;
+
+      // Spanish month names → month number
+      const MESES: Record<string, number> = {
+        enero: 1, ene: 1, febrero: 2, feb: 2, marzo: 3, mar: 3,
+        abril: 4, abr: 4, mayo: 5, may: 5, junio: 6, jun: 6,
+        julio: 7, jul: 7, agosto: 8, ago: 8, septiembre: 9, sep: 9, sept: 9,
+        octubre: 10, oct: 10, noviembre: 11, nov: 11, diciembre: 12, dic: 12,
+      };
+
+      // Try dd/mm/yyyy, dd-mm-yyyy, dd.mm.yyyy
+      const numMatch = t.match(/(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})/);
+      // Try "10 de mayo de 2000", "10 de mayo del 2000"
+      const textMatch = t.match(/(\d{1,2})\s+de\s+(\w+)\s+(?:de|del)\s+(\d{4})/i);
+      // Try "mayo 10 2000", "may 10, 2000"
+      const invertMatch = t.match(/^(\w+)\s+(\d{1,2}),?\s+(\d{4})/i);
+      // Try "10 mayo 2000" (without "de")
+      const shortMatch = t.match(/(\d{1,2})\s+(\w+)\s+(\d{4})/i);
+
+      if (numMatch) {
+        bDay = parseInt(numMatch[1]);
+        bMonth = parseInt(numMatch[2]);
+        bYear = parseInt(numMatch[3]);
+        if (bYear < 100) bYear += bYear > 30 ? 1900 : 2000;
+      } else if (textMatch) {
+        bDay = parseInt(textMatch[1]);
+        bMonth = MESES[textMatch[2].toLowerCase()] ?? 0;
+        bYear = parseInt(textMatch[3]);
+      } else if (invertMatch) {
+        bMonth = MESES[invertMatch[1].toLowerCase()] ?? 0;
+        bDay = parseInt(invertMatch[2]);
+        bYear = parseInt(invertMatch[3]);
+      } else if (shortMatch && MESES[shortMatch[2].toLowerCase()]) {
+        bDay = parseInt(shortMatch[1]);
+        bMonth = MESES[shortMatch[2].toLowerCase()];
+        bYear = parseInt(shortMatch[3]);
+      }
+
+      if (bMonth >= 1 && bMonth <= 12 && bDay >= 1 && bDay <= 31 && bYear >= 1920 && bYear <= 2025) {
+        await prisma.patient.update({
+          where: { id: patientId },
+          data: { birthdate: new Date(Date.UTC(bYear, bMonth - 1, bDay)) },
+        });
+        log.info({ patientId, birthDate: `${bYear}-${bMonth}-${bDay}` }, "Registration: birthdate saved");
+        return null;
+      }
+      return "No pude entender la fecha. Podés escribirla como *15/05/1990* o *10 de mayo de 1990*";
+    }
+
+    case "insurance": {
+      const noMatch = /^(no|no tengo|ninguno|ninguna|particular|nada|sin obra social)$/i.test(t);
+      const value = noMatch ? null : t;
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: { insurance: value },
+      });
+      // Set a tag so we know this was answered (null = particular, vs never asked)
+      if (noMatch) {
+        await prisma.patient.update({
+          where: { id: patientId },
+          data: { insurance: "Particular" },
+        });
+      }
+      log.info({ patientId, insurance: value ?? "Particular" }, "Registration: insurance saved");
+      return null;
+    }
+
+    case "email": {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(t)) {
+        return "Ese email no parece correcto. ¿Podés verificarlo? Ejemplo: *pedro@gmail.com*";
+      }
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: { email: t.toLowerCase() },
+      });
+      log.info({ patientId, email: t.toLowerCase() }, "Registration: email saved");
+      return null;
+    }
+
+    case "address": {
+      if (t.length < 3) {
+        return "¿Podrías darme una dirección más completa?";
+      }
+      await prisma.patient.update({
+        where: { id: patientId },
+        data: { address: t },
+      });
+      log.info({ patientId }, "Registration: address saved");
+      return null;
+    }
+
+    case "medicalConditions": {
+      const noMatch = /^(no|ninguno|ninguna|nada|no tengo)$/i.test(t);
+      if (!noMatch) {
+        const lower = t.toLowerCase();
+        const conditions: Record<string, string> = {
+          diabet: "hasDiabetes", hipertens: "hasHypertension", presion: "hasHypertension",
+          cardio: "hasHeartDisease", corazon: "hasHeartDisease", asma: "hasAsthma",
+          epilepsi: "hasEpilepsy", vih: "hasHIV", hiv: "hasHIV",
+        };
+        const updates: Record<string, boolean> = {};
+        for (const [keyword, field] of Object.entries(conditions)) {
+          if (lower.includes(keyword)) updates[field] = true;
+        }
+        if (Object.keys(updates).length > 0) {
+          await prisma.medicalHistory.upsert({
+            where: { patientId },
+            update: updates,
+            create: { patientId, tenantId, ...updates },
+          });
+        }
+      }
+      log.info({ patientId }, "Registration: medical conditions saved");
+      return null;
+    }
+
+    case "allergies": {
+      const noMatch = /^(no|ninguno|ninguna|nada|no tengo)$/i.test(t);
+      const allergies = noMatch ? [] : [t];
+      await prisma.medicalHistory.upsert({
+        where: { patientId },
+        update: { allergies },
+        create: { patientId, tenantId, allergies },
+      });
+      log.info({ patientId }, "Registration: allergies saved");
+      return null;
+    }
+
+    case "medications": {
+      const noMatch = /^(no|ninguno|ninguna|nada|no tomo)$/i.test(t);
+      const medications = noMatch ? [] : [t];
+      await prisma.medicalHistory.upsert({
+        where: { patientId },
+        update: { medications },
+        create: { patientId, tenantId, medications },
+      });
+      log.info({ patientId }, "Registration: medications saved");
+      return null;
+    }
+
+    case "habits": {
+      const noMatch = /^(no|ninguno|ninguna|nada|no tengo)$/i.test(t);
+      if (!noMatch) {
+        const lower = t.toLowerCase();
+        const updates: Record<string, boolean> = {};
+        if (/bruxis/i.test(lower) || /apret/i.test(lower) || /rechina/i.test(lower)) updates.hasBruxism = true;
+        if (/fum/i.test(lower)) updates.isSmoker = true;
+        if (/embaraz/i.test(lower)) updates.isPregnant = true;
+        if (Object.keys(updates).length > 0) {
+          await prisma.medicalHistory.upsert({
+            where: { patientId },
+            update: updates,
+            create: { patientId, tenantId, ...updates },
+          });
+        }
+      }
+      log.info({ patientId }, "Registration: habits saved");
+      return null;
+    }
+  }
+}
+
 // ─── Resolve tenant from WhatsApp phone_number_id ─────────────────────────────
 // Each clinic connects their own WABA via Embedded Signup.
 // Lookup is by whatsappPhoneNumberId on the Tenant model.
@@ -117,6 +442,7 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
       name: true,
       address: true,
       phone: true,
+      timezone: true,
       whatsappPhoneNumberId: true,
       whatsappAccessToken: true,
       welcomeMessage: true,
@@ -124,11 +450,20 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
       botLanguage: true,
       askBirthdate: true,
       askInsurance: true,
+      askEmail: true,
       offerDiscounts: true,
       maxDiscountPercent: true,
       proactiveFollowUp: true,
       leadRecontactHours: true,
       messageDebounceSeconds: true,
+      registrationEnabled: true,
+      askFullName: true,
+      askAddress: true,
+      askMedicalConditions: true,
+      askAllergies: true,
+      askMedications: true,
+      askHabits: true,
+      registrationWelcomeMessage: true,
     },
   });
 
@@ -150,6 +485,7 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
     name: tenant.name,
     address: tenant.address,
     phone: tenant.phone,
+    timezone: tenant.timezone,
     resolvedPhoneNumberId: tenant.whatsappPhoneNumberId,
     resolvedAccessToken: accessToken,
     botConfig: {
@@ -158,10 +494,19 @@ async function resolveTenant(phoneNumberId: string): Promise<ResolvedTenant | nu
       welcomeMessage: tenant.welcomeMessage,
       askBirthdate: tenant.askBirthdate,
       askInsurance: tenant.askInsurance,
+      askEmail: tenant.askEmail,
       offerDiscounts: tenant.offerDiscounts,
       maxDiscountPercent: tenant.maxDiscountPercent,
       proactiveFollowUp: tenant.proactiveFollowUp,
       leadRecontactHours: tenant.leadRecontactHours,
+      registrationEnabled: tenant.registrationEnabled,
+      askFullName: tenant.askFullName,
+      askAddress: tenant.askAddress,
+      askMedicalConditions: tenant.askMedicalConditions,
+      askAllergies: tenant.askAllergies,
+      askMedications: tenant.askMedications,
+      askHabits: tenant.askHabits,
+      registrationWelcomeMessage: tenant.registrationWelcomeMessage,
     },
     messageDebounceSeconds: tenant.messageDebounceSeconds,
   };
@@ -193,7 +538,7 @@ async function findOrCreatePatient(
     // Parse profile name from WhatsApp (best effort)
     const nameParts = (profileName ?? "Paciente WhatsApp").trim().split(/\s+/);
     const firstName = nameParts[0] ?? "Paciente";
-    const lastName = nameParts.slice(1).join(" ") || "WhatsApp";
+    const lastName = nameParts.slice(1).join(" ") || "";
 
     // Find the first pipeline stage ("Nuevo Contacto")
     const firstStage = await prisma.pipelineStage.findFirst({
@@ -331,6 +676,9 @@ async function buildPatientContext(
     id: string;
     firstName: string;
     lastName: string;
+    email?: string | null;
+    birthdate?: Date | null;
+    insurance?: string | null;
     pipelineEntry?: { stage: { name: string }; interestTreatment?: string | null } | null;
   }
 ): Promise<PatientContext> {
@@ -368,6 +716,10 @@ async function buildPatientContext(
           treatmentName: nextAppt.treatmentType?.name ?? "Consulta general",
         }
       : null,
+    hasCompleteName: !!patient.lastName && patient.lastName.trim() !== "",
+    hasBirthdate: !!patient.birthdate,
+    hasInsurance: !!patient.insurance,
+    hasEmail: !!patient.email,
   };
 }
 
@@ -390,20 +742,42 @@ async function getConversationHistory(conversationId: string): Promise<Conversat
 
 // ─── Handle tool calls from chatbot ───────────────────────────────────────────
 
+// ─── Tool call response types ────────────────────────────────────────────────
+// Responses can be plain text or interactive buttons (WhatsApp reply buttons).
+
+interface ToolResponseText {
+  type: "text";
+  text: string;
+}
+
+interface ToolResponseButtons {
+  type: "buttons";
+  bodyText: string;
+  buttons: Array<{ id: string; title: string }>;
+  // Raw text for DB (so AI can read it in conversation history)
+  rawTextForHistory: string;
+}
+
+type ToolResponse = ToolResponseText | ToolResponseButtons;
+
 async function handleToolCalls(
   toolCalls: Array<{ toolName: string; args: Record<string, unknown> }>,
   tenantId: string,
   patientId: string,
   conversationId: string,
+  timezone: string,
   log: FastifyBaseLogger
-): Promise<string[]> {
-  const responses: string[] = [];
+): Promise<ToolResponse[]> {
+  const responses: ToolResponse[] = [];
 
   for (const tool of toolCalls) {
     switch (tool.toolName) {
       case "book_appointment": {
         const treatmentType = (tool.args.treatmentType as string) ?? "";
-        log.info({ patientId, treatmentType }, "Chatbot: book_appointment tool called");
+        const preferredDate = tool.args.preferredDate as string | undefined;
+        const preferredTimeOfDay = tool.args.preferredTimeOfDay as string | undefined;
+        const preferredDentistId = tool.args.dentistId as string | undefined;
+        log.info({ patientId, treatmentType, preferredDate, preferredTimeOfDay, preferredDentistId }, "Chatbot: book_appointment tool called");
 
         // Save interest treatment in pipeline
         await prisma.patientPipeline.updateMany({
@@ -411,23 +785,111 @@ async function handleToolCalls(
           data: { interestTreatment: treatmentType },
         });
 
-        // Find available slots (simplified — returns next 3 available slots)
-        const slots = await findAvailableSlots(tenantId, treatmentType, log);
+        // Check how many dentists can do this treatment
+        const treatment = await prisma.treatmentType.findFirst({
+          where: { tenantId, isActive: true, name: { contains: treatmentType, mode: "insensitive" } },
+        });
+
+        if (!preferredDentistId && treatment) {
+          const dentistsForTreatment = await prisma.dentistTreatment.findMany({
+            where: { tenantId, treatmentTypeId: treatment.id },
+            include: { dentist: { select: { id: true, name: true, isActive: true } } },
+          });
+          const activeDentists = dentistsForTreatment.filter(dt => dt.dentist.isActive);
+
+          // If multiple dentists → ask the patient which one with buttons
+          if (activeDentists.length > 1) {
+            // Store booking state for button handling
+            setPendingBooking(conversationId, { treatmentType, treatmentId: treatment.id });
+
+            const dentistButtons = activeDentists.slice(0, 2).map(dt => ({
+              id: `dentist_${dt.dentist.id}`,
+              title: dt.dentist.name.slice(0, 20),
+            }));
+            dentistButtons.push({ id: "dentist_any", title: "Cualquiera" });
+
+            const dentistNames = activeDentists.map(dt => `• ${dt.dentist.name}`).join("\n");
+            responses.push({
+              type: "buttons",
+              bodyText: `¿Con qué profesional preferís atenderte para tu ${treatmentType}?`,
+              buttons: dentistButtons,
+              rawTextForHistory: `Para ${treatmentType} tenemos estos profesionales:\n${dentistNames}\n\n¿Con quién preferís atenderte?`,
+            });
+            break;
+          }
+        }
+
+        // Find available slots with optional date/time filters + dentist filter
+        const slots = await findAvailableSlots(tenantId, treatmentType, log, timezone, preferredDate, preferredTimeOfDay, preferredDentistId);
 
         if (slots.length === 0) {
-          responses.push(
-            `No encontré horarios disponibles para ${treatmentType} en los próximos días. Voy a conectarte con el equipo para que te ayuden. 😊`
-          );
+          const noSlotsMsg = preferredDate
+            ? `No encontré horarios disponibles para ${treatmentType} en esa fecha. ¿Querés que busque en otros días? 📅`
+            : `No encontré horarios disponibles para ${treatmentType} en los próximos días. Voy a conectarte con el equipo para que te ayuden. 😊`;
+          responses.push({ type: "text", text: noSlotsMsg });
         } else {
+          // Store slots for button-based selection
+          setPendingBooking(conversationId, { treatmentType, treatmentId: treatment?.id, slots });
+
+          // Send as interactive buttons (max 3)
+          const slotButtons = slots.slice(0, 3).map((s, i) => ({
+            id: `slot_${i}`,
+            title: `${s.date} ${s.time}`.slice(0, 20),
+          }));
+
+          // Build text with full slot details for body + history
           const slotText = slots
-            .map(
-              (s, i) =>
-                `${i + 1}. ${s.date} a las ${s.time} con ${s.dentistName}`
-            )
+            .map((s, i) => {
+              const isoDate = s.startTime.toISOString().split("T")[0];
+              const time24 = formatTimeInTimezone(s.startTime, timezone);
+              return `${i + 1}. ${s.date} a las ${s.time} con ${s.dentistName} [${isoDate} ${time24}]`;
+            })
             .join("\n");
-          responses.push(
-            `Tenemos estos horarios disponibles para ${treatmentType}:\n\n${slotText}\n\n¿Cuál te queda mejor? 📅`
+
+          responses.push({
+            type: "buttons",
+            bodyText: `Elegí el horario que te quede mejor para tu ${treatmentType}:`,
+            buttons: slotButtons,
+            rawTextForHistory: `Tenemos estos horarios disponibles para ${treatmentType}:\n\n${slotText}\n\n¿Cuál te queda mejor? 📅`,
+          });
+        }
+        break;
+      }
+
+      case "confirm_appointment": {
+        const confirmTreatment = (tool.args.treatmentType as string) ?? "";
+        const selectedDate = tool.args.selectedDate as string | undefined;
+        const selectedTime = tool.args.selectedTime as string | undefined;
+        const selectedDentistName = tool.args.dentistName as string | undefined;
+        log.info(
+          { patientId, confirmTreatment, selectedDate, selectedTime, selectedDentistName },
+          "Chatbot: confirm_appointment tool called"
+        );
+
+        if (!selectedDate || !selectedTime) {
+          responses.push({ type: "text", text: "No pude identificar la fecha y hora que elegiste. ¿Podrías decirme cuál de las opciones preferís? 😊" });
+          break;
+        }
+
+        try {
+          // Parse the selected date/time using timezone-aware helper
+          const [year, month, day] = selectedDate.split("-").map(Number);
+          const [hour, minute] = selectedTime.split(":").map(Number);
+          const startTime = localTimeToUTC(year, month, day, hour, minute, timezone);
+
+          if (isNaN(startTime.getTime()) || startTime <= new Date()) {
+            responses.push({ type: "text", text: "Ese horario ya no está disponible. ¿Querés que busque otros turnos? 📅" });
+            break;
+          }
+
+          const confirmResult = await createAppointmentFromSlot(
+            tenantId, patientId, conversationId, confirmTreatment,
+            startTime, selectedDentistName, timezone, log
           );
+          responses.push({ type: "text", text: confirmResult });
+        } catch (err) {
+          log.error({ err, patientId }, "Error creating appointment via confirm_appointment");
+          responses.push({ type: "text", text: "Hubo un problema al confirmar tu cita. Dejame conectarte con el equipo para ayudarte. 😊" });
         }
         break;
       }
@@ -453,22 +915,17 @@ async function handleToolCalls(
               cancelReason: (tool.args.reason as string) ?? "Cancelada por paciente vía WhatsApp",
             },
           });
-
-          // Move patient to "Interesado - No Agendó" stage
           await movePipelineToStage(tenantId, patientId, "Interesado - No Agendó", log);
-
-          responses.push("Tu cita ha sido cancelada. ¿Te gustaría agendar otra fecha? 📅");
+          responses.push({ type: "text", text: "Tu cita ha sido cancelada. ¿Te gustaría agendar otra fecha? 📅" });
         } else {
-          responses.push("No encontré una cita próxima para cancelar. ¿Puedo ayudarte en algo más?");
+          responses.push({ type: "text", text: "No encontré una cita próxima para cancelar. ¿Puedo ayudarte en algo más?" });
         }
         break;
       }
 
       case "reschedule_appointment": {
         log.info({ patientId }, "Chatbot: reschedule_appointment tool called");
-        responses.push(
-          "Para reagendar tu cita, necesito que me digas qué día y horario te queda mejor. ¿Preferís mañana o tarde? 📅"
-        );
+        responses.push({ type: "text", text: "Para reagendar tu cita, necesito que me digas qué día y horario te queda mejor. ¿Preferís mañana o tarde? 📅" });
         break;
       }
 
@@ -489,22 +946,16 @@ async function handleToolCalls(
         });
 
         if (appt) {
-          const date = appt.startTime.toLocaleDateString("es-AR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          });
-          const time = appt.startTime.toLocaleTimeString("es-AR", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          responses.push(
-            `Tu próxima cita es el ${date} a las ${time} con ${appt.dentist.name}${
+          const date = formatDateInTimezone(appt.startTime, timezone, { weekday: "long", day: "numeric", month: "long" });
+          const time = formatTimeInTimezone(appt.startTime, timezone);
+          responses.push({
+            type: "text",
+            text: `Tu próxima cita es el ${date} a las ${time} con ${appt.dentist.name}${
               appt.treatmentType ? ` para ${appt.treatmentType.name}` : ""
-            }. ✅`
-          );
+            }. ✅`,
+          });
         } else {
-          responses.push("No tenés citas agendadas actualmente. ¿Querés agendar una? 😊");
+          responses.push({ type: "text", text: "No tenés citas agendadas actualmente. ¿Querés agendar una? 😊" });
         }
         break;
       }
@@ -515,7 +966,31 @@ async function handleToolCalls(
           where: { id: conversationId },
           data: { status: "HUMAN_NEEDED", aiEnabled: false },
         });
-        responses.push("Dejame comunicarte con nuestro equipo para ayudarte mejor. Te van a responder a la brevedad. 😊");
+        responses.push({ type: "text", text: "Dejame comunicarte con nuestro equipo para ayudarte mejor. Te van a responder a la brevedad. 😊" });
+        break;
+      }
+
+      case "update_patient_data": {
+        log.info({ patientId, args: tool.args }, "Chatbot: update_patient_data tool called");
+        const updateData: Record<string, unknown> = {};
+        if (tool.args.firstName) updateData.firstName = tool.args.firstName as string;
+        if (tool.args.lastName) updateData.lastName = tool.args.lastName as string;
+        if (tool.args.email) updateData.email = tool.args.email as string;
+        if (tool.args.insurance) updateData.insurance = tool.args.insurance as string;
+        if (tool.args.birthDate) {
+          const bd = tool.args.birthDate as string;
+          const [by, bm, bd2] = bd.split("-").map(Number);
+          if (by && bm && bd2) updateData.birthdate = new Date(Date.UTC(by, bm - 1, bd2));
+        }
+
+        if (Object.keys(updateData).length > 0) {
+          await prisma.patient.update({
+            where: { id: patientId },
+            data: updateData,
+          });
+          log.info({ patientId, updatedFields: Object.keys(updateData) }, "Patient data updated via chatbot");
+        }
+        // No response text needed — the chatbot will continue the conversation naturally
         break;
       }
 
@@ -544,10 +1019,125 @@ interface AvailableSlot {
   endTime: Date;
 }
 
+// ─── Create appointment from confirmed slot (shared by tool + button handlers) ─
+
+async function createAppointmentFromSlot(
+  tenantId: string,
+  patientId: string,
+  conversationId: string,
+  treatmentName: string,
+  startTime: Date,
+  dentistName: string | undefined,
+  timezone: string,
+  log: FastifyBaseLogger
+): Promise<string> {
+  const treatment = await prisma.treatmentType.findFirst({
+    where: { tenantId, isActive: true, name: { contains: treatmentName, mode: "insensitive" } },
+  });
+  const durationMin = treatment?.durationMin ?? 30;
+
+  const endTime = new Date(startTime);
+  endTime.setMinutes(endTime.getMinutes() + durationMin);
+
+  // Find dentist
+  let dentist = null;
+  if (dentistName) {
+    dentist = await prisma.dentist.findFirst({
+      where: { tenantId, isActive: true, name: { contains: dentistName, mode: "insensitive" } },
+    });
+  }
+  if (!dentist && treatment) {
+    const dt = await prisma.dentistTreatment.findFirst({
+      where: { tenantId, treatmentTypeId: treatment.id },
+      include: { dentist: true },
+    });
+    dentist = dt?.dentist ?? null;
+  }
+  if (!dentist) {
+    dentist = await prisma.dentist.findFirst({ where: { tenantId, isActive: true } });
+  }
+  if (!dentist) {
+    return "No encontré un profesional disponible. Dejame conectarte con el equipo para confirmar tu turno. 😊";
+  }
+
+  // Check for conflicts
+  const conflict = await prisma.appointment.findFirst({
+    where: {
+      tenantId,
+      dentistId: dentist.id,
+      status: { in: ["PENDING", "CONFIRMED", "IN_PROGRESS"] },
+      startTime: { lt: endTime },
+      endTime: { gt: startTime },
+    },
+  });
+  if (conflict) {
+    return "Ese horario acaba de ser reservado por otro paciente. ¿Querés que busque otros turnos disponibles? 📅";
+  }
+
+  // Create the appointment
+  const appointment = await prisma.appointment.create({
+    data: {
+      tenantId,
+      patientId,
+      dentistId: dentist.id,
+      treatmentTypeId: treatment?.id,
+      startTime,
+      endTime,
+      status: "CONFIRMED",
+      source: "CHATBOT",
+      confirmedAt: new Date(),
+      conversationId,
+      notes: `Agendado vía WhatsApp chatbot. Tratamiento: ${treatmentName}`,
+    },
+  });
+
+  // Move patient in pipeline
+  await movePipelineToStage(tenantId, patientId, "Primera Cita Agendada", log);
+  await prisma.patientPipeline.updateMany({
+    where: { patientId },
+    data: { interestTreatment: treatmentName },
+  });
+
+  // Get clinic address
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { address: true },
+  });
+
+  const dateFormatted = formatDateInTimezone(startTime, timezone, { weekday: "long", day: "numeric", month: "long" });
+  const timeFormatted = formatTimeInTimezone(startTime, timezone);
+
+  let confirmMsg = `*¡Listo, tu cita está confirmada!* ✅\n\n`;
+  confirmMsg += `📅 *Fecha:* ${dateFormatted}\n`;
+  confirmMsg += `🕐 *Hora:* ${timeFormatted}\n`;
+  confirmMsg += `👨‍⚕️ *Profesional:* ${dentist.name}\n`;
+  confirmMsg += `🦷 *Tratamiento:* ${treatment?.name ?? treatmentName}`;
+  if (tenant?.address) {
+    confirmMsg += `\n📍 *Dirección:* ${tenant.address}`;
+  }
+  confirmMsg += `\n\nTe esperamos. Si necesitás cancelar o reagendar, avisame por acá. 😊`;
+
+  log.info(
+    { appointmentId: appointment.id, patientId, dentistId: dentist.id, startTime: startTime.toISOString() },
+    "Appointment created via chatbot"
+  );
+
+  // Clean up pending booking
+  pendingBookings.delete(conversationId);
+
+  return confirmMsg;
+}
+
+// ─── Find available appointment slots ────────────────────────────────────────
+
 async function findAvailableSlots(
   tenantId: string,
   treatmentName: string,
-  log: FastifyBaseLogger
+  log: FastifyBaseLogger,
+  timezone: string,
+  preferredDate?: string,
+  preferredTimeOfDay?: string,
+  dentistIdFilter?: string
 ): Promise<AvailableSlot[]> {
   // Find treatment type
   const treatment = await prisma.treatmentType.findFirst({
@@ -562,7 +1152,10 @@ async function findAvailableSlots(
 
   // Find dentists that can do this treatment
   let dentistIds: string[] | undefined;
-  if (treatment) {
+  if (dentistIdFilter) {
+    // Specific dentist requested (from button selection)
+    dentistIds = [dentistIdFilter];
+  } else if (treatment) {
     const dentistTreatments = await prisma.dentistTreatment.findMany({
       where: { tenantId, treatmentTypeId: treatment.id },
       select: { dentistId: true },
@@ -595,14 +1188,58 @@ async function findAvailableSlots(
   const slots: AvailableSlot[] = [];
   const now = new Date();
 
-  // Search next 7 business days
-  for (let dayOffset = 0; dayOffset < 14 && slots.length < 3; dayOffset++) {
-    const date = new Date(now);
+  // Determine time-of-day filter boundaries
+  let timeFilterStartHour = 0;
+  let timeFilterEndHour = 24;
+  if (preferredTimeOfDay === "morning") {
+    timeFilterStartHour = 8;
+    timeFilterEndHour = 13; // 8:00 - 12:59
+  } else if (preferredTimeOfDay === "afternoon") {
+    timeFilterStartHour = 13;
+    timeFilterEndHour = 18; // 13:00 - 18:00
+  }
+
+  // Determine date range to search
+  let searchStartDate: Date;
+  let maxDaysToSearch: number;
+  // When a specific date is requested, show up to 5 slots; otherwise 3
+  let maxSlots: number;
+
+  if (preferredDate) {
+    // Parse the preferred date
+    const [year, month, day] = preferredDate.split("-").map(Number);
+    searchStartDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+
+    // Validate the date is not in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (searchStartDate < today) {
+      log.info({ preferredDate }, "Preferred date is in the past — returning empty");
+      return [];
+    }
+
+    // Search the requested day + 2 more days if nothing found on that day
+    maxDaysToSearch = 3;
+    maxSlots = 5;
+    log.info({ preferredDate, preferredTimeOfDay }, "Searching slots for specific date");
+  } else {
+    searchStartDate = now;
+    maxDaysToSearch = 14;
+    maxSlots = 3;
+  }
+
+  log.info(
+    { treatmentName, preferredDate, preferredTimeOfDay, dentistIdFilter, maxSlots, maxDaysToSearch, serverNow: now.toISOString() },
+    "findAvailableSlots: searching"
+  );
+
+  for (let dayOffset = 0; dayOffset < maxDaysToSearch && slots.length < maxSlots; dayOffset++) {
+    const date = new Date(searchStartDate);
     date.setDate(date.getDate() + dayOffset);
     const dow = date.getDay(); // 0=Sun
 
     for (const dentist of dentists) {
-      if (slots.length >= 3) break;
+      if (slots.length >= maxSlots) break;
 
       // Use dentist's own hours if available, otherwise fall back to clinic hours
       const wh = dentist.workingHours.find((h) => h.dayOfWeek === dow)
@@ -612,10 +1249,19 @@ async function findAvailableSlots(
       const [startH, startM] = wh.startTime.split(":").map(Number);
       const [endH, endM] = wh.endTime.split(":").map(Number);
 
-      // Try hourly slots
-      for (let hour = startH; hour < endH && slots.length < 3; hour++) {
-        const slotStart = new Date(date);
-        slotStart.setHours(hour, hour === startH ? startM : 0, 0, 0);
+      // Apply time-of-day filter: effective range is intersection of working hours and filter
+      const effectiveStartH = Math.max(startH, timeFilterStartHour);
+      const effectiveEndH = Math.min(endH, timeFilterEndHour);
+      if (effectiveStartH >= effectiveEndH) continue;
+
+      // Try hourly slots within the effective range
+      for (let hour = effectiveStartH; hour < effectiveEndH && slots.length < maxSlots; hour++) {
+        const slotMinute = hour === startH ? startM : 0;
+        // Create timezone-aware UTC date for this slot's local time
+        const slotStart = localTimeToUTC(
+          date.getFullYear(), date.getMonth() + 1, date.getDate(),
+          hour, slotMinute, timezone
+        );
 
         // Skip past slots
         if (slotStart <= now) continue;
@@ -623,10 +1269,10 @@ async function findAvailableSlots(
         const slotEnd = new Date(slotStart);
         slotEnd.setMinutes(slotEnd.getMinutes() + durationMin);
 
-        // Check slot doesn't exceed working hours
+        // Check slot doesn't exceed working hours (in local time terms)
         const endMinutes = endH * 60 + endM;
-        const slotEndMinutes = slotEnd.getHours() * 60 + slotEnd.getMinutes();
-        if (slotEndMinutes > endMinutes) continue;
+        const slotEndLocalMinutes = (hour * 60 + slotMinute) + durationMin;
+        if (slotEndLocalMinutes > endMinutes) continue;
 
         // Check for conflicts
         const conflict = await prisma.appointment.findFirst({
@@ -641,15 +1287,12 @@ async function findAvailableSlots(
 
         if (!conflict) {
           slots.push({
-            date: slotStart.toLocaleDateString("es-AR", {
+            date: formatDateInTimezone(slotStart, timezone, {
               weekday: "short",
               day: "numeric",
               month: "short",
             }),
-            time: slotStart.toLocaleTimeString("es-AR", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
+            time: formatTimeInTimezone(slotStart, timezone),
             dentistName: dentist.name,
             dentistId: dentist.id,
             startTime: slotStart,
@@ -709,6 +1352,11 @@ export async function processIncomingMessage(
   // (credentials are guaranteed by resolveTenant — no extra check needed)
 
   // 2. Idempotency check — skip if we already processed this waMessageId
+  // In-memory dedup catches race conditions where two webhook calls arrive simultaneously
+  if (recentlyProcessedIds.has(msg.waMessageId)) {
+    log.debug({ waMessageId: msg.waMessageId }, "Duplicate message (in-memory dedup) — skipping");
+    return;
+  }
   const existingMsg = await prisma.message.findFirst({
     where: { whatsappMessageId: msg.waMessageId },
   });
@@ -716,6 +1364,9 @@ export async function processIncomingMessage(
     log.debug({ waMessageId: msg.waMessageId }, "Duplicate message — skipping");
     return;
   }
+  // Mark as processed immediately to prevent race with parallel webhook calls
+  recentlyProcessedIds.add(msg.waMessageId);
+  setTimeout(() => recentlyProcessedIds.delete(msg.waMessageId), DEDUP_TTL_MS);
 
   // 3. Find or create patient
   const patient = await findOrCreatePatient(tenant.id, msg.from, msg.profileName, log);
@@ -768,6 +1419,70 @@ export async function processIncomingMessage(
     "Inbound message saved"
   );
 
+  // 5b. Registration — first contact detection (immediate welcome, no debounce)
+  // If patient is NEW (no lastName) and registration is enabled, start registration.
+  // The welcome message is sent immediately. Subsequent registration steps go through debounce.
+  if (
+    msg.type === "text" &&
+    conversation.aiEnabled &&
+    conversation.status !== "HUMAN_NEEDED" &&
+    tenant.botConfig.registrationEnabled
+  ) {
+    const isNewPatient = !patient.lastName || patient.lastName.trim() === "";
+    const existingRegState = getRegistrationState(conversation.id);
+
+    if (!existingRegState && isNewPatient) {
+      // Check for urgent intents first
+      const urgentCheck = routeIntent(messageContent, tenant.botConfig.botLanguage);
+      if (!(urgentCheck.intent === "FRUSTRATION" || (urgentCheck.intent === "HUMAN" && urgentCheck.confidence === "high"))) {
+        // First contact — send welcome + first question immediately
+        const steps = buildRegistrationSteps(tenant.botConfig);
+        if (steps.length > 0) {
+          const state: RegistrationState = {
+            currentStep: steps[0],
+            pendingSteps: steps.slice(1),
+            expiresAt: Date.now() + REGISTRATION_TTL_MS,
+          };
+          registrationStates.set(conversation.id, state);
+
+          const clinicName = tenant.name;
+          const welcomeMsg = tenant.botConfig.registrationWelcomeMessage
+            ?? `¡Hola! Bienvenido/a a *${clinicName.trim()}*. 😊`;
+          const question = getQuestionForStep(state.currentStep);
+          const fullMsg = `${welcomeMsg}\n\nPara brindarte la mejor atención, necesito registrarte. Es rápido.\n\n${question}`;
+
+          const waRegMsgId = await sendWhatsAppTextMessage({
+            phoneNumberId: tenant.resolvedPhoneNumberId,
+            accessToken: tenant.resolvedAccessToken,
+            to: msg.from,
+            message: sanitizeForWhatsApp(fullMsg),
+          });
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              direction: "OUTBOUND",
+              type: "TEXT",
+              content: fullMsg,
+              whatsappMessageId: waRegMsgId,
+              metadata: { sentBy: "bot", registrationStep: state.currentStep },
+              sentAt: new Date(),
+            },
+          });
+          await prisma.conversation.update({
+            where: { id: conversation.id },
+            data: { lastMessageAt: new Date(), lastMessagePreview: sanitizeForWhatsApp(fullMsg).slice(0, 100) },
+          });
+          recordUsage(tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId: conversation.id }).catch(() => {});
+          log.info({ conversationId: conversation.id, step: state.currentStep }, "Registration started for new patient");
+          return;
+        }
+      }
+    }
+    // If existingRegState → fall through to debounce. Registration responses will be
+    // processed in processDebouncedMessages after the debounce timer fires.
+    // This ensures "Pedro" + "Vega" sent 3s apart get concatenated as "Pedro Vega".
+  }
+
   // 6. Handle audio messages — reply with a fixed text (0 tokens, 0 cost)
   // WhatsApp sends voice notes as type "audio"
   if (msg.type === "audio") {
@@ -800,6 +1515,115 @@ export async function processIncomingMessage(
       recordUsage(tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId: conversation.id }).catch(() => {});
     }
     return; // Do NOT process audio through chatbot
+  }
+
+  // 6b. Handle interactive button replies (Layer 1, 0 tokens)
+  // Button presses arrive as type "interactive" with interactiveReplyId
+  if (msg.interactiveReplyId && conversation.aiEnabled && conversation.status !== "HUMAN_NEEDED") {
+    const replyId = msg.interactiveReplyId;
+    log.info({ conversationId: conversation.id, replyId }, "Button reply received — processing in Layer 1");
+
+    const booking = getPendingBooking(conversation.id);
+    let responseText: string | null = null;
+    let responseButtons: Array<{ id: string; title: string }> | null = null;
+    let responseBodyForButtons: string | null = null;
+    let rawContentForDb: string | null = null; // Full text for AI history (may differ from button body)
+
+    // ─── Dentist selection button ─────────────────────────────────────
+    if (replyId.startsWith("dentist_") && booking) {
+      const dentistId = replyId === "dentist_any" ? undefined : replyId.replace("dentist_", "");
+      log.info({ conversationId: conversation.id, dentistId }, "Dentist selected via button");
+
+      const slots = await findAvailableSlots(
+        tenant.id, booking.treatmentType, log, tenant.timezone,
+        undefined, undefined, dentistId
+      );
+
+      if (slots.length === 0) {
+        responseText = "No encontré horarios disponibles con ese profesional. ¿Querés que busque con otro? 📅";
+      } else {
+        setPendingBooking(conversation.id, {
+          ...booking,
+          slots,
+          selectedDentistId: dentistId,
+          selectedDentistName: dentistId ? slots[0]?.dentistName : undefined,
+        });
+        const slotButtons = slots.slice(0, 3).map((s, i) => ({
+          id: `slot_${i}`,
+          title: `${s.date} ${s.time}`.slice(0, 20),
+        }));
+        const slotText = slots.map((s, i) => {
+          const isoDate = s.startTime.toISOString().split("T")[0];
+          const time24 = formatTimeInTimezone(s.startTime, tenant.timezone);
+          return `${i + 1}. ${s.date} a las ${s.time} con ${s.dentistName} [${isoDate} ${time24}]`;
+        }).join("\n");
+        responseBodyForButtons = `Elegí el horario que te quede mejor para tu ${booking.treatmentType}:`;
+        responseButtons = slotButtons;
+        // Save full slot list for AI conversation history
+        rawContentForDb = `Horarios disponibles para ${booking.treatmentType}:\n\n${slotText}\n\n¿Cuál te queda mejor?`;
+      }
+    }
+    // ─── Slot selection button ────────────────────────────────────────
+    else if (replyId.startsWith("slot_") && booking?.slots) {
+      const slotIndex = parseInt(replyId.replace("slot_", ""));
+      const selectedSlot = booking.slots[slotIndex];
+      if (selectedSlot) {
+        log.info({ conversationId: conversation.id, slotIndex, startTime: selectedSlot.startTime.toISOString() }, "Slot selected via button");
+        // Create the appointment directly
+        responseText = await createAppointmentFromSlot(
+          tenant.id, patient.id, conversation.id, booking.treatmentType,
+          selectedSlot.startTime, selectedSlot.dentistName, tenant.timezone, log
+        );
+
+        // Registration is now handled BEFORE booking, no need to prompt here
+      } else {
+        responseText = "No pude identificar el horario. ¿Podrías escribirme cuál preferís? 😊";
+      }
+    }
+
+    // Send the response
+    if (responseText || responseButtons) {
+      let waReplyMsgId: string;
+      const rawContent = rawContentForDb ?? responseBodyForButtons ?? responseText ?? "";
+
+      if (responseButtons && responseBodyForButtons) {
+        waReplyMsgId = await sendWhatsAppInteractiveButtons({
+          phoneNumberId: tenant.resolvedPhoneNumberId,
+          accessToken: tenant.resolvedAccessToken,
+          to: msg.from,
+          bodyText: sanitizeForWhatsApp(responseBodyForButtons),
+          buttons: responseButtons,
+        });
+      } else {
+        waReplyMsgId = await sendWhatsAppTextMessage({
+          phoneNumberId: tenant.resolvedPhoneNumberId,
+          accessToken: tenant.resolvedAccessToken,
+          to: msg.from,
+          message: sanitizeForWhatsApp(responseText!),
+        });
+      }
+
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          direction: "OUTBOUND",
+          type: responseButtons ? "INTERACTIVE" : "TEXT",
+          content: rawContent,
+          whatsappMessageId: waReplyMsgId,
+          metadata: { sentBy: "bot", buttonReply: replyId },
+          sentAt: new Date(),
+        },
+      });
+      await prisma.conversation.update({
+        where: { id: conversation.id },
+        data: { lastMessageAt: new Date(), lastMessagePreview: sanitizeForWhatsApp(rawContent).slice(0, 100) },
+      });
+      recordUsage(tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId: conversation.id }).catch(() => {});
+      log.info({ conversationId: conversation.id, replyId }, "Button reply handled (Layer 1, 0 tokens)");
+      return; // Handled without AI
+    }
+    // If we couldn't handle the button, fall through to AI
+    log.info({ conversationId: conversation.id, replyId }, "Button reply not resolved in Layer 1 — passing to AI");
   }
 
   // 7. If AI is enabled → run chatbot (with debounce)
@@ -885,6 +1709,9 @@ export async function processIncomingMessage(
       patientId: patient.id,
       patientFirstName: patient.firstName,
       patientLastName: patient.lastName,
+      patientEmail: patient.email ?? null,
+      patientBirthdate: patient.birthdate ?? null,
+      patientInsurance: patient.insurance ?? null,
       pipelineEntry: patient.pipelineEntry ?? null,
       recipientPhone: msg.from,
     });
@@ -972,6 +1799,72 @@ async function processDebouncedMessages(
   );
 
   try {
+    // ─── Registration flow (Layer 1, 0 tokens) ──────────────────────────
+    // If patient is in registration mode, process their response here (after debounce)
+    const regState = getRegistrationState(conversationId);
+    if (regState) {
+      // Check for urgent intents that should bypass registration
+      const urgentCheck = routeIntent(combinedMessage, ctx.tenant.botConfig.botLanguage);
+      if (urgentCheck.intent === "FRUSTRATION" || (urgentCheck.intent === "HUMAN" && urgentCheck.confidence === "high")) {
+        registrationStates.delete(conversationId);
+        log.info({ conversationId }, "Registration interrupted by urgent intent — passing to AI");
+        // Fall through to normal AI flow below
+      } else {
+        const error = await processRegistrationResponse(
+          regState.currentStep,
+          combinedMessage,
+          ctx.patientId,
+          ctx.tenant.id,
+          log
+        );
+
+        let replyMsg: string;
+        if (error) {
+          replyMsg = error;
+        } else if (regState.pendingSteps.length > 0) {
+          const nextStep = regState.pendingSteps[0];
+          regState.currentStep = nextStep;
+          regState.pendingSteps = regState.pendingSteps.slice(1);
+          regState.expiresAt = Date.now() + REGISTRATION_TTL_MS;
+          replyMsg = getQuestionForStep(nextStep);
+        } else {
+          registrationStates.delete(conversationId);
+          const updatedPatient = await prisma.patient.findUnique({
+            where: { id: ctx.patientId },
+            select: { firstName: true },
+          });
+          const name = updatedPatient?.firstName ?? ctx.patientFirstName;
+          replyMsg = `*¡Listo, ${name}!* Ya quedaste registrado/a. 😊\n\n¿En qué puedo ayudarte?`;
+          log.info({ conversationId, patientId: ctx.patientId }, "Registration complete");
+        }
+
+        const waStepMsgId = await sendWhatsAppTextMessage({
+          phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
+          accessToken: ctx.tenant.resolvedAccessToken,
+          to: ctx.recipientPhone,
+          message: sanitizeForWhatsApp(replyMsg),
+        });
+        await prisma.message.create({
+          data: {
+            conversationId,
+            direction: "OUTBOUND",
+            type: "TEXT",
+            content: replyMsg,
+            whatsappMessageId: waStepMsgId,
+            metadata: { sentBy: "bot", registrationStep: regState.currentStep ?? "complete" },
+            sentAt: new Date(),
+          },
+        });
+        await prisma.conversation.update({
+          where: { id: conversationId },
+          data: { lastMessageAt: new Date(), lastMessagePreview: sanitizeForWhatsApp(replyMsg).slice(0, 100) },
+        });
+        recordUsage(ctx.tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId }).catch(() => {});
+        log.info({ conversationId, debouncedCount: messages.length }, "Registration step processed (debounced)");
+        return; // Registration handled — don't proceed to AI
+      }
+    }
+
     // ─── Layer 2/3: AI (Haiku → Sonnet escalation) ───────────────────────
     const limitCheck = await checkPlanLimit(ctx.tenant.id, "AI_INTERACTION", log);
     if (limitCheck.atWarning) {
@@ -993,6 +1886,9 @@ async function processDebouncedMessages(
         id: ctx.patientId,
         firstName: ctx.patientFirstName,
         lastName: ctx.patientLastName,
+        email: ctx.patientEmail,
+        birthdate: ctx.patientBirthdate,
+        insurance: ctx.patientInsurance,
         pipelineEntry: ctx.pipelineEntry,
       }),
       getConversationHistory(conversationId),
@@ -1021,50 +1917,87 @@ async function processDebouncedMessages(
     }
 
     // Handle tool calls
-    let responseText = chatbotResult.text;
+    // Handle tool calls — tool responses take priority over AI-generated text
+    let toolResponses: ToolResponse[] = [];
     if (chatbotResult.toolCalls.length > 0) {
-      const toolResponses = await handleToolCalls(
+      log.info({ conversationId, toolCount: chatbotResult.toolCalls.length, hasAiText: !!chatbotResult.text }, "Processing tool calls");
+      toolResponses = await handleToolCalls(
         chatbotResult.toolCalls,
         ctx.tenant.id,
         ctx.patientId,
         conversationId,
+        ctx.tenant.timezone,
         log
       );
-      if (toolResponses.length > 0) {
-        // Tool handlers produce the definitive response — don't mix with Haiku's text
-        // which often conflicts (e.g., Haiku says "voy a agendar" while tool says "no hay slots")
-        responseText = toolResponses.join("\n\n");
-      }
     }
 
-    if (!responseText) {
+    // Determine what to send: tool response takes priority over AI text
+    let waMessageId: string;
+    let rawForDb: string;
+    let previewText: string;
+
+    const buttonResponse = toolResponses.find((r): r is ToolResponseButtons => r.type === "buttons");
+    const textResponses = toolResponses.filter((r): r is ToolResponseText => r.type === "text");
+
+    // IMPORTANT: Only ONE branch executes — buttons OR text OR AI text. Never two sends.
+    if (buttonResponse) {
+      // Send ONLY interactive buttons — discard any AI text to avoid duplicate messages
+      log.info({ conversationId, responseType: "buttons", discardedAiText: !!chatbotResult.text }, "Sending button response");
+
+      const sanitizedBody = sanitizeForWhatsApp(buttonResponse.bodyText);
+      waMessageId = await sendWhatsAppInteractiveButtons({
+        phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
+        accessToken: ctx.tenant.resolvedAccessToken,
+        to: ctx.recipientPhone,
+        bodyText: sanitizedBody,
+        buttons: buttonResponse.buttons,
+      });
+      rawForDb = buttonResponse.rawTextForHistory;
+      previewText = sanitizedBody.slice(0, 100);
+    } else if (textResponses.length > 0) {
+      // Tool handlers produce the definitive text response
+      const responseText = textResponses.map(r => r.text).join("\n\n");
+      rawForDb = responseText;
+      const whatsappText = sanitizeForWhatsApp(responseText);
+      waMessageId = await sendWhatsAppTextMessage({
+        phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
+        accessToken: ctx.tenant.resolvedAccessToken,
+        to: ctx.recipientPhone,
+        message: whatsappText,
+      });
+      previewText = whatsappText.slice(0, 100);
+    } else if (chatbotResult.text) {
+      // No tool responses — use AI-generated text
+      rawForDb = chatbotResult.text;
+      const whatsappText = sanitizeForWhatsApp(chatbotResult.text);
+      waMessageId = await sendWhatsAppTextMessage({
+        phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
+        accessToken: ctx.tenant.resolvedAccessToken,
+        to: ctx.recipientPhone,
+        message: whatsappText,
+      });
+      previewText = whatsappText.slice(0, 100);
+    } else {
       log.warn({ conversationId }, "Chatbot returned empty response");
       return;
     }
 
-    // Sanitize for WhatsApp formatting
-    responseText = sanitizeForWhatsApp(responseText);
-
-    // Send the response via WhatsApp
-    const waMessageId = await sendWhatsAppTextMessage({
-      phoneNumberId: ctx.tenant.resolvedPhoneNumberId,
-      accessToken: ctx.tenant.resolvedAccessToken,
-      to: ctx.recipientPhone,
-      message: responseText,
-    });
-
     // Track outbound WhatsApp usage
     recordUsage(ctx.tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound", conversationId }).catch(() => {});
 
-    // Save outbound message
+    // Save outbound message — raw text with slot metadata so AI can read it in history
     await prisma.message.create({
       data: {
         conversationId,
         direction: "OUTBOUND",
-        type: "TEXT",
-        content: responseText,
+        type: buttonResponse ? "INTERACTIVE" : "TEXT",
+        content: rawForDb,
         whatsappMessageId: waMessageId,
-        metadata: { sentBy: "bot", debouncedMessages: messages.length },
+        metadata: {
+          sentBy: "bot",
+          debouncedMessages: messages.length,
+          ...(buttonResponse ? { buttons: buttonResponse.buttons } : {}),
+        },
         sentAt: new Date(),
       },
     });
@@ -1074,7 +2007,7 @@ async function processDebouncedMessages(
       where: { id: conversationId },
       data: {
         lastMessageAt: new Date(),
-        lastMessagePreview: responseText.slice(0, 100),
+        lastMessagePreview: previewText,
       },
     });
 
@@ -1086,13 +2019,12 @@ async function processDebouncedMessages(
       data: { status: "HUMAN_NEEDED" },
     });
   } finally {
-    // Release processing lock
-    processingLock.delete(conversationId);
-
-    // Check if new messages arrived during processing — if so, start a short
-    // debounce to catch any trailing messages, then process the new batch
+    // Check if new messages arrived during processing BEFORE releasing lock.
+    // This prevents a race where a new message sets its own timer between
+    // lock release and our follow-up check, causing two timers → two responses.
     const followUpMessages = pendingMessages.get(conversationId);
     if (followUpMessages && followUpMessages.length > 0) {
+      // Release lock AFTER scheduling the follow-up timer
       log.info(
         { conversationId, queuedCount: followUpMessages.length },
         "New messages arrived during AI processing — scheduling follow-up batch"
@@ -1103,6 +2035,9 @@ async function processDebouncedMessages(
       if (debounceTimers.has(conversationId)) {
         clearTimeout(debounceTimers.get(conversationId)!);
       }
+      // Release lock now — the timer will re-acquire it when it fires
+      processingLock.delete(conversationId);
+
       const timer = setTimeout(() => {
         processDebouncedMessages(conversationId, log).catch((err) => {
           log.error({ err, conversationId }, "Error processing follow-up debounced messages");
@@ -1110,7 +2045,8 @@ async function processDebouncedMessages(
       }, followUpDebounceMs);
       debounceTimers.set(conversationId, timer);
     } else {
-      // No follow-up messages — clean up context
+      // No follow-up messages — release lock and clean up context
+      processingLock.delete(conversationId);
       pendingContexts.delete(conversationId);
     }
   }

@@ -131,7 +131,7 @@ function formatTime(dateStr: string): string {
 }
 
 function getInitials(firstName: string, lastName: string): string {
-  return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
+  return (`${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`).toUpperCase() || "?";
 }
 
 function getAvatarColor(name: string): string {

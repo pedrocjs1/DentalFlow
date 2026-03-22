@@ -139,12 +139,12 @@ export function PacientesClient({ data, search: initialSearch }: Props) {
                       <div className="flex items-center gap-3">
                         <div className="h-9 w-9 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center flex-shrink-0">
                           <span className="text-xs font-bold text-primary-700">
-                            {patient.firstName[0]}{patient.lastName[0]}
+                            {patient.firstName?.[0] ?? ""}{patient.lastName?.[0] ?? ""}
                           </span>
                         </div>
                         <div>
                           <p className="font-medium text-gray-900">
-                            {patient.firstName} {patient.lastName}
+                            {patient.firstName}{patient.lastName ? ` ${patient.lastName}` : ""}
                           </p>
                           {patient.email && (
                             <p className="text-xs text-gray-400">{patient.email}</p>

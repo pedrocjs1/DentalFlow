@@ -24,13 +24,15 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - **Pipeline CRM** — Kanban 8 stages, drag-and-drop persistente, drawer, valor monetario por columna ($), auto config por stage, sync bidireccional con Agenda
 - **Campañas** — wizard 4 pasos, 8 campañas default (idempotente), 15 templates catálogo, segmentación, métricas, retry failed
 - **Conversaciones** — inbox estilo WhatsApp Web, burbujas, delivery status, toggle IA activo/pausado, polling 3-5s, datos demo en seed
-- **Configuración** — 7 tabs (Clínica, Chatbot IA [4 sub-tabs: General/Horarios/Reglas/Campañas], Profesionales CRUD completo, Tratamientos, Sillones, Integraciones, Equipo)
+- **Configuración** — 7 tabs (Clínica, Chatbot IA [5 sub-tabs: General/Horarios/Reglas/Campañas/Registro], Profesionales CRUD completo, Tratamientos, Sillones, Integraciones, Equipo)
 
 **Integraciones implementadas:**
 - **Google Calendar** — OAuth2 bidireccional por dentista, eventos privados bloqueantes, tareas ignoradas
 - **WhatsApp Cloud API** — webhook HMAC-SHA256, WhatsAppService (text/template/buttons/list/markAsRead), feature flag, status updates
-- **Chatbot IA** — arquitectura 3 capas (Intent Router → Haiku 4.5 → Sonnet escalación), system prompt dinámico por tenant con BotConfig, 6 tools function calling, 300 tokens, temp 0.3
-- **WhatsApp Processor** — flujo completo: mensaje→paciente→conversación→debounce→intent router→chatbot→respuesta→pipeline→usage. Debounce configurable (3-15s, default 5s) con processing lock. Manejo de audios sin IA.
+- **Chatbot IA** — arquitectura 3 capas (Intent Router → Haiku 4.5 → Sonnet escalación), system prompt dinámico por tenant con BotConfig, 8 tools function calling (book_appointment, confirm_appointment, cancel_appointment, reschedule_appointment, check_appointment, answer_faq, transfer_to_human, update_patient_data), 300 tokens, temp 0.3
+- **WhatsApp Processor** — flujo completo: mensaje→registro→paciente→conversación→debounce→intent router→chatbot→respuesta→pipeline→usage. Debounce configurable (10-20s, default 12s) con processing lock. Manejo de audios sin IA.
+- **Botones interactivos WhatsApp** — selección de slots (3 botones) y dentistas, resueltos en Capa 1 (0 tokens). PendingBooking state en memoria con TTL 15min.
+- **Registro de pacientes** — state machine (RegistrationState) con pasos configurables: nombre→birthdate→insurance→email→address→condiciones→alergias→medicamentos→hábitos. Primera bienvenida inmediata, respuestas por debounce. Parser de fechas en español (texto natural, 0 tokens). Sub-tab "Registro" en Configuración con 9 toggles.
 
 **Super Admin** (/admin): Dashboard Global (MRR, gráfico crecimiento), Clínicas (CRUD+impersonar), WhatsApp (monitoreo+force-disconnect), Uso & Límites
 
@@ -91,10 +93,12 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - ~~Tech Provider Meta~~ → ✅ Aprobada y publicada
 - ~~Sistema de límites de mensajes mensuales por plan y cobro extra~~ → ✅ Implementado
 - ~~Configuración por clínica (reglas del bot)~~ → ✅ Implementado (pestaña Chatbot IA)
-- ~~Refinar system prompt del chatbot~~ → ✅ Optimizado con BotConfig + 3 capas
-- Automatizaciones del pipeline (seguimiento automático por etapa con cron jobs)
-- Billing (Stripe/MP suscripciones)
+- ~~Refinar system prompt del chatbot~~ → ✅ Optimizado con BotConfig + 3 capas + tabla fechas
+- ~~Agendamiento end-to-end~~ → ✅ book_appointment + confirm_appointment + botones interactivos
+- ~~Registro de pacientes nuevos~~ → ✅ State machine + configuración en dashboard
 - ~~Landing page~~ → ✅ Completada (apps/landing)
+- Automatizaciones del pipeline (cron jobs para seguimiento automático — auto-move a Primera Cita Agendada ya funciona via chatbot)
+- Billing (Stripe/MP suscripciones)
 - Deploy landing (Vercel → dentalflow.app)
 - Conectar dominio dentalflow.app para landing + app.dentalflow.app para dashboard
 - IA Central (templates recomendados cross-clínica)
@@ -147,10 +151,23 @@ BullMQ job pipeline-automations cada 30min. Valor monetario por columna.
 - FRUSTRATION y HUMAN con confidence "high" → transfer inmediato a humano, sin IA
 - Detección de sentimiento negativo: "queja", "reclamo", "horrible", "pésimo", etc.
 
+**Capa 1.5 — Registro de pacientes (whatsapp-processor.ts) — 0 tokens:**
+- RegistrationState in-memory con TTL 30min, pasos configurables por clínica
+- Primera bienvenida inmediata, respuestas por debounce
+- Parser: fechas en español (texto natural), email (regex), condiciones médicas (keyword), hábitos (keyword)
+- Datos se guardan en Patient + MedicalHistory
+
+**Capa 1.5 — Botones interactivos (whatsapp-processor.ts) — 0 tokens:**
+- PendingBooking state in-memory con TTL 15min
+- dentist_xxx → busca slots de ese dentista → slot buttons
+- slot_X → crea Appointment → confirmación
+- Body de botones: texto corto descriptivo, NO lista numerada
+
 **Capa 2 — Haiku 4.5 (packages/ai/src/chatbot.ts):**
-- 6 tools function calling: book_appointment, cancel_appointment, reschedule_appointment, check_appointment, answer_faq, transfer_to_human
-- System prompt optimizado con BotConfig: tono (formal/friendly/casual), idioma (es/pt/en), reglas activas
+- 8 tools function calling: book_appointment, confirm_appointment, cancel_appointment, reschedule_appointment, check_appointment, answer_faq, transfer_to_human, update_patient_data
+- System prompt optimizado con BotConfig: tono, idioma, reglas activas, tabla de fechas 14 días timezone-aware
 - buildContextAwareSystemPrompt() + getRelevantContext() para optimización de contexto
+- PatientContext con datos de completitud (hasCompleteName, hasBirthdate, hasInsurance, hasEmail)
 - 300 tokens, temp 0.3
 
 **Capa 3 — Escalación Sonnet (claude-sonnet-4-20250514):**
@@ -161,9 +178,12 @@ BullMQ job pipeline-automations cada 30min. Valor monetario por columna.
 
 **Debounce de mensajes (whatsapp-processor.ts):**
 - Map en memoria por conversación: timers + mensajes pendientes + processing lock
-- Default 5s, configurable por clínica (3-15s) via messageDebounceSeconds
+- Default 12s, configurable por clínica (10-20s) via messageDebounceSeconds
 - Processing lock: si llegan mensajes durante el procesamiento de un batch, se acumulan y se procesan automáticamente al terminar (follow-up con debounce corto 2s)
 - FRUSTRATION/HUMAN bypasean el debounce → respuesta inmediata
+- In-memory dedup Set (recentlyProcessedIds, 60s TTL) para evitar race conditions en webhook
+- Registro de pacientes también pasa por debounce (excepto primera bienvenida)
+- sanitizeForWhatsApp() en todo texto saliente: metadata \[\d{4}...\] → eliminada, \*\*bold\*\* → \*bold\*, markdown → stripped
 
 **Manejo de audios (0 tokens):**
 - Mensajes tipo "audio" → respuesta fija localizada pidiendo texto, sin llamar a IA
@@ -214,6 +234,81 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-22 — Agendamiento completo + Registro de pacientes + Botones interactivos
+
+**Flujo de agendamiento end-to-end — COMPLETADO Y FUNCIONANDO:**
+- book_appointment busca slots disponibles reales (DentistWorkingHours con fallback a WorkingHours del tenant)
+- confirm_appointment crea el Appointment en la DB con source CHATBOT
+- Pipeline se actualiza automáticamente a "Primera Cita Agendada"
+- Cita visible en la Agenda del dashboard
+- Soporte de preferredDate y preferredTimeOfDay para búsqueda de slots por fecha específica
+- findAvailableSlots: con fecha específica devuelve hasta 5 slots, sin fecha devuelve 3 más próximos
+- morning = 8:00-12:59, afternoon = 13:00-18:00
+
+**Botones interactivos de WhatsApp — IMPLEMENTADOS:**
+- Selección de slots: 3 botones con horarios disponibles
+- Selección de dentista: botones cuando hay múltiples dentistas para un tratamiento
+- Botones = Capa 1 (0 tokens), se resuelven en código sin pasar por IA
+- PendingBooking state en memoria con TTL 15min
+- Body de botones: texto corto descriptivo, NO lista numerada
+- Lista numerada es FALLBACK solo si botones fallan
+
+**Registro de pacientes nuevos — IMPLEMENTADO:**
+- Detección automática de paciente nuevo (lastName vacío)
+- State machine de registro con pasos configurables por clínica
+- Datos recolectados UNO A LA VEZ: nombre completo → fecha nacimiento → obra social → email → dirección → condiciones médicas → alergias → medicamentos → hábitos
+- Parser de fechas en español (texto natural): "10 de mayo del 2000", "15/05/1990", etc. 100% código, 0 tokens
+- Validación de email con regex
+- Condiciones médicas → MedicalHistory (diabetes, hipertensión, etc.)
+- Registro pasa por debounce (respeta messageDebounceSeconds del tenant)
+- Primera bienvenida es inmediata, respuestas posteriores pasan por debounce
+- update_patient_data tool para guardar datos del paciente desde la IA
+- Interrupciones (HUMAN/FRUSTRATION) pausan el registro
+
+**Configuración de registro en dashboard:**
+- Nuevo sub-tab "Registro" en Configuración > Chatbot IA (5to tab)
+- 9 toggles configurables: nombre completo (siempre activo), fecha nacimiento, obra social, email, dirección, condiciones médicas, alergias, medicamentos, hábitos
+- Mensaje de bienvenida personalizable
+- Campos en Tenant: registrationEnabled, askFullName, askEmail, askAddress, askMedicalConditions, askAllergies, askMedications, askHabits, registrationWelcomeMessage
+
+**Sanitización de mensajes WhatsApp:**
+- sanitizeForWhatsApp() aplicada en todos los mensajes salientes
+- Convierte **bold** a *bold* (WhatsApp format)
+- Elimina metadata de slots [YYYY-...] con regex /\s*\[\d{4}[^\]]*\]/g
+- Elimina markdown (###, ```, etc.)
+- .trim() en nombre de clínica antes de asteriscos
+
+**Fixes de bugs:**
+- Respuesta duplicada: in-memory dedup Set (recentlyProcessedIds, 60s TTL) + fix race condition en follow-up batch
+- Timezone: tabla de fechas de referencia en system prompt usa timezone Argentina (America/Argentina/Buenos_Aires)
+- Timezone en citas: localTimeToUTC(), formatDateInTimezone(), formatTimeInTimezone() helpers
+- lastName vacío en vez de "WhatsApp" para pacientes nuevos
+- Fix "Pundefined" en avatar: optional chaining en 5 archivos frontend
+- Debounce mínimo: opciones 10s/12s/15s/20s (eliminados 3s/5s/8s), default 12s
+
+**System prompt optimizado:**
+- Flujo de agendamiento en pasos estrictos (8 pasos)
+- Formato WhatsApp explícito (un asterisco, NO markdown)
+- "Una cosa a la vez" — nunca pedir múltiples datos
+- Tabla de fechas de referencia de 14 días (timezone-aware Argentina)
+- Instrucciones de cálculo de fechas estrictas
+- Contexto de datos faltantes del paciente (hasCompleteName, hasBirthdate, hasInsurance, hasEmail)
+- Registro se maneja automáticamente antes de la conversación
+
+**Migraciones Prisma:**
+- 20260322011749_add_insurance_askemail
+- 20260322022408_add_registration_config
+
+**Tools del chatbot (8 tools):**
+- book_appointment — busca slots disponibles
+- confirm_appointment — crea la cita en DB
+- cancel_appointment — cancela próxima cita
+- reschedule_appointment — reagenda cita
+- check_appointment — consulta próxima cita
+- answer_faq — responde FAQs
+- transfer_to_human — escala a humano
+- update_patient_data — actualiza datos del paciente
 
 ### 2026-03-21 — System prompt mejorado + sanitize WhatsApp + fix slots
 
@@ -373,6 +468,46 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 **Error: "Dominio de host desconocido de JSSDK"**
 - Causa: El dominio de ngrok no estaba en los dominios permitidos del SDK de JavaScript en Meta
 - Solución: Agregar en Facebook Login → Settings → "Dominios permitidos para el SDK de JavaScript" y "URI de redireccionamiento de OAuth válidos"
+
+**Error: Bot muestra texto de lista numerada junto con botones interactivos**
+- Causa: El body del mensaje interactivo de WhatsApp contenía la lista completa de slots en vez de un texto corto descriptivo
+- Solución: El body de sendWhatsAppInteractiveButtons debe ser un texto corto ("Elegí el horario que te quede mejor:"). La lista numerada se guarda solo en rawTextForHistory para el historial de la IA.
+- Regla: NUNCA poner la lista de slots/opciones en el body del mensaje interactivo. Los botones ya muestran las opciones.
+
+**Error: "El martes próximo" agenda para la semana incorrecta (timezone)**
+- Causa: La tabla de fechas de referencia en el system prompt usaba new Date() en UTC. A las 00:30 Argentina (03:30 UTC), el servidor creía que era lunes en vez de domingo.
+- Solución: Usar toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }) para calcular "hoy" en timezone Argentina.
+- Regla: SIEMPRE usar timezone Argentina para cualquier cálculo de "hoy", "mañana", o fechas relativas.
+
+**Error: Cita no aparece en la Agenda del dashboard (timezone)**
+- Causa: El bot guardaba la hora local como UTC. Si agendaba "9:00 AM Argentina", guardaba 09:00 UTC en vez de 12:00 UTC.
+- Solución: Helpers localTimeToUTC() y formatDateInTimezone()/formatTimeInTimezone() para convertir correctamente.
+- Regla: DB SIEMPRE en UTC. Convertir hora local → UTC al guardar, UTC → local al mostrar.
+
+**Error: Paciente aparece como "Pedro WhatsApp" o "Pundefined"**
+- Causa 1: findOrCreatePatient ponía "WhatsApp" como apellido default. Solución: lastName="" (vacío).
+- Causa 2: El frontend hacía firstName[0] + lastName[0] sin verificar que lastName existiera. Solución: optional chaining ?.[0].
+- Regla: lastName vacío para pacientes nuevos. Siempre verificar con optional chaining.
+
+**Error: Bot pide fecha de nacimiento y obra social CADA VEZ**
+- Causa: El system prompt no sabía si el paciente ya tenía esos datos cargados.
+- Solución: PatientContext incluye hasCompleteName, hasBirthdate, hasInsurance, hasEmail. El prompt dice "Datos faltantes: ..." o "Datos completos ✓".
+- Regla: Solo pedir datos que el paciente NO tiene cargados.
+
+**Error: Debounce de 3-5 segundos causa mensajes cortados**
+- Causa: La gente manda mensajes de WhatsApp en ráfagas de 2-5 mensajes. Con debounce de 5s, el bot respondía a los primeros 2 mensajes y los siguientes quedaban huérfanos.
+- Solución: Mínimo debounce 10s, default 12s, opciones: 10/12/15/20s.
+- Regla: Mínimo 10 segundos de debounce. Para Latinoamérica, 12s es el sweet spot.
+
+**Error: "10 de mayo del 2000" no se parsea como fecha de nacimiento**
+- Causa: El parser solo aceptaba formato dd/mm/aaaa numérico.
+- Solución: Parser con diccionario de 24 meses (completos + abreviados) y regex para texto natural español.
+- Regla: Siempre aceptar fechas en texto natural español. Parser en código, 0 tokens.
+
+**Error: Asteriscos mal formateados "*Clínica *" con espacio**
+- Causa: El nombre de la clínica tenía trailing whitespace.
+- Solución: .trim() antes de envolver en asteriscos.
+- Regla: Siempre .trim() nombres antes de formatear para WhatsApp.
 
 ---
 

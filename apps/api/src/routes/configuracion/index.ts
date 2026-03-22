@@ -14,6 +14,7 @@ const botConfigSchema = z
     botLanguage: z.enum(["es", "pt", "en"]).optional(),
     askBirthdate: z.boolean().optional(),
     askInsurance: z.boolean().optional(),
+    askEmail: z.boolean().optional(),
     offerDiscounts: z.boolean().optional(),
     maxDiscountPercent: z.number().int().min(5).max(25).optional(),
     proactiveFollowUp: z.boolean().optional(),
@@ -22,7 +23,16 @@ const botConfigSchema = z
     campaignBirthday: z.boolean().optional(),
     campaignPeriodicReminder: z.boolean().optional(),
     campaignReactivation: z.boolean().optional(),
-    messageDebounceSeconds: z.number().int().min(3).max(15).optional(),
+    messageDebounceSeconds: z.number().int().min(10).max(20).optional(),
+    // Registration config
+    registrationEnabled: z.boolean().optional(),
+    askFullName: z.boolean().optional(),
+    askAddress: z.boolean().optional(),
+    askMedicalConditions: z.boolean().optional(),
+    askAllergies: z.boolean().optional(),
+    askMedications: z.boolean().optional(),
+    askHabits: z.boolean().optional(),
+    registrationWelcomeMessage: z.string().max(500).nullable().optional(),
   })
   .refine(
     (data) => {
@@ -53,6 +63,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           botLanguage: true,
           askBirthdate: true,
           askInsurance: true,
+          askEmail: true,
           offerDiscounts: true,
           maxDiscountPercent: true,
           proactiveFollowUp: true,
@@ -61,6 +72,14 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           campaignPeriodicReminder: true,
           campaignReactivation: true,
           messageDebounceSeconds: true,
+          registrationEnabled: true,
+          askFullName: true,
+          askAddress: true,
+          askMedicalConditions: true,
+          askAllergies: true,
+          askMedications: true,
+          askHabits: true,
+          registrationWelcomeMessage: true,
         },
       });
       if (!tenant) throw new AppError(404, "TENANT_NOT_FOUND", "Clínica no encontrada");
@@ -89,6 +108,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
         if (!body.askBirthdate) updateData.campaignBirthday = false;
       }
       if (body.askInsurance !== undefined) updateData.askInsurance = body.askInsurance;
+      if (body.askEmail !== undefined) updateData.askEmail = body.askEmail;
       if (body.offerDiscounts !== undefined) updateData.offerDiscounts = body.offerDiscounts;
       if (body.maxDiscountPercent !== undefined) updateData.maxDiscountPercent = body.maxDiscountPercent;
       if (body.proactiveFollowUp !== undefined) updateData.proactiveFollowUp = body.proactiveFollowUp;
@@ -99,6 +119,15 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
       if (body.campaignPeriodicReminder !== undefined) updateData.campaignPeriodicReminder = body.campaignPeriodicReminder;
       if (body.campaignReactivation !== undefined) updateData.campaignReactivation = body.campaignReactivation;
       if (body.messageDebounceSeconds !== undefined) updateData.messageDebounceSeconds = body.messageDebounceSeconds;
+      // Registration config
+      if (body.registrationEnabled !== undefined) updateData.registrationEnabled = body.registrationEnabled;
+      if (body.askFullName !== undefined) updateData.askFullName = body.askFullName;
+      if (body.askAddress !== undefined) updateData.askAddress = body.askAddress;
+      if (body.askMedicalConditions !== undefined) updateData.askMedicalConditions = body.askMedicalConditions;
+      if (body.askAllergies !== undefined) updateData.askAllergies = body.askAllergies;
+      if (body.askMedications !== undefined) updateData.askMedications = body.askMedications;
+      if (body.askHabits !== undefined) updateData.askHabits = body.askHabits;
+      if (body.registrationWelcomeMessage !== undefined) updateData.registrationWelcomeMessage = body.registrationWelcomeMessage;
 
       const tenant = await prisma.tenant.update({
         where: { id: user.tenantId },
@@ -109,6 +138,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           botLanguage: true,
           askBirthdate: true,
           askInsurance: true,
+          askEmail: true,
           offerDiscounts: true,
           maxDiscountPercent: true,
           proactiveFollowUp: true,
@@ -117,6 +147,14 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           campaignPeriodicReminder: true,
           campaignReactivation: true,
           messageDebounceSeconds: true,
+          registrationEnabled: true,
+          askFullName: true,
+          askAddress: true,
+          askMedicalConditions: true,
+          askAllergies: true,
+          askMedications: true,
+          askHabits: true,
+          registrationWelcomeMessage: true,
         },
       });
       return tenant;

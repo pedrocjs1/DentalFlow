@@ -38,7 +38,17 @@ model Tenant {
   campaignBirthday      Boolean            @default(true)
   campaignPeriodicReminder Boolean         @default(true)
   campaignReactivation  Boolean            @default(true)
-  messageDebounceSeconds Int               @default(5)           // 3-15
+  messageDebounceSeconds Int               @default(12)          // 10-20
+  askEmail              Boolean            @default(true)
+  // Registration config — what data to collect from new patients
+  registrationEnabled         Boolean  @default(true)
+  askFullName                 Boolean  @default(true)
+  askAddress                  Boolean  @default(false)
+  askMedicalConditions        Boolean  @default(false)
+  askAllergies                Boolean  @default(false)
+  askMedications              Boolean  @default(false)
+  askHabits                   Boolean  @default(false)
+  registrationWelcomeMessage  String?
   // WhatsApp Embedded Signup — each clinic connects their own WABA
   wabaId                String?            // WhatsApp Business Account ID
   whatsappPhoneNumberId String?            // Meta phone_number_id
@@ -269,6 +279,7 @@ model Patient {
   phone        String
   email        String?
   birthdate    DateTime?
+  insurance    String?            // Obra social / seguro dental
   gender       Gender?
   address      String?
   notes        String?

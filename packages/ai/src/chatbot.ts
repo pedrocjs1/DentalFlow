@@ -16,10 +16,20 @@ export interface BotConfig {
   welcomeMessage?: string | null;
   askBirthdate: boolean;
   askInsurance: boolean;
+  askEmail: boolean;
   offerDiscounts: boolean;
   maxDiscountPercent: number;
   proactiveFollowUp: boolean;
   leadRecontactHours: number;
+  // Registration config
+  registrationEnabled: boolean;
+  askFullName: boolean;
+  askAddress: boolean;
+  askMedicalConditions: boolean;
+  askAllergies: boolean;
+  askMedications: boolean;
+  askHabits: boolean;
+  registrationWelcomeMessage?: string | null;
 }
 
 export interface ClinicContext {
@@ -43,6 +53,11 @@ export interface PatientContext {
     dentistName: string;
     treatmentName: string;
   } | null;
+  // Data completeness — so the bot knows what to ask
+  hasCompleteName: boolean;
+  hasBirthdate: boolean;
+  hasInsurance: boolean;
+  hasEmail: boolean;
 }
 
 export interface ConversationMessage {
@@ -68,7 +83,7 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
   {
     name: "book_appointment",
     description:
-      "Book a new dental appointment for the patient. Use when the patient wants to schedule a visit. You must ask what treatment they need first.",
+      "Search for available appointment slots. Use when the patient wants to schedule a visit. Always ask what treatment they need first. If the patient mentions a specific day (e.g., 'el lunes', 'mañana', '20 de abril'), calculate the date and pass it as preferredDate. If they say 'a la mañana' or 'a la tarde', pass preferredTimeOfDay. If they reject offered slots and ask for a different day, call this tool again with the new preferredDate.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -78,15 +93,50 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
         },
         preferredDate: {
           type: "string",
-          description: "Preferred date in YYYY-MM-DD format, if mentioned by patient",
+          description: "Preferred date in YYYY-MM-DD format. Calculate from relative dates: 'mañana' = tomorrow, 'el lunes' = next Monday, 'la semana que viene' = next Monday, etc. Use the current date provided in the system prompt to calculate.",
         },
         preferredTimeOfDay: {
           type: "string",
           enum: ["morning", "afternoon", "any"],
-          description: "Preferred time of day",
+          description: "Preferred time of day. 'morning' = 8:00-12:59, 'afternoon' = 13:00-18:00. Map from: 'a la mañana'/'temprano' → morning, 'a la tarde'/'después del mediodía' → afternoon.",
         },
       },
       required: ["treatmentType"],
+    },
+  },
+  {
+    name: "confirm_appointment",
+    description:
+      "Confirm and create the appointment after the patient selects one of the offered time slots. Use when the patient picks a slot (e.g., 'el de las 10', 'opción 2', 'el lunes a las 10'). You MUST provide the exact date and time from the slot the patient chose.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        slotIndex: {
+          type: "number",
+          description:
+            "The slot number the patient chose (1, 2, or 3) based on the numbered list you offered",
+        },
+        treatmentType: {
+          type: "string",
+          description:
+            "The treatment type for the appointment (e.g., limpieza, ortodoncia)",
+        },
+        selectedDate: {
+          type: "string",
+          description:
+            "The date of the selected slot in YYYY-MM-DD format",
+        },
+        selectedTime: {
+          type: "string",
+          description:
+            "The time of the selected slot in HH:MM format (24h)",
+        },
+        dentistName: {
+          type: "string",
+          description: "The dentist name from the selected slot",
+        },
+      },
+      required: ["treatmentType", "selectedDate", "selectedTime"],
     },
   },
   {
@@ -147,6 +197,37 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
         },
       },
       required: ["topic"],
+    },
+  },
+  {
+    name: "update_patient_data",
+    description:
+      "Update patient information collected during conversation. Use when the patient provides their name, birth date, insurance, or email. Call this tool immediately when the patient gives you any of this data — do not wait until the end of the conversation.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        firstName: {
+          type: "string",
+          description: "Patient's first name",
+        },
+        lastName: {
+          type: "string",
+          description: "Patient's last name / surname",
+        },
+        birthDate: {
+          type: "string",
+          description: "Birth date in YYYY-MM-DD format",
+        },
+        insurance: {
+          type: "string",
+          description: "Health insurance / obra social name",
+        },
+        email: {
+          type: "string",
+          description: "Patient's email address",
+        },
+      },
+      required: [],
     },
   },
   {
@@ -239,12 +320,8 @@ function buildSystemPrompt(
       `Podés ofrecer hasta ${config.maxDiscountPercent}% de descuento a leads que no agendan.`
     );
   }
-  if (config.askBirthdate) {
-    rules.push("Pedí la fecha de nacimiento al registrar nuevos pacientes.");
-  }
-  if (config.askInsurance) {
-    rules.push("Preguntá por la obra social/seguro del paciente.");
-  }
+  // askBirthdate and askInsurance are handled by the registration flow
+  // based on "Datos faltantes" in the patient context
   if (config.proactiveFollowUp) {
     rules.push(
       "Recordale al paciente cuándo le toca su próxima visita según el tratamiento realizado."
@@ -252,6 +329,16 @@ function buildSystemPrompt(
   }
 
   const rulesBlock = rules.length > 0 ? `\nReglas activas:\n${rules.map((r) => `- ${r}`).join("\n")}` : "";
+
+  // Build patient data completeness section
+  const missingData: string[] = [];
+  if (!patient.hasCompleteName) missingData.push("nombre completo");
+  if (config.askBirthdate && !patient.hasBirthdate) missingData.push("fecha de nacimiento");
+  if (config.askInsurance && !patient.hasInsurance) missingData.push("obra social");
+  if (config.askEmail && !patient.hasEmail) missingData.push("email");
+  const dataStatus = missingData.length > 0
+    ? `Datos faltantes: ${missingData.join(", ")}`
+    : "Datos completos ✓";
 
   let prompt = `Sos el asistente virtual de ${clinic.clinicName}${clinic.clinicAddress ? `, ubicada en ${clinic.clinicAddress}` : ""}.
 ${toneInstruction}
@@ -261,6 +348,7 @@ Paciente: ${patient.firstName} ${patient.lastName}
 ${appointmentInfo}
 Estado: ${patient.pipelineStageName ?? "No asignado"}
 ${patient.interestTreatment ? `Interés: ${patient.interestTreatment}` : ""}
+${dataStatus}
 
 Horarios: ${clinic.workingHoursFormatted || "No configurados"}
 
@@ -274,12 +362,32 @@ ${clinic.treatmentsInfo || "No configurados"}`;
     prompt += `\n\nFAQs:\n${clinic.faqsFormatted}`;
   }
 
-  const currentDate = new Date().toLocaleDateString("es-AR", {
+  // Use Argentina timezone for "today" to avoid UTC midnight edge cases
+  // At 00:30 Argentina (03:30 UTC), new Date() thinks it's the next day in UTC
+  const TZ = "America/Argentina/Buenos_Aires";
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: TZ }); // YYYY-MM-DD
+  const todayBase = new Date(todayStr + "T12:00:00"); // Midday to avoid edge cases
+
+  const currentDate = todayBase.toLocaleDateString("es-AR", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: TZ,
   });
+  const daysOfWeek = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+  const dayOfWeek = daysOfWeek[todayBase.getDay()];
+
+  // Build a 14-day date reference table so the AI doesn't have to calculate dates
+  let dateReference = "";
+  for (let i = 0; i <= 14; i++) {
+    const d = new Date(todayBase);
+    d.setDate(d.getDate() + i);
+    const dName = daysOfWeek[d.getDay()];
+    const dateStr = d.toISOString().split("T")[0];
+    const label = i === 0 ? " (HOY)" : i === 1 ? " (MAÑANA)" : "";
+    dateReference += `- ${dName} ${d.getDate()}/${d.getMonth() + 1} = ${dateStr}${label}\n`;
+  }
 
   prompt += `
 ${rulesBlock}
@@ -293,17 +401,48 @@ Formato de mensajes:
 Flujo de agendamiento (SEGUIR EN ORDEN ESTRICTO):
 1. Paciente quiere agendar → preguntá qué tratamiento necesita (si no lo dijo).
 2. Tenés el tratamiento → usá la tool book_appointment. NO preguntes fecha/hora vos, la tool busca slots disponibles.
-3. Si la tool devuelve slots → el paciente elige uno.
-4. Si la tool no devuelve slots → decí que el equipo lo va a contactar. NO inventes horarios.
-5. RECIÉN después de confirmar la cita, pedí datos extra (fecha nacimiento, obra social) SI las reglas lo requieren.
+3. Si la tool devuelve slots → mostralos al paciente con números (1, 2, 3...). Esperá que elija.
+4. *Paciente elige un slot* ("el de las 10", "opción 2", "la 1", "el lunes a las 10", etc.) → usá la tool *confirm_appointment* con la fecha (YYYY-MM-DD), hora (HH:MM) y dentista del slot que eligió. NUNCA confirmes sin usar la tool.
+5. Si la tool no devuelve slots para una fecha específica → preguntá si quiere buscar en otro día.
+6. Si la tool no devuelve slots en general → decí que el equipo lo va a contactar. NO inventes horarios.
+7. Si el paciente rechaza los slots ("no, otro día", "más adelante", "no me sirve") → preguntale qué día prefiere y volvé a llamar book_appointment con la nueva fecha.
+8. RECIÉN después de confirmar la cita, pedí datos extra (fecha nacimiento, obra social) SI las reglas lo requieren.
+
+CÁLCULO DE FECHAS — REGLAS ESTRICTAS:
+- Hoy es *${currentDate}* (${dayOfWeek}).
+- Usá la tabla de fechas para convertir lo que dice el paciente a formato YYYY-MM-DD.
+- "mañana" = fecha de mañana en la tabla.
+- "el lunes" o "el lunes que viene" = próximo lunes en la tabla.
+- "el jueves que viene" = próximo jueves en la tabla.
+- "la semana que viene" = lunes de la próxima semana en la tabla.
+- "20/04" o "20 de abril" → buscar en la tabla o usar 2026-04-20.
+- SIEMPRE pasá preferredDate en formato YYYY-MM-DD cuando el paciente mencione un día.
+- NUNCA dejes preferredDate vacío si el paciente mencionó un día específico.
+- Si dice "a la mañana" / "temprano" → preferredTimeOfDay = "morning".
+- Si dice "a la tarde" / "después del mediodía" → preferredTimeOfDay = "afternoon".
+- Si la fecha ya pasó, avisale amablemente y pedí otra.
+- NUNCA inventes horarios. SIEMPRE usá book_appointment.
+
+Fechas de referencia (próximos 14 días):
+${dateReference}
+
+IMPORTANTE sobre confirm_appointment:
+- Cuando el paciente elige un slot, DEBÉS extraer la fecha y hora exactas del mensaje anterior donde ofreciste los slots.
+- Usá formato YYYY-MM-DD para la fecha y HH:MM (24h) para la hora.
+- Si el paciente dice "el 2" o "la segunda opción", usá los datos del slot 2 que ofreciste.
+- Si no podés determinar cuál slot eligió, preguntale para confirmar.
+
+Registro de pacientes:
+- El registro de datos se maneja automáticamente ANTES de que llegues vos. Cuando hablás con el paciente, ya está registrado.
+- Si el paciente te da datos extra (email, dirección, etc.) durante la conversación, usá update_patient_data para guardarlos.
+- NO pidas datos de registro proactivamente. Solo guardá lo que el paciente ofrezca voluntariamente.
 
 Reglas críticas:
 - UNA COSA A LA VEZ. Nunca pidas múltiples datos en el mismo mensaje.
 - Si no podés resolver algo, usá transfer_to_human. No improvises.
 - Nunca des consejos médicos.
 - NUNCA inventés precios o tratamientos que no estén listados.
-- Tratá al paciente por su nombre (${patient.firstName}).
-- Si el paciente dice un día relativo ("el lunes", "mañana"), calculá la fecha. Hoy es ${currentDate}.`;
+- Tratá al paciente por su nombre (${patient.firstName}).`;
 
   if (config.welcomeMessage) {
     prompt += `\n- Cuando un paciente nuevo te escribe por primera vez, usá este saludo: "${config.welcomeMessage}"`;
@@ -402,10 +541,18 @@ export async function generateChatbotResponse(
     botLanguage: "es",
     askBirthdate: true,
     askInsurance: true,
+    askEmail: true,
     offerDiscounts: false,
     maxDiscountPercent: 10,
     proactiveFollowUp: true,
     leadRecontactHours: 4,
+    registrationEnabled: true,
+    askFullName: true,
+    askAddress: false,
+    askMedicalConditions: false,
+    askAllergies: false,
+    askMedications: false,
+    askHabits: false,
   };
 
   const systemPrompt = buildContextAwareSystemPrompt(

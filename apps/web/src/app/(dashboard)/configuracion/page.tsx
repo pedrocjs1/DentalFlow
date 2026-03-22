@@ -1315,6 +1315,7 @@ interface BotConfigData {
   botLanguage: string;
   askBirthdate: boolean;
   askInsurance: boolean;
+  askEmail: boolean;
   offerDiscounts: boolean;
   maxDiscountPercent: number;
   proactiveFollowUp: boolean;
@@ -1323,6 +1324,15 @@ interface BotConfigData {
   campaignPeriodicReminder: boolean;
   campaignReactivation: boolean;
   messageDebounceSeconds: number;
+  // Registration config
+  registrationEnabled: boolean;
+  askFullName: boolean;
+  askAddress: boolean;
+  askMedicalConditions: boolean;
+  askAllergies: boolean;
+  askMedications: boolean;
+  askHabits: boolean;
+  registrationWelcomeMessage: string | null;
 }
 
 const TONE_LABELS: Record<string, { label: string; preview: string }> = {
@@ -1355,11 +1365,10 @@ const RECONTACT_OPTIONS = [
 ];
 
 const DEBOUNCE_OPTIONS = [
-  { value: 3, label: "3 segundos (rápido)" },
-  { value: 5, label: "5 segundos (recomendado)" },
-  { value: 8, label: "8 segundos (moderado)" },
-  { value: 12, label: "12 segundos (paciente)" },
-  { value: 15, label: "15 segundos (muy paciente)" },
+  { value: 10, label: "10 segundos (rápido)" },
+  { value: 12, label: "12 segundos (recomendado)" },
+  { value: 15, label: "15 segundos (paciente)" },
+  { value: 20, label: "20 segundos (muy paciente)" },
 ];
 
 function TabChatbotIA() {
@@ -1367,7 +1376,7 @@ function TabChatbotIA() {
   const [config, setConfig] = useState<BotConfigData | null>(null);
   const [form, setForm] = useState<Partial<BotConfigData>>({});
   const [saving, setSaving] = useState(false);
-  const [subTab, setSubTab] = useState<"general" | "horarios" | "reglas" | "campanas">("general");
+  const [subTab, setSubTab] = useState<"general" | "horarios" | "reglas" | "campanas" | "registro">("general");
   const [workingHours, setWorkingHours] = useState<
     Array<{ dayOfWeek: number; startTime: string; endTime: string; breakStart: string; breakEnd: string; isActive: boolean }>
   >([]);
@@ -1428,6 +1437,7 @@ function TabChatbotIA() {
     { key: "horarios" as const, label: "Horarios" },
     { key: "reglas" as const, label: "Reglas del Bot" },
     { key: "campanas" as const, label: "Campañas" },
+    { key: "registro" as const, label: "Registro" },
   ];
 
   return (
@@ -1693,7 +1703,7 @@ function TabChatbotIA() {
               </label>
               <select
                 className="w-full sm:w-64 border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500"
-                value={form.messageDebounceSeconds ?? 5}
+                value={form.messageDebounceSeconds ?? 12}
                 onChange={(e) => setForm({ ...form, messageDebounceSeconds: parseInt(e.target.value) })}
               >
                 {DEBOUNCE_OPTIONS.map((opt) => (
@@ -1703,7 +1713,7 @@ function TabChatbotIA() {
                 ))}
               </select>
               <p className="text-xs text-gray-500 mt-1">
-                Cuánto espera el bot antes de responder, para dar tiempo a que el paciente termine de escribir. Recomendado: 5 segundos.
+                Cuánto espera el bot antes de responder, para dar tiempo a que el paciente termine de escribir. Recomendado: 12 segundos.
               </p>
             </div>
           </div>
@@ -1783,6 +1793,217 @@ function TabChatbotIA() {
                 />
               </button>
             </div>
+          </div>
+        </Section>
+      )}
+
+      {/* Sub-tab: Registro */}
+      {subTab === "registro" && (
+        <Section title="Registro de pacientes nuevos">
+          <div className="space-y-5">
+            {/* Registration Enabled */}
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="text-sm font-medium text-gray-900">Pedir registro a pacientes nuevos</label>
+                <p className="text-xs text-gray-500 mt-0.5">El bot registrará pacientes nuevos antes de atenderlos</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, registrationEnabled: !form.registrationEnabled })}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  form.registrationEnabled ? "bg-primary-600" : "bg-gray-300"
+                }`}
+              >
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  form.registrationEnabled ? "translate-x-6" : "translate-x-1"
+                }`} />
+              </button>
+            </div>
+
+            {form.registrationEnabled && (
+              <>
+                <div className="border-t pt-4">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Datos a solicitar</p>
+                  <div className="space-y-4">
+                    {/* Full Name - always on */}
+                    <div className="flex items-start justify-between opacity-75">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Nombre completo</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Siempre activo — obligatorio para el registro</p>
+                      </div>
+                      <button type="button" disabled className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary-600 cursor-not-allowed">
+                        <span className="inline-block h-4 w-4 transform rounded-full bg-white translate-x-6" />
+                      </button>
+                    </div>
+
+                    {/* Birthdate */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Fecha de nacimiento</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Necesario para campañas de cumpleaños</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askBirthdate: !form.askBirthdate })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askBirthdate ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askBirthdate ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Insurance */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Obra social / seguro</label>
+                        <p className="text-xs text-gray-500 mt-0.5">El bot preguntará por la cobertura médica</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askInsurance: !form.askInsurance })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askInsurance ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askInsurance ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Email */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Email</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Para enviar confirmaciones y recordatorios</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askEmail: !form.askEmail })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askEmail ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askEmail ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Address */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Dirección</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Dirección del paciente</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askAddress: !form.askAddress })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askAddress ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askAddress ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Medical Conditions */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Condiciones médicas</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Diabetes, hipertensión, cardiopatía, asma, epilepsia</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askMedicalConditions: !form.askMedicalConditions })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askMedicalConditions ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askMedicalConditions ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Allergies */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Alergias</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Alergias a medicamentos u otros</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askAllergies: !form.askAllergies })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askAllergies ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askAllergies ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Medications */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Medicamentos actuales</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Medicamentos que toma actualmente</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askMedications: !form.askMedications })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askMedications ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askMedications ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+
+                    {/* Habits */}
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-gray-900">Hábitos</label>
+                        <p className="text-xs text-gray-500 mt-0.5">Bruxismo, fumador, embarazada</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, askHabits: !form.askHabits })}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          form.askHabits ? "bg-primary-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          form.askHabits ? "translate-x-6" : "translate-x-1"
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Welcome Message */}
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-gray-900">Mensaje de bienvenida</label>
+                  <p className="text-xs text-gray-500 mt-0.5 mb-2">Mensaje personalizado para nuevos pacientes</p>
+                  <textarea
+                    value={form.registrationWelcomeMessage ?? ""}
+                    onChange={(e) => setForm({ ...form, registrationWelcomeMessage: e.target.value || null })}
+                    placeholder="¡Bienvenido/a a nuestra clínica!"
+                    rows={2}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </Section>
       )}

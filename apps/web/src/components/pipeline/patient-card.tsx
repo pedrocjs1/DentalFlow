@@ -70,7 +70,7 @@ export function PatientCard({ patient, onClick, isDragging }: Props) {
 
   const nextAppt = patient.appointments[0] ?? null;
   const dentistColor = nextAppt?.dentist.color ?? "#e5e7eb";
-  const initials = `${patient.firstName[0] ?? ""}${patient.lastName[0] ?? ""}`.toUpperCase();
+  const initials = `${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`.toUpperCase() || "?";
 
   return (
     <div
