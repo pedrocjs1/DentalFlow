@@ -24,15 +24,44 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - **Pipeline CRM** — Kanban 8 stages, drag-and-drop persistente, drawer, valor monetario por columna ($), auto config por stage, sync bidireccional con Agenda
 - **Campañas** — wizard 4 pasos, 8 campañas default (idempotente), 15 templates catálogo, segmentación, métricas, retry failed
 - **Conversaciones** — inbox estilo WhatsApp Web, burbujas, delivery status, toggle IA activo/pausado, polling 3-5s, datos demo en seed
-- **Configuración** — 7 tabs (Clínica, Chatbot IA [5 sub-tabs: General/Horarios/Reglas/Campañas/Registro], Profesionales CRUD completo, Tratamientos, Sillones, Integraciones, Equipo)
+- **Configuración** — 8 tabs (Clínica, Chatbot IA [5 sub-tabs], Profesionales, Tratamientos [con follow-up], Sillones, Pipeline [config automations con SELECT de templates], Integraciones, Equipo)
 
 **Integraciones implementadas:**
 - **Google Calendar** — OAuth2 bidireccional por dentista, eventos privados bloqueantes, tareas ignoradas
 - **WhatsApp Cloud API** — webhook HMAC-SHA256, WhatsAppService (text/template/buttons/list/markAsRead), feature flag, status updates
 - **Chatbot IA** — arquitectura 3 capas (Intent Router → Haiku 4.5 → Sonnet escalación), system prompt dinámico por tenant con BotConfig, 8 tools function calling (book_appointment, confirm_appointment, cancel_appointment, reschedule_appointment, check_appointment, answer_faq, transfer_to_human, update_patient_data), 300 tokens, temp 0.3
 - **WhatsApp Processor** — flujo completo: mensaje→registro→paciente→conversación→debounce→intent router→chatbot→respuesta→pipeline→usage. Debounce configurable (10-20s, default 12s) con processing lock. Manejo de audios sin IA.
-- **Botones interactivos WhatsApp** — selección de slots (3 botones) y dentistas, resueltos en Capa 1 (0 tokens). PendingBooking state en memoria con TTL 15min.
+- **Botones interactivos WhatsApp** — selección de slots (3 botones) y dentistas, cancelación (confirmar/mantener), resueltos en Capa 1 (0 tokens). PendingBooking state en memoria con TTL 15min.
+- **Reagendamiento WhatsApp** — flujo completo: reschedule_appointment → buscar slots → botones → cancelar vieja + crear nueva. Pipeline no baja de etapa. GCal sync.
+- **Cancelación WhatsApp** — flujo con confirmación: cancel_appointment → mostrar datos + botones [Sí/No] → cancelar o mantener. Pipeline → "Interesado - No Agendó". GCal sync.
+- **Google Calendar en chatbot** — findAvailableSlots filtra por GCal blocked, createAppointment crea evento GCal, cancel/reschedule eliminan evento GCal. Graceful degradation si GCal no conectado.
 - **Registro de pacientes** — state machine (RegistrationState) con pasos configurables: nombre→birthdate→insurance→email→address→condiciones→alergias→medicamentos→hábitos. Primera bienvenida inmediata, respuestas por debounce. Parser de fechas en español (texto natural, 0 tokens). Sub-tab "Registro" en Configuración con 9 toggles.
+
+**Dashboard Reactivo (polling inteligente):**
+- Pipeline: 8s, Agenda: 10s, Home: 30s, Pacientes: 15s, Campañas: 30s, Conversaciones: 3-5s
+- document.hidden check — no gasta recursos en background
+- Silent fetch (sin loading spinner en polling)
+
+**Pipeline configurable (Configuración > Pipeline):**
+- 8 etapas expandibles, auto-mensaje con SELECT de template aprobado, auto-move, descuentos
+- Pipeline visual: borde 4px color por etapa, empty state SVG, link a configuración
+
+**Tratamientos con seguimiento:**
+- followUpEnabled, followUpMonths, postProcedureCheck, postProcedureDays, followUpMessage, isMultiSession
+- Completar cita: multi-sesión→"En Tratamiento", sesión única→"Seguimiento"
+
+**Templates WhatsApp (3 niveles):**
+- Nivel 1: 10 templates del sistema (isSystemTemplate, APPROVED, solo lectura)
+- Nivel 2: Templates personalizados (Draft→Submitted→Approved/Rejected)
+- Nivel 3: Selección en Pipeline (SELECT de templates aprobados)
+- Vista en Campañas: "Templates del sistema" + "Mis templates"
+
+**Notificaciones categorizadas:**
+- Panel 420px con 4 tabs: Mensajes, Sistema, Pipeline, IA
+- 11+ tipos: new_patient, human_needed, new_appointment, appointment_completed, appointment_no_show, cancelled_appointment, appointment_end_reminder, usage_warning, pipeline_move, template_status
+- Acciones rápidas: [Completar] [No asistió] desde notificación, [Abrir chat] para human_needed
+- appointment_end_reminder: auto-detect citas pasadas cada 60s
+- Badge: rojo si human_needed, azul normal, contador por tab
 
 **Super Admin** (/admin): Dashboard Global (MRR, gráfico crecimiento), Clínicas (CRUD+impersonar), WhatsApp (monitoreo+force-disconnect), Uso & Límites
 
@@ -95,14 +124,22 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - ~~Configuración por clínica (reglas del bot)~~ → ✅ Implementado (pestaña Chatbot IA)
 - ~~Refinar system prompt del chatbot~~ → ✅ Optimizado con BotConfig + 3 capas + tabla fechas
 - ~~Agendamiento end-to-end~~ → ✅ book_appointment + confirm_appointment + botones interactivos
+- ~~Reagendamiento + Cancelación inteligente~~ → ✅ reschedule_appointment con botones + cancel con confirmación + GCal sync
 - ~~Registro de pacientes nuevos~~ → ✅ State machine + configuración en dashboard
 - ~~Landing page~~ → ✅ Completada (apps/landing)
-- Automatizaciones del pipeline (cron jobs para seguimiento automático — auto-move a Primera Cita Agendada ya funciona via chatbot)
+- ~~Dashboard reactivo~~ → ✅ Polling inteligente en todas las vistas (8-30s)
+- ~~Notificaciones~~ → ✅ Panel con 4 tabs + acciones rápidas + categorías
+- ~~Templates WhatsApp~~ → ✅ Arquitectura 3 niveles (sistema/personalizados/pipeline)
+- ~~Pipeline configurable~~ → ✅ Auto-mensaje con SELECT de templates + auto-move + descuentos
+- ~~Tratamientos con seguimiento~~ → ✅ followUp + postProcedure + isMultiSession
+- Google Calendar credenciales → ⏳ Pendiente configurar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en .env (código 100% listo)
+- Cron jobs para automatizaciones del pipeline (BullMQ workers)
+- Estadísticas y gráficos avanzados
+- Recomendaciones de IA basadas en estadísticas (tab IA en notificaciones preparado)
+- Enviar templates a Meta para aprobación real
 - Billing (Stripe/MP suscripciones)
 - Deploy landing (Vercel → dentalflow.app)
 - Conectar dominio dentalflow.app para landing + app.dentalflow.app para dashboard
-- IA Central (templates recomendados cross-clínica)
-- BullMQ workers producción
 - Deploy (Vercel + Railway + Supabase)
 - Testing (unit + e2e)
 
@@ -123,7 +160,7 @@ Frontend: Next.js 15 + shadcn/ui + Tailwind | State: Zustand + TanStack Query | 
 
 ## SCHEMA (SIEMPRE leer packages/db/prisma/schema.prisma para estado real)
 
-25+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus, botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, Automation, FaqEntry, UsageRecord
+26+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus, botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, Automation, FaqEntry, UsageRecord
 
 ---
 
@@ -160,7 +197,9 @@ BullMQ job pipeline-automations cada 30min. Valor monetario por columna.
 **Capa 1.5 — Botones interactivos (whatsapp-processor.ts) — 0 tokens:**
 - PendingBooking state in-memory con TTL 15min
 - dentist_xxx → busca slots de ese dentista → slot buttons
-- slot_X → crea Appointment → confirmación
+- slot_X → crea Appointment → confirmación (si isReschedule → cancela vieja primero + GCal sync)
+- cancel_confirm → cancela cita + pipeline → "Interesado - No Agendó" + elimina GCal event
+- cancel_keep → mantiene cita
 - Body de botones: texto corto descriptivo, NO lista numerada
 
 **Capa 2 — Haiku 4.5 (packages/ai/src/chatbot.ts):**
@@ -234,6 +273,95 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-23 — Reagendamiento + Cancelación + Pipeline automático + Templates + Notificaciones
+
+**Reagendamiento inteligente — IMPLEMENTADO:**
+- reschedule_appointment tool acepta preferredDate + preferredTimeOfDay
+- Handler busca próxima cita del paciente, busca slots nuevos, muestra botones interactivos
+- PendingBooking con flags isReschedule + oldAppointmentId
+- Al elegir slot: cancela cita vieja + crea nueva + mantiene pipeline
+- Integración con Google Calendar (elimina evento viejo, crea nuevo)
+
+**Cancelación con confirmación — IMPLEMENTADA:**
+- cancel_appointment muestra datos de la cita + botones [Sí, cancelar] / [No, mantener]
+- Botones cancel_confirm y cancel_keep en Capa 1 (0 tokens)
+- Cancelar: status=CANCELLED + pipeline→"Interesado - No Agendó" + elimina evento GCal
+- System prompt con instrucciones de reagendamiento y cancelación
+
+**Google Calendar — CÓDIGO LISTO:**
+- findAvailableSlots verifica eventos bloqueantes de GCal por dentista
+- createAppointmentFromSlot crea evento GCal si dentista tiene token
+- Cancel/Reschedule eliminan eventos GCal
+- Frontend de integraciones funcional (muestra warning si env vars vacías)
+- Estado: código 100% listo, falta configurar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET
+
+**Dashboard Reactivo — IMPLEMENTADO:**
+- Polling inteligente en todas las vistas
+- Pipeline: 8s, Agenda: 10s, Home: 30s, Pacientes: 15s, Campañas: 30s
+- document.hidden check — no gasta recursos en background
+- Silent fetch (sin loading spinner en polling)
+
+**Pipeline Rediseñado — IMPLEMENTADO:**
+- Borde superior 4px con color por etapa (gris, amarillo, azul, verde, cyan, esmeralda, naranja, gris oscuro)
+- Cards mejoradas con avatar, tratamiento, cita, tags, tiempo en etapa
+- Empty state con ícono SVG
+- Header con link a configuración de pipeline
+
+**Configuración del Pipeline — IMPLEMENTADA:**
+- Nuevo tab "Pipeline" en Configuración
+- Etapas expandibles/colapsables con:
+  - Auto-mensaje: toggle, delay horas, SELECT de template aprobado (no textarea), reintentos
+  - Auto-movimiento: toggle, delay horas, select de etapa destino
+  - Descuento: toggle, porcentaje, mensaje
+- SELECT solo muestra templates con status APPROVED
+
+**Tratamientos con Seguimiento — IMPLEMENTADO:**
+- 5 campos nuevos: followUpEnabled, followUpMonths, postProcedureCheck, postProcedureDays, followUpMessage
+- isMultiSession: boolean (ortodoncia=true, limpieza=false)
+- Frontend: modal con sección de seguimiento
+- Lista muestra "Seguimiento c/6m" y "Control 7d"
+- Seed con defaults realistas
+
+**Templates de WhatsApp — Arquitectura 3 niveles:**
+- Nivel 1: Templates del sistema (isSystemTemplate=true, solo lectura para clínica)
+- Nivel 2: Templates personalizados de la clínica (con flujo de aprobación Draft→Submitted→Approved/Rejected)
+- Nivel 3: Selección en Pipeline (SELECT de templates aprobados)
+- 10 templates del sistema seeded (recordatorio, seguimiento, reactivación, cumpleaños, etc.)
+- WhatsAppTemplate model con: displayName, category, status, rejectionReason, version, submittedAt/approvedAt/rejectedAt
+- Vista en Campañas con 2 tabs: "Templates del sistema" + "Mis templates"
+- Templates desactivados/rechazados no rompen el pipeline
+
+**Notificaciones — IMPLEMENTADAS:**
+- Panel categorizado con 4 tabs: Mensajes, Sistema, Pipeline, IA
+- 420px panel, z-50, click-outside handler
+- Badge: rojo si hay human_needed, azul normal, contador por tab
+- Categorías: messages, system, pipeline, ai (auto-mapeado por type)
+- Tipos: new_patient, human_needed, new_appointment, appointment_completed, appointment_no_show, cancelled_appointment, rescheduled_appointment, appointment_end_reminder, usage_warning, pipeline_move, template_status
+- appointment_end_reminder: check cada 60s detecta citas pasadas sin completar
+- Acciones rápidas: [Completar] [No asistió] directo desde la notificación (PATCH appointment)
+- human_needed con fondo rojo (prioridad alta)
+- Tab IA: placeholder "Próximamente" para recomendaciones futuras
+- API: GET /notifications?category=X, GET /unread-count (por categoría), PATCH /read-all (por categoría)
+
+**Completado de Citas → Pipeline Automático:**
+- Cita completada + tratamiento sesión única → "Seguimiento"
+- Cita completada + tratamiento multi-sesión → "En Tratamiento"
+- No asistió → "Interesado - No Agendó"
+- Cancelada desde agenda → "Interesado - No Agendó"
+- movePipelineToStage como servicio compartido (chatbot + agenda)
+- Notificaciones automáticas en cada cambio
+
+**Limpieza:**
+- Pacientes de prueba del seed eliminados
+- Seed ya no crea pacientes falsos
+- Solo se crean: tenant, users, dentistas, tratamientos, pipeline stages, working hours, templates
+
+**Migraciones Prisma:**
+- 20260323004655_pipeline_config_treatments_templates
+- 20260323050000_templates_notifications_refactor
+- 20260323060000_add_multi_session
+- 20260323070000_notification_category
 
 ### 2026-03-22 — Agendamiento completo + Registro de pacientes + Botones interactivos
 

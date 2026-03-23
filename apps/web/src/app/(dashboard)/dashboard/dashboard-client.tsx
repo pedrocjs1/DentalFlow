@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import {
   CalendarCheck,
   Users,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { AppointmentsList } from "@/components/dashboard/appointments-list";
 import { UsageWidget } from "@/components/dashboard/usage-widget";
+import { apiFetch } from "@/lib/api";
 
 interface Appointment {
   id: string;
@@ -84,7 +86,24 @@ function MetricCard({ title, value, description, icon, trend, accentClass }: Met
   );
 }
 
-export function DashboardClient({ data }: { data: DashboardData | null }) {
+export function DashboardClient({ data: initialData }: { data: DashboardData | null }) {
+  const [data, setData] = useState(initialData);
+
+  // Polling: refresh stats every 30s when tab is visible
+  const refreshDashboard = useCallback(async () => {
+    try {
+      const fresh = await apiFetch<DashboardData>("/api/v1/dashboard");
+      setData(fresh);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) refreshDashboard();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [refreshDashboard]);
+
   const today = new Date().toLocaleDateString("es-AR", {
     weekday: "long",
     year: "numeric",

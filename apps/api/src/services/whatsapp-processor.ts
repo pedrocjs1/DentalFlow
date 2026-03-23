@@ -28,6 +28,7 @@ import {
 } from "@dentalflow/ai";
 import { SONNET_USAGE_MULTIPLIER } from "@dentalflow/shared";
 import { recordUsage, checkPlanLimit } from "./usage-tracker.js";
+import { createNotification } from "./notifications.js";
 import { decryptToken } from "./encryption.js";
 import type { FastifyBaseLogger } from "fastify";
 
@@ -166,6 +167,11 @@ interface PendingBooking {
   selectedDentistId?: string;
   selectedDentistName?: string;
   selectedSlotIndex?: number;
+  // Reschedule support
+  isReschedule?: boolean;
+  oldAppointmentId?: string;
+  // Cancel confirmation support
+  pendingCancelAppointmentId?: string;
   expiresAt: number; // timestamp ms
 }
 const pendingBookings = new Map<string, PendingBooking>();
@@ -573,6 +579,13 @@ async function findOrCreatePatient(
     });
 
     log.info({ patientId: patient.id }, "New patient created from WhatsApp");
+    createNotification(tenantId, {
+      type: "new_patient",
+      title: "Nuevo paciente",
+      message: `${firstName} se registró vía WhatsApp`,
+      link: `/pacientes/${patient.id}`,
+      metadata: { patientId: patient.id },
+    }).catch(() => {});
   }
 
   return patient;
@@ -895,7 +908,7 @@ async function handleToolCalls(
       }
 
       case "cancel_appointment": {
-        log.info({ patientId }, "Chatbot: cancel_appointment tool called");
+        log.info({ patientId, reason: tool.args.reason }, "Chatbot: cancel_appointment tool called");
         const nextAppt = await prisma.appointment.findFirst({
           where: {
             patientId,
@@ -904,28 +917,140 @@ async function handleToolCalls(
             startTime: { gte: new Date() },
           },
           orderBy: { startTime: "asc" },
+          include: {
+            dentist: { select: { name: true } },
+            treatmentType: { select: { name: true } },
+          },
         });
 
         if (nextAppt) {
-          await prisma.appointment.update({
-            where: { id: nextAppt.id },
-            data: {
-              status: "CANCELLED",
-              cancelledAt: new Date(),
-              cancelReason: (tool.args.reason as string) ?? "Cancelada por paciente vía WhatsApp",
-            },
+          // Show appointment details and ask for confirmation with buttons
+          const cancelDate = formatDateInTimezone(nextAppt.startTime, timezone, { weekday: "long", day: "numeric", month: "long" });
+          const cancelTime = formatTimeInTimezone(nextAppt.startTime, timezone);
+          const cancelTreatment = nextAppt.treatmentType?.name ?? "Consulta general";
+
+          // Store pending cancel in booking state
+          setPendingBooking(conversationId, {
+            treatmentType: cancelTreatment,
+            pendingCancelAppointmentId: nextAppt.id,
           });
-          await movePipelineToStage(tenantId, patientId, "Interesado - No Agendó", log);
-          responses.push({ type: "text", text: "Tu cita ha sido cancelada. ¿Te gustaría agendar otra fecha? 📅" });
+
+          responses.push({
+            type: "buttons",
+            bodyText: `Tu próxima cita es el ${cancelDate} a las ${cancelTime} con ${nextAppt.dentist.name} para ${cancelTreatment}. ¿Estás seguro de que querés cancelarla?`,
+            buttons: [
+              { id: "cancel_confirm", title: "Sí, cancelar" },
+              { id: "cancel_keep", title: "No, mantener" },
+            ],
+            rawTextForHistory: `Tu próxima cita es el ${cancelDate} a las ${cancelTime} con ${nextAppt.dentist.name} para ${cancelTreatment}. ¿Querés cancelarla? Opciones: Sí cancelar / No mantener`,
+          });
         } else {
-          responses.push({ type: "text", text: "No encontré una cita próxima para cancelar. ¿Puedo ayudarte en algo más?" });
+          responses.push({ type: "text", text: "No tenés citas agendadas para cancelar. ¿Puedo ayudarte en algo más?" });
         }
         break;
       }
 
       case "reschedule_appointment": {
-        log.info({ patientId }, "Chatbot: reschedule_appointment tool called");
-        responses.push({ type: "text", text: "Para reagendar tu cita, necesito que me digas qué día y horario te queda mejor. ¿Preferís mañana o tarde? 📅" });
+        const preferredDate = tool.args.preferredDate as string | undefined;
+        const preferredTimeOfDay = tool.args.preferredTimeOfDay as string | undefined;
+        log.info({ patientId, preferredDate, preferredTimeOfDay }, "Chatbot: reschedule_appointment tool called");
+
+        // Find the patient's next upcoming appointment
+        const currentAppt = await prisma.appointment.findFirst({
+          where: {
+            patientId,
+            tenantId,
+            status: { in: ["PENDING", "CONFIRMED"] },
+            startTime: { gte: new Date() },
+          },
+          orderBy: { startTime: "asc" },
+          include: {
+            dentist: { select: { id: true, name: true } },
+            treatmentType: { select: { name: true } },
+          },
+        });
+
+        if (!currentAppt) {
+          responses.push({ type: "text", text: "No tenés citas agendadas para reagendar. ¿Querés agendar una nueva? 😊" });
+          break;
+        }
+
+        const treatmentForReschedule = currentAppt.treatmentType?.name ?? "Consulta general";
+
+        // Search for new available slots
+        const rescheduleSlots = await findAvailableSlots(
+          tenantId, treatmentForReschedule, log, timezone,
+          preferredDate, preferredTimeOfDay, currentAppt.dentist.id
+        );
+
+        if (rescheduleSlots.length === 0) {
+          // Try without dentist filter
+          const anyDentistSlots = await findAvailableSlots(
+            tenantId, treatmentForReschedule, log, timezone,
+            preferredDate, preferredTimeOfDay
+          );
+
+          if (anyDentistSlots.length === 0) {
+            const noSlotsMsg = preferredDate
+              ? `No encontré horarios disponibles para reagendar en esa fecha. ¿Querés que busque en otros días? 📅`
+              : `No encontré horarios disponibles para reagendar en los próximos días. Voy a conectarte con el equipo para que te ayuden. 😊`;
+            responses.push({ type: "text", text: noSlotsMsg });
+            break;
+          }
+
+          // Store slots with reschedule flag
+          setPendingBooking(conversationId, {
+            treatmentType: treatmentForReschedule,
+            treatmentId: currentAppt.treatmentTypeId ?? undefined,
+            slots: anyDentistSlots,
+            isReschedule: true,
+            oldAppointmentId: currentAppt.id,
+          });
+
+          const slotButtons = anyDentistSlots.slice(0, 3).map((s, i) => ({
+            id: `slot_${i}`,
+            title: `${s.date} ${s.time}`.slice(0, 20),
+          }));
+          const slotText = anyDentistSlots.map((s, i) => {
+            const isoDate = s.startTime.toISOString().split("T")[0];
+            const time24 = formatTimeInTimezone(s.startTime, timezone);
+            return `${i + 1}. ${s.date} a las ${s.time} con ${s.dentistName} [${isoDate} ${time24}]`;
+          }).join("\n");
+
+          responses.push({
+            type: "buttons",
+            bodyText: `Elegí el nuevo horario para tu ${treatmentForReschedule}:`,
+            buttons: slotButtons,
+            rawTextForHistory: `Horarios disponibles para reagendar tu ${treatmentForReschedule}:\n\n${slotText}\n\n¿Cuál te queda mejor? 📅`,
+          });
+          break;
+        }
+
+        // Store slots with reschedule flag
+        setPendingBooking(conversationId, {
+          treatmentType: treatmentForReschedule,
+          treatmentId: currentAppt.treatmentTypeId ?? undefined,
+          slots: rescheduleSlots,
+          isReschedule: true,
+          oldAppointmentId: currentAppt.id,
+        });
+
+        const rescheduleSlotButtons = rescheduleSlots.slice(0, 3).map((s, i) => ({
+          id: `slot_${i}`,
+          title: `${s.date} ${s.time}`.slice(0, 20),
+        }));
+        const rescheduleSlotText = rescheduleSlots.map((s, i) => {
+          const isoDate = s.startTime.toISOString().split("T")[0];
+          const time24 = formatTimeInTimezone(s.startTime, timezone);
+          return `${i + 1}. ${s.date} a las ${s.time} con ${s.dentistName} [${isoDate} ${time24}]`;
+        }).join("\n");
+
+        responses.push({
+          type: "buttons",
+          bodyText: `Elegí el nuevo horario para tu ${treatmentForReschedule}:`,
+          buttons: rescheduleSlotButtons,
+          rawTextForHistory: `Horarios disponibles para reagendar tu ${treatmentForReschedule}:\n\n${rescheduleSlotText}\n\n¿Cuál te queda mejor? 📅`,
+        });
         break;
       }
 
@@ -967,6 +1092,15 @@ async function handleToolCalls(
           data: { status: "HUMAN_NEEDED", aiEnabled: false },
         });
         responses.push({ type: "text", text: "Dejame comunicarte con nuestro equipo para ayudarte mejor. Te van a responder a la brevedad. 😊" });
+        // Notify clinic — patient needs human attention
+        const patientForHuman = await prisma.patient.findUnique({ where: { id: patientId }, select: { firstName: true, lastName: true } });
+        createNotification(tenantId, {
+          type: "human_needed",
+          title: "Paciente necesita atención",
+          message: `${patientForHuman?.firstName ?? ""} ${patientForHuman?.lastName ?? ""} pidió hablar con un humano`,
+          link: "/conversaciones",
+          metadata: { patientId, conversationId, reason: tool.args.reason },
+        }).catch(() => {});
         break;
       }
 
@@ -1091,6 +1225,40 @@ async function createAppointmentFromSlot(
     },
   });
 
+  // Create Google Calendar event if dentist has GCal connected
+  const dentistGcalToken = await prisma.googleCalendarToken.findFirst({
+    where: { dentistId: dentist.id, tenantId, syncEnabled: true },
+  });
+  if (dentistGcalToken) {
+    try {
+      const { createCalendarEvent } = await import("./google-calendar.js");
+      const patient = await prisma.patient.findUnique({
+        where: { id: patientId },
+        select: { firstName: true, lastName: true, phone: true },
+      });
+      const patientName = patient ? `${patient.firstName} ${patient.lastName}`.trim() : "Paciente";
+      const gcalEventId = await createCalendarEvent({
+        accessToken: dentistGcalToken.accessToken,
+        refreshToken: dentistGcalToken.refreshToken,
+        calendarId: dentistGcalToken.calendarId,
+        summary: `🦷 ${treatment?.name ?? treatmentName} - ${patientName}`,
+        description: `Paciente: ${patientName}\nTeléfono: ${patient?.phone ?? ""}\nTratamiento: ${treatment?.name ?? treatmentName}\nAgendado vía WhatsApp chatbot`,
+        startTime,
+        endTime,
+        timezone,
+      });
+      if (gcalEventId) {
+        await prisma.appointment.update({
+          where: { id: appointment.id },
+          data: { googleEventId: gcalEventId },
+        });
+        log.info({ appointmentId: appointment.id, gcalEventId }, "GCal event created for chatbot appointment");
+      }
+    } catch (e) {
+      log.warn({ err: e, appointmentId: appointment.id }, "Failed to create GCal event — appointment still valid");
+    }
+  }
+
   // Move patient in pipeline
   await movePipelineToStage(tenantId, patientId, "Primera Cita Agendada", log);
   await prisma.patientPipeline.updateMany({
@@ -1121,6 +1289,16 @@ async function createAppointmentFromSlot(
     { appointmentId: appointment.id, patientId, dentistId: dentist.id, startTime: startTime.toISOString() },
     "Appointment created via chatbot"
   );
+
+  // Notification for new appointment
+  const patientForNotif = await prisma.patient.findUnique({ where: { id: patientId }, select: { firstName: true, lastName: true } });
+  createNotification(tenantId, {
+    type: "new_appointment",
+    title: "Nueva cita agendada",
+    message: `${patientForNotif?.firstName ?? ""} ${patientForNotif?.lastName ?? ""} — ${treatment?.name ?? treatmentName} el ${formatDateInTimezone(startTime, timezone, { day: "numeric", month: "short" })}`,
+    link: "/agenda",
+    metadata: { appointmentId: appointment.id, patientId },
+  }).catch(() => {});
 
   // Clean up pending booking
   pendingBookings.delete(conversationId);
@@ -1165,7 +1343,7 @@ async function findAvailableSlots(
     }
   }
 
-  // Fetch dentists with their own working hours
+  // Fetch dentists with their own working hours + GCal tokens
   const dentists = await prisma.dentist.findMany({
     where: {
       tenantId,
@@ -1174,6 +1352,7 @@ async function findAvailableSlots(
     },
     include: {
       workingHours: { where: { isActive: true } },
+      googleCalendarToken: true,
     },
   });
 
@@ -1187,6 +1366,31 @@ async function findAvailableSlots(
 
   const slots: AvailableSlot[] = [];
   const now = new Date();
+
+  // Pre-fetch Google Calendar blocked slots for dentists that have GCal connected
+  // Cache per dentist to avoid repeated API calls
+  const gcalBlockedCache = new Map<string, Array<{ start: Date; end: Date }>>();
+  for (const dentist of dentists) {
+    if (dentist.googleCalendarToken?.syncEnabled) {
+      try {
+        const { getBlockedSlots: getGCalBlockedSlots } = await import("./google-calendar.js");
+        // Fetch blocked slots for the next 14 days
+        const searchEnd = new Date(now);
+        searchEnd.setDate(searchEnd.getDate() + 15);
+        const blocked = await getGCalBlockedSlots({
+          accessToken: dentist.googleCalendarToken.accessToken,
+          refreshToken: dentist.googleCalendarToken.refreshToken,
+          calendarId: dentist.googleCalendarToken.calendarId,
+          timeMin: now,
+          timeMax: searchEnd,
+        });
+        gcalBlockedCache.set(dentist.id, blocked);
+        log.info({ dentistId: dentist.id, blockedCount: blocked.length }, "GCal blocked slots fetched");
+      } catch (e) {
+        log.warn({ err: e, dentistId: dentist.id }, "Failed to fetch GCal blocked slots — ignoring");
+      }
+    }
+  }
 
   // Determine time-of-day filter boundaries
   let timeFilterStartHour = 0;
@@ -1286,6 +1490,13 @@ async function findAvailableSlots(
         });
 
         if (!conflict) {
+          // Check Google Calendar blocked slots for this dentist
+          const gcalBlocked = gcalBlockedCache.get(dentist.id);
+          const gcalConflict = gcalBlocked?.some(
+            (b) => b.start < slotEnd && b.end > slotStart
+          );
+          if (gcalConflict) continue;
+
           slots.push({
             date: formatDateInTimezone(slotStart, timezone, {
               weekday: "short",
@@ -1568,17 +1779,109 @@ export async function processIncomingMessage(
       const slotIndex = parseInt(replyId.replace("slot_", ""));
       const selectedSlot = booking.slots[slotIndex];
       if (selectedSlot) {
-        log.info({ conversationId: conversation.id, slotIndex, startTime: selectedSlot.startTime.toISOString() }, "Slot selected via button");
-        // Create the appointment directly
+        log.info({ conversationId: conversation.id, slotIndex, startTime: selectedSlot.startTime.toISOString(), isReschedule: !!booking.isReschedule }, "Slot selected via button");
+
+        // If this is a reschedule → cancel the old appointment first
+        if (booking.isReschedule && booking.oldAppointmentId) {
+          const oldAppt = await prisma.appointment.findFirst({
+            where: { id: booking.oldAppointmentId, tenantId: tenant.id },
+            include: { dentist: { select: { googleCalendarToken: true } } },
+          });
+          if (oldAppt) {
+            await prisma.appointment.update({
+              where: { id: oldAppt.id },
+              data: {
+                status: "CANCELLED",
+                cancelledAt: new Date(),
+                cancelReason: "Reagendada por paciente vía WhatsApp",
+              },
+            });
+            // Delete old GCal event if exists
+            if (oldAppt.googleEventId && oldAppt.dentist?.googleCalendarToken) {
+              const gcalToken = oldAppt.dentist.googleCalendarToken as unknown as { accessToken: string; refreshToken: string; calendarId: string };
+              try {
+                const { deleteCalendarEvent } = await import("./google-calendar.js");
+                await deleteCalendarEvent({
+                  accessToken: gcalToken.accessToken,
+                  refreshToken: gcalToken.refreshToken,
+                  calendarId: gcalToken.calendarId,
+                  eventId: oldAppt.googleEventId,
+                });
+              } catch (e) { log.warn({ err: e }, "Failed to delete old GCal event on reschedule"); }
+            }
+            log.info({ oldAppointmentId: oldAppt.id }, "Old appointment cancelled for reschedule");
+          }
+        }
+
+        // Create the new appointment
         responseText = await createAppointmentFromSlot(
           tenant.id, patient.id, conversation.id, booking.treatmentType,
           selectedSlot.startTime, selectedSlot.dentistName, tenant.timezone, log
         );
 
-        // Registration is now handled BEFORE booking, no need to prompt here
+        // For reschedule, customize the message and DON'T move pipeline down
+        if (booking.isReschedule) {
+          // Replace "¡Listo, tu cita está confirmada!" with reschedule wording
+          responseText = responseText.replace(
+            "*¡Listo, tu cita está confirmada!* ✅",
+            "*¡Listo, tu cita fue reagendada!* ✅"
+          );
+        }
       } else {
         responseText = "No pude identificar el horario. ¿Podrías escribirme cuál preferís? 😊";
       }
+    }
+    // ─── Cancel confirmation button ──────────────────────────────────
+    else if (replyId === "cancel_confirm" && booking?.pendingCancelAppointmentId) {
+      log.info({ conversationId: conversation.id, appointmentId: booking.pendingCancelAppointmentId }, "Cancel confirmed via button");
+
+      const cancelAppt = await prisma.appointment.findFirst({
+        where: { id: booking.pendingCancelAppointmentId, tenantId: tenant.id },
+        include: { dentist: { select: { googleCalendarToken: true } } },
+      });
+
+      if (cancelAppt) {
+        await prisma.appointment.update({
+          where: { id: cancelAppt.id },
+          data: {
+            status: "CANCELLED",
+            cancelledAt: new Date(),
+            cancelReason: "Cancelada por paciente vía WhatsApp",
+          },
+        });
+        await movePipelineToStage(tenant.id, patient.id, "Interesado - No Agendó", log);
+
+        // Delete GCal event if exists
+        if (cancelAppt.googleEventId && cancelAppt.dentist?.googleCalendarToken) {
+          const gcalToken = cancelAppt.dentist.googleCalendarToken as unknown as { accessToken: string; refreshToken: string; calendarId: string };
+          try {
+            const { deleteCalendarEvent } = await import("./google-calendar.js");
+            await deleteCalendarEvent({
+              accessToken: gcalToken.accessToken,
+              refreshToken: gcalToken.refreshToken,
+              calendarId: gcalToken.calendarId,
+              eventId: cancelAppt.googleEventId,
+            });
+          } catch (e) { log.warn({ err: e }, "Failed to delete GCal event on cancel"); }
+        }
+
+        responseText = "Tu cita fue cancelada. Si querés agendar otra, avisame. 😊";
+        createNotification(tenant.id, {
+          type: "cancelled_appointment",
+          title: "Cita cancelada",
+          message: `${patient.firstName} ${patient.lastName} canceló su cita`,
+          link: "/agenda",
+          metadata: { patientId: patient.id },
+        }).catch(() => {});
+        pendingBookings.delete(conversation.id);
+      } else {
+        responseText = "No encontré la cita para cancelar. ¿Puedo ayudarte en algo más?";
+      }
+    }
+    else if (replyId === "cancel_keep") {
+      log.info({ conversationId: conversation.id }, "Cancel cancelled — keeping appointment");
+      responseText = "Perfecto, tu cita sigue en pie. ✅ ¿Puedo ayudarte en algo más?";
+      pendingBookings.delete(conversation.id);
     }
 
     // Send the response

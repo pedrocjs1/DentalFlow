@@ -86,6 +86,8 @@ model Tenant {
   googleCalendarTokens  GoogleCalendarToken[]
   dentistTreatments     DentistTreatment[]
   usageRecords          UsageRecord[]
+  whatsappTemplates     WhatsAppTemplate[]
+  notifications         Notification[]
 }
 
 enum Plan {
@@ -196,6 +198,13 @@ model TreatmentType {
   price        Decimal?           @db.Decimal(10, 2)
   color        String?
   isActive     Boolean            @default(true)
+  // Follow-up cycle
+  followUpEnabled      Boolean    @default(false)
+  followUpMonths       Int        @default(6)
+  postProcedureCheck   Boolean    @default(false)
+  postProcedureDays    Int        @default(7)
+  followUpMessage      String?
+  isMultiSession       Boolean    @default(false)  // true = ortodoncia, implantes (multi-visit)
   appointments Appointment[]
   dentists     DentistTreatment[]
 
@@ -531,12 +540,14 @@ model PipelineStage {
   autoMessageEnabled    Boolean   @default(false)
   autoMessageDelayHours Int       @default(24)
   autoMessageTemplate   String?
+  autoMessageMaxRetries Int       @default(1)
   autoMoveEnabled       Boolean   @default(false)
   autoMoveDelayHours    Int       @default(48)
   autoMoveTargetStageId String?
   discountEnabled       Boolean   @default(false)
   discountPercent       Int       @default(10)
   discountMessage       String?
+  discountTemplate      String?
   patients      PatientPipeline[]
 
   @@unique([tenantId, order])
@@ -720,6 +731,72 @@ enum SendStatus {
   READ
   FAILED
   SKIPPED
+}
+
+// ═══════════════════════════════════════
+// WHATSAPP TEMPLATES
+// ═══════════════════════════════════════
+
+model WhatsAppTemplate {
+  id               String    @id @default(cuid())
+  tenantId         String
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String                 // Internal name (e.g., "appointment_reminder_24h")
+  displayName      String    @default("") // Human-readable name for the clinic
+  category         String                 // UTILITY, MARKETING, AUTHENTICATION
+  language         String    @default("es_AR")
+  // Content
+  headerType       String?                // TEXT, IMAGE, VIDEO, DOCUMENT, NONE
+  headerText       String?
+  bodyText         String                 // Body with variables {{1}}, {{2}}, etc.
+  footerText       String?
+  buttonsJson      Json?                  // Optional buttons (CTA, quick reply)
+  // Variables mapping
+  variablesJson    Json?                  // [{position: 1, field: "firstName", example: "Pedro"}, ...]
+  // Status & approval
+  status           String    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PAUSED
+  metaTemplateId   String?                // ID in Meta after approval
+  rejectionReason  String?                // Meta rejection reason
+  submittedAt      DateTime?
+  approvedAt       DateTime?
+  rejectedAt       DateTime?
+  // Type flags
+  isSystemTemplate Boolean   @default(false) // true = DentalFlow system template, not editable
+  isActive         Boolean   @default(true)
+  // Pipeline link
+  triggerType      String?                // "appointment_reminder", "follow_up", "reactivation", "birthday", "no_show", "interested_not_booked", "post_visit", "post_procedure", "welcome"
+  // Versioning
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, triggerType])
+}
+
+// ═══════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════
+
+model Notification {
+  id        String    @id @default(cuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId    String?               // null = all users in tenant
+  type      String                // new_patient, new_appointment, cancelled_appointment, etc.
+  category  String    @default("system") // messages, system, pipeline, ai
+  title     String
+  message   String
+  link      String?               // In-app URL (e.g., /pipeline, /agenda)
+  isRead    Boolean   @default(false)
+  readAt    DateTime?
+  metadata  Json?
+  createdAt DateTime  @default(now())
+
+  @@index([tenantId, isRead])
+  @@index([tenantId, createdAt])
+  @@index([tenantId, category])
 }
 
 // ═══════════════════════════════════════

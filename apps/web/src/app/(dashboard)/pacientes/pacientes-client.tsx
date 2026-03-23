@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { Search, UserPlus, Users, ChevronLeft, ChevronRight } from "lucide-react";
 
@@ -46,6 +46,14 @@ export function PacientesClient({ data, search: initialSearch }: Props) {
       router.push(`/pacientes?${params.toString()}`);
     });
   }
+
+  // Polling: refresh data every 15s when tab is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) router.refresh();
+    }, 15000);
+    return () => clearInterval(interval);
+  }, [router]);
 
   const totalPages = Math.ceil(data.total / data.limit);
 

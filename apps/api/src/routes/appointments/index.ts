@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { syncPipelineFromAppointment } from "../pipeline/index.js";
+import { createNotification } from "../../services/notifications.js";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -202,6 +203,15 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      // Notification for manually created appointment
+      createNotification(user.tenantId, {
+        type: "new_appointment",
+        title: "Nueva cita agendada",
+        message: `${patient.firstName} ${patient.lastName} — ${treatmentType?.name ?? "Consulta"}`,
+        link: "/agenda",
+        metadata: { appointmentId: appointment.id, patientId: patient.id },
+      }).catch(() => {});
+
       return reply.status(201).send(appointment);
     },
   });
@@ -314,6 +324,35 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
           });
         }
         await syncPipelineFromAppointment(user.tenantId, appointment.patientId, body.status, priorCompleted);
+
+        // Notifications for status changes from agenda
+        const patientName = `${updated.patient.firstName} ${updated.patient.lastName}`.trim();
+        const treatmentName = updated.treatmentType?.name ?? "Consulta";
+        if (body.status === "COMPLETED") {
+          createNotification(user.tenantId, {
+            type: "appointment_completed",
+            title: "Cita completada",
+            message: `${patientName} — ${treatmentName}`,
+            link: `/pacientes/${appointment.patientId}`,
+            metadata: { appointmentId: id, patientId: appointment.patientId },
+          }).catch(() => {});
+        } else if (body.status === "NO_SHOW") {
+          createNotification(user.tenantId, {
+            type: "appointment_no_show",
+            title: "No asistió",
+            message: `${patientName} no se presentó a su cita`,
+            link: `/pacientes/${appointment.patientId}`,
+            metadata: { appointmentId: id, patientId: appointment.patientId },
+          }).catch(() => {});
+        } else if (body.status === "CANCELLED") {
+          createNotification(user.tenantId, {
+            type: "cancelled_appointment",
+            title: "Cita cancelada",
+            message: `${patientName} — cita cancelada desde agenda`,
+            link: `/pacientes/${appointment.patientId}`,
+            metadata: { appointmentId: id, patientId: appointment.patientId },
+          }).catch(() => {});
+        }
       }
 
       // Sync Google Calendar deletions

@@ -22,6 +22,8 @@ import { pipelineRoutes } from "./pipeline/index.js";
 import { conversationRoutes } from "./conversations/index.js";
 import { adminRoutes } from "./admin/index.js";
 import { whatsappRoutes } from "./whatsapp/index.js";
+import { whatsappTemplateRoutes } from "./whatsapp-templates/index.js";
+import { notificationRoutes } from "./notifications/index.js";
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(authRoutes);
@@ -44,6 +46,8 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(conversationRoutes);
   await app.register(adminRoutes);
   await app.register(whatsappRoutes);
+  await app.register(whatsappTemplateRoutes);
+  await app.register(notificationRoutes);
   await app.register(whatsappWebhookRoutes);
   await app.register(stripeWebhookRoutes);
   await app.register(mercadoPagoWebhookRoutes);

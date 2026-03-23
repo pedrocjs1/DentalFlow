@@ -13,7 +13,8 @@ import {
   closestCorners,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Settings } from "lucide-react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { PipelineColumn } from "./pipeline-column";
 import { PatientCard, type PipelinePatient } from "./patient-card";
@@ -60,20 +61,28 @@ export function PipelineBoard() {
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchPipeline = useCallback(async () => {
-    setLoading(true);
+  const fetchPipeline = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const qs = new URLSearchParams();
       if (debouncedSearch) qs.set("search", debouncedSearch);
       const data = await apiFetch<PipelineData>(`/api/v1/pipeline?${qs.toString()}`);
       setStages(data.stages);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [debouncedSearch]);
 
   useEffect(() => {
     fetchPipeline();
+  }, [fetchPipeline]);
+
+  // Polling: refresh every 8s when tab is visible (silent — no loading spinner)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) fetchPipeline(true);
+    }, 8000);
+    return () => clearInterval(interval);
   }, [fetchPipeline]);
 
   // Find which stage a patient belongs to (by pipelineId)
@@ -217,7 +226,10 @@ export function PipelineBoard() {
     <div className="flex flex-col h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-gray-900">Pipeline CRM</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Pipeline CRM</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Seguimiento comercial de pacientes</p>
+        </div>
         <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2.5 py-1 rounded-full tabular-nums">
           {totalPatients} pacientes
         </span>
@@ -237,13 +249,21 @@ export function PipelineBoard() {
         </div>
 
         <button
-          onClick={fetchPipeline}
+          onClick={() => fetchPipeline()}
           disabled={loading}
           className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 disabled:opacity-50 transition-colors"
           title="Actualizar"
         >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </button>
+
+        <Link
+          href="/configuracion?tab=pipeline"
+          className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors"
+          title="Configurar pipeline"
+        >
+          <Settings className="h-4 w-4" />
+        </Link>
       </div>
 
       {/* Kanban board */}

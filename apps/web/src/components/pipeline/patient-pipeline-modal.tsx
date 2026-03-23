@@ -312,6 +312,15 @@ export function PatientPipelineModal({
               <MessageCircle className="h-4 w-4" />
             </a>
             <Link
+              href="/conversaciones"
+              className="flex items-center justify-center gap-1.5 px-3 py-2 text-sm border border-gray-200 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              onClick={onClose}
+              title="Abrir conversación"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Chat
+            </Link>
+            <Link
               href={`/pacientes/${patient.id}`}
               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-sm bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors"
               onClick={onClose}

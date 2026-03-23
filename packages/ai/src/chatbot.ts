@@ -157,15 +157,15 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
   {
     name: "reschedule_appointment",
     description:
-      "Reschedule the patient's next appointment to a different date/time.",
+      "Reschedule the patient's next appointment. Use when the patient wants to change the date/time of an existing appointment. Works like book_appointment but cancels the old one first.",
     input_schema: {
       type: "object" as const,
       properties: {
-        newDate: {
+        preferredDate: {
           type: "string",
-          description: "New preferred date in YYYY-MM-DD format",
+          description: "New preferred date in YYYY-MM-DD format. Use the date reference table to convert relative dates.",
         },
-        newTimeOfDay: {
+        preferredTimeOfDay: {
           type: "string",
           enum: ["morning", "afternoon", "any"],
           description: "Preferred time of day for the new appointment",
@@ -431,6 +431,18 @@ IMPORTANTE sobre confirm_appointment:
 - Usá formato YYYY-MM-DD para la fecha y HH:MM (24h) para la hora.
 - Si el paciente dice "el 2" o "la segunda opción", usá los datos del slot 2 que ofreciste.
 - Si no podés determinar cuál slot eligió, preguntale para confirmar.
+
+Reagendamiento:
+- Si el paciente dice "quiero reagendar", "cambiar mi cita", "mover mi turno" → usá reschedule_appointment.
+- Si menciona una fecha específica ("para el jueves") → pasá preferredDate usando la tabla de fechas.
+- Si dice "a la misma hora pero otro día" → pasá solo preferredDate, sin preferredTimeOfDay.
+- Si dice "a la misma hora" sin decir día → preguntale qué día.
+- NUNCA repitas la misma pregunta si el paciente ya te dio la información.
+
+Cancelación:
+- Si el paciente dice "quiero cancelar", "cancelar mi cita", "no voy a poder ir" → usá cancel_appointment.
+- El sistema le va a mostrar los datos de su cita y pedir confirmación con botones.
+- Si la razón de cancelación es clara ("no puedo ir porque viajo"), pasala en el campo reason.
 
 Registro de pacientes:
 - El registro de datos se maneja automáticamente ANTES de que llegues vos. Cuando hablás con el paciente, ya está registrado.

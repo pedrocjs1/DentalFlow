@@ -41,6 +41,11 @@ interface TreatmentType {
   price: string | null;
   color: string | null;
   isActive: boolean;
+  followUpEnabled: boolean;
+  followUpMonths: number;
+  postProcedureCheck: boolean;
+  postProcedureDays: number;
+  followUpMessage: string | null;
 }
 
 interface Chair {
@@ -555,6 +560,8 @@ function TabTratamientos() {
                 <p className="text-xs text-gray-400">
                   {t.durationMin} min
                   {t.price ? ` · $${Number(t.price).toLocaleString("es-AR")}` : ""}
+                  {t.followUpEnabled ? ` · Seguimiento c/${t.followUpMonths}m` : ""}
+                  {t.postProcedureCheck ? ` · Control ${t.postProcedureDays}d` : ""}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -595,6 +602,37 @@ function TabTratamientos() {
                   <input type="color" value={form.color ?? "#3B82F6"} onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))} className="w-10 h-9 rounded border border-gray-200 cursor-pointer" />
                   <span className="text-xs text-gray-400">{form.color ?? "—"}</span>
                 </div>
+              </div>
+              {/* Follow-up cycle */}
+              <div className="border-t pt-3 mt-1">
+                <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                  <input type="checkbox" checked={form.followUpEnabled ?? false} onChange={(e) => setForm((f) => ({ ...f, followUpEnabled: e.target.checked }))} className="w-4 h-4 accent-primary-600" />
+                  Seguimiento activo
+                </label>
+                {form.followUpEnabled && (
+                  <div className="mt-2 ml-6 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-gray-500 w-32">Frecuencia</label>
+                      <input type="number" min={1} max={24} value={form.followUpMonths ?? 6} onChange={(e) => setForm((f) => ({ ...f, followUpMonths: Number(e.target.value) }))} className="w-16 text-sm border rounded px-2 py-1" />
+                      <span className="text-xs text-gray-500">meses</span>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={form.postProcedureCheck ?? false} onChange={(e) => setForm((f) => ({ ...f, postProcedureCheck: e.target.checked }))} className="w-4 h-4 accent-primary-600" />
+                      Control post-procedimiento
+                    </label>
+                    {form.postProcedureCheck && (
+                      <div className="flex items-center gap-2 ml-6">
+                        <label className="text-xs text-gray-500">A los</label>
+                        <input type="number" min={1} max={30} value={form.postProcedureDays ?? 7} onChange={(e) => setForm((f) => ({ ...f, postProcedureDays: Number(e.target.value) }))} className="w-16 text-sm border rounded px-2 py-1" />
+                        <span className="text-xs text-gray-500">días</span>
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-xs text-gray-500">Mensaje de seguimiento</label>
+                      <textarea value={form.followUpMessage ?? ""} onChange={(e) => setForm((f) => ({ ...f, followUpMessage: e.target.value || null }))} rows={2} className="mt-1 w-full text-sm border rounded-lg px-2.5 py-1.5 resize-none" placeholder="Mensaje personalizado..." />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-5">
@@ -710,6 +748,328 @@ function TabSillones() {
           </div>
         </div>
       )}
+    </>
+  );
+}
+
+// ─── Tab: Pipeline Config ─────────────────────────────────────────────────────
+
+interface PipelineStageConfig {
+  id: string;
+  name: string;
+  color: string;
+  order: number;
+  autoMessageEnabled: boolean;
+  autoMessageDelayHours: number;
+  autoMessageTemplate: string | null;
+  autoMessageMaxRetries: number;
+  autoMoveEnabled: boolean;
+  autoMoveDelayHours: number;
+  autoMoveTargetStageId: string | null;
+  discountEnabled: boolean;
+  discountPercent: number;
+  discountMessage: string | null;
+  discountTemplate: string | null;
+}
+
+interface ApprovedTemplate {
+  id: string;
+  name: string;
+  displayName: string;
+  bodyText: string;
+  status: string;
+}
+
+function TabPipelineConfig() {
+  const { toast, showToast } = useToast();
+  const [stages, setStages] = useState<PipelineStageConfig[]>([]);
+  const [approvedTemplates, setApprovedTemplates] = useState<ApprovedTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.allSettled([
+      apiFetch<{ stages: PipelineStageConfig[] }>("/api/v1/pipeline/stages"),
+      apiFetch<{ templates: ApprovedTemplate[] }>("/api/v1/whatsapp-templates"),
+    ]).then(([stagesRes, tplRes]) => {
+      if (stagesRes.status === "fulfilled") setStages(stagesRes.value.stages);
+      if (tplRes.status === "fulfilled") {
+        setApprovedTemplates(tplRes.value.templates.filter((t) => t.status === "APPROVED"));
+      }
+      setLoading(false);
+    });
+  }, []);
+
+  async function saveStage(stage: PipelineStageConfig) {
+    setSaving(stage.id);
+    try {
+      await apiFetch(`/api/v1/pipeline/stages/${stage.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          autoMessageEnabled: stage.autoMessageEnabled,
+          autoMessageDelayHours: stage.autoMessageDelayHours,
+          autoMessageTemplate: stage.autoMessageTemplate,
+          autoMessageMaxRetries: stage.autoMessageMaxRetries,
+          autoMoveEnabled: stage.autoMoveEnabled,
+          autoMoveDelayHours: stage.autoMoveDelayHours,
+          autoMoveTargetStageId: stage.autoMoveTargetStageId,
+          discountEnabled: stage.discountEnabled,
+          discountPercent: stage.discountPercent,
+          discountMessage: stage.discountMessage,
+          discountTemplate: stage.discountTemplate,
+        }),
+      });
+      showToast({ type: "success", message: `"${stage.name}" actualizado` });
+    } catch {
+      showToast({ type: "error", message: "Error al guardar" });
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function updateStage(id: string, updates: Partial<PipelineStageConfig>) {
+    setStages((prev) => prev.map((s) => (s.id === id ? { ...s, ...updates } : s)));
+  }
+
+  if (loading) return <div className="text-sm text-gray-500">Cargando etapas...</div>;
+
+  return (
+    <>
+      <Toast toast={toast} />
+      <div className="space-y-3">
+        {stages.map((stage) => {
+          const isExpanded = expandedId === stage.id;
+          return (
+            <div key={stage.id} className="bg-white rounded-xl border overflow-hidden">
+              <button
+                onClick={() => setExpandedId(isExpanded ? null : stage.id)}
+                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors"
+              >
+                <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: stage.color }} />
+                <span className="text-sm font-semibold text-gray-900 flex-1 text-left">{stage.name}</span>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </button>
+              {isExpanded && (
+                <div className="px-4 pb-4 border-t space-y-4">
+                  {/* Auto message */}
+                  <div className="pt-3">
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input type="checkbox" checked={stage.autoMessageEnabled} onChange={(e) => updateStage(stage.id, { autoMessageEnabled: e.target.checked })} className="w-4 h-4 accent-primary-600" />
+                      Enviar mensaje automático
+                    </label>
+                    {stage.autoMessageEnabled && (
+                      <div className="mt-2 ml-6 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 w-24">Esperar</label>
+                          <input type="number" value={stage.autoMessageDelayHours} onChange={(e) => updateStage(stage.id, { autoMessageDelayHours: parseInt(e.target.value) || 0 })} className="w-20 text-sm border rounded px-2 py-1" min={1} />
+                          <span className="text-xs text-gray-500">horas</span>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Template a usar</label>
+                          <select value={stage.autoMessageTemplate ?? ""} onChange={(e) => updateStage(stage.id, { autoMessageTemplate: e.target.value || null })} className="mt-1 w-full text-sm border rounded-lg px-2.5 py-1.5">
+                            <option value="">Sin template — no se enviará mensaje</option>
+                            {approvedTemplates.map((t) => (
+                              <option key={t.id} value={t.name}>{t.displayName || t.name.replace(/_/g, " ")}</option>
+                            ))}
+                          </select>
+                          {stage.autoMessageTemplate && (
+                            <p className="mt-1 text-xs text-gray-400 italic">
+                              {approvedTemplates.find((t) => t.name === stage.autoMessageTemplate)?.bodyText?.slice(0, 100) ?? ""}...
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 w-24">Reintentos</label>
+                          <input type="number" value={stage.autoMessageMaxRetries} onChange={(e) => updateStage(stage.id, { autoMessageMaxRetries: parseInt(e.target.value) || 1 })} className="w-20 text-sm border rounded px-2 py-1" min={0} max={5} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Auto move */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input type="checkbox" checked={stage.autoMoveEnabled} onChange={(e) => updateStage(stage.id, { autoMoveEnabled: e.target.checked })} className="w-4 h-4 accent-primary-600" />
+                      Mover automáticamente sin actividad
+                    </label>
+                    {stage.autoMoveEnabled && (
+                      <div className="mt-2 ml-6 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 w-24">Después de</label>
+                          <input type="number" value={stage.autoMoveDelayHours} onChange={(e) => updateStage(stage.id, { autoMoveDelayHours: parseInt(e.target.value) || 0 })} className="w-20 text-sm border rounded px-2 py-1" min={1} />
+                          <span className="text-xs text-gray-500">horas</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 w-24">Mover a</label>
+                          <select value={stage.autoMoveTargetStageId ?? ""} onChange={(e) => updateStage(stage.id, { autoMoveTargetStageId: e.target.value || null })} className="text-sm border rounded px-2 py-1 flex-1">
+                            <option value="">Seleccionar etapa...</option>
+                            {stages.filter((s) => s.id !== stage.id).map((s) => (
+                              <option key={s.id} value={s.id}>{s.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Discount */}
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <input type="checkbox" checked={stage.discountEnabled} onChange={(e) => updateStage(stage.id, { discountEnabled: e.target.checked })} className="w-4 h-4 accent-primary-600" />
+                      Ofrecer descuento
+                    </label>
+                    {stage.discountEnabled && (
+                      <div className="mt-2 ml-6 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <label className="text-xs text-gray-500 w-24">Porcentaje</label>
+                          <input type="number" value={stage.discountPercent} onChange={(e) => updateStage(stage.id, { discountPercent: parseInt(e.target.value) || 0 })} className="w-20 text-sm border rounded px-2 py-1" min={5} max={50} />
+                          <span className="text-xs text-gray-500">%</span>
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Mensaje de descuento</label>
+                          <textarea value={stage.discountMessage ?? ""} onChange={(e) => updateStage(stage.id, { discountMessage: e.target.value || null })} rows={2} className="mt-1 w-full text-sm border rounded-lg px-2.5 py-1.5 resize-none" placeholder="Descuento especial del X%..." />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Save button */}
+                  <button
+                    onClick={() => saveStage(stage)}
+                    disabled={saving === stage.id}
+                    className="px-4 py-2 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+                  >
+                    {saving === stage.id ? "Guardando..." : "Guardar cambios"}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+// ─── Tab: WhatsApp Templates ─────────────────────────────────────────────────
+
+interface WATemplate {
+  id: string;
+  name: string;
+  category: string;
+  language: string;
+  bodyText: string;
+  headerText: string | null;
+  footerText: string | null;
+  status: string;
+  isDefault: boolean;
+  isActive: boolean;
+  triggerType: string | null;
+  pipelineStageId: string | null;
+}
+
+function TabTemplates() {
+  const { toast, showToast } = useToast();
+  const [templates, setTemplates] = useState<WATemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBody, setEditBody] = useState("");
+
+  useEffect(() => {
+    apiFetch<{ templates: WATemplate[] }>("/api/v1/whatsapp-templates")
+      .then((data) => setTemplates(data.templates))
+      .catch(() => showToast({ type: "error", message: "Error al cargar templates" }))
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function toggleActive(id: string, isActive: boolean) {
+    try {
+      await apiFetch(`/api/v1/whatsapp-templates/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: !isActive }),
+      });
+      setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, isActive: !isActive } : t)));
+    } catch {
+      showToast({ type: "error", message: "Error al actualizar" });
+    }
+  }
+
+  async function saveBody(id: string) {
+    try {
+      await apiFetch(`/api/v1/whatsapp-templates/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ bodyText: editBody }),
+      });
+      setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, bodyText: editBody } : t)));
+      setEditingId(null);
+      showToast({ type: "success", message: "Template actualizado" });
+    } catch {
+      showToast({ type: "error", message: "Error al guardar" });
+    }
+  }
+
+  const STATUS_COLORS: Record<string, string> = {
+    DRAFT: "bg-gray-100 text-gray-700",
+    PENDING: "bg-yellow-100 text-yellow-700",
+    APPROVED: "bg-green-100 text-green-700",
+    REJECTED: "bg-red-100 text-red-700",
+  };
+
+  const CATEGORY_COLORS: Record<string, string> = {
+    UTILITY: "bg-blue-50 text-blue-700",
+    MARKETING: "bg-purple-50 text-purple-700",
+  };
+
+  const TRIGGER_LABELS: Record<string, string> = {
+    auto_message: "Mensaje automático",
+    reminder: "Recordatorio",
+    follow_up: "Seguimiento",
+    remarketing: "Remarketing",
+    birthday: "Cumpleaños",
+  };
+
+  if (loading) return <div className="text-sm text-gray-500">Cargando templates...</div>;
+
+  return (
+    <>
+      <Toast toast={toast} />
+      <div className="space-y-3">
+        <p className="text-sm text-gray-500 mb-4">Templates de WhatsApp para mensajes automatizados. Los cambios requieren re-aprobación de Meta.</p>
+        {templates.map((tpl) => (
+          <div key={tpl.id} className={`bg-white rounded-xl border overflow-hidden ${!tpl.isActive ? "opacity-60" : ""}`}>
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-gray-900">{tpl.name.replace(/_/g, " ")}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[tpl.category] ?? "bg-gray-100 text-gray-700"}`}>{tpl.category}</span>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[tpl.status] ?? STATUS_COLORS.DRAFT}`}>{tpl.status}</span>
+                  {tpl.isDefault && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700">Default</span>}
+                  {tpl.triggerType && <span className="text-[10px] text-gray-500">{TRIGGER_LABELS[tpl.triggerType] ?? tpl.triggerType}</span>}
+                </div>
+                {editingId === tpl.id ? (
+                  <div className="mt-2 space-y-2">
+                    <textarea value={editBody} onChange={(e) => setEditBody(e.target.value)} rows={3} className="w-full text-sm border rounded-lg px-2.5 py-1.5 resize-none" />
+                    <div className="flex gap-2">
+                      <button onClick={() => saveBody(tpl.id)} className="px-3 py-1 text-xs bg-primary-600 text-white rounded-lg hover:bg-primary-700">Guardar</button>
+                      <button onClick={() => setEditingId(null)} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-50">Cancelar</button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-600 mt-1 line-clamp-2">{tpl.bodyText}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {tpl.isEditable && editingId !== tpl.id && (
+                  <button onClick={() => { setEditingId(tpl.id); setEditBody(tpl.bodyText); }} className="text-xs text-primary-600 hover:text-primary-700">Editar</button>
+                )}
+                <label className="flex items-center gap-1 cursor-pointer">
+                  <input type="checkbox" checked={tpl.isActive} onChange={() => toggleActive(tpl.id, tpl.isActive)} className="w-3.5 h-3.5 accent-primary-600" />
+                  <span className="text-xs text-gray-500">Activo</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        ))}
+        {templates.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No hay templates configurados</p>}
+      </div>
     </>
   );
 }
@@ -2026,6 +2386,7 @@ const TABS = [
   { key: "profesionales", label: "Profesionales" },
   { key: "tratamientos", label: "Tratamientos" },
   { key: "sillones", label: "Sillones" },
+  { key: "pipeline", label: "Pipeline" },
   { key: "integraciones", label: "Integraciones" },
   { key: "equipo", label: "Equipo" },
 ] as const;
@@ -2036,9 +2397,13 @@ function ConfiguracionContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabKey>("clinica");
 
-  // If coming back from GCal OAuth, show integrations tab
+  // If coming back from GCal OAuth or ?tab=X, show the correct tab
   useEffect(() => {
     if (searchParams.get("gcal")) setActiveTab("integraciones");
+    const tabParam = searchParams.get("tab");
+    if (tabParam && TABS.some((t) => t.key === tabParam)) {
+      setActiveTab(tabParam as TabKey);
+    }
   }, []);
 
   return (
@@ -2067,6 +2432,7 @@ function ConfiguracionContent() {
       {activeTab === "profesionales" && <TabProfesionales />}
       {activeTab === "tratamientos" && <TabTratamientos />}
       {activeTab === "sillones" && <TabSillones />}
+      {activeTab === "pipeline" && <TabPipelineConfig />}
       {activeTab === "integraciones" && <TabIntegraciones />}
       {activeTab === "equipo" && <TabEquipo />}
     </div>

@@ -3,6 +3,7 @@ import { prisma } from "@dentalflow/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
+import { createNotification } from "../../services/notifications.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -159,6 +160,14 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
         update: { stageId: body.stageId, movedAt: new Date() },
       });
 
+      createNotification(user.tenantId, {
+        type: "pipeline_move",
+        title: "Pipeline actualizado",
+        message: `${patient.firstName} ${patient.lastName} movido a ${stage.name}`,
+        link: "/pipeline",
+        metadata: { patientId: body.patientId, stageId: body.stageId },
+      }).catch(() => {});
+
       return entry;
     },
   });
@@ -246,12 +255,14 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
         autoMessageEnabled?: boolean;
         autoMessageDelayHours?: number;
         autoMessageTemplate?: string;
+        autoMessageMaxRetries?: number;
         autoMoveEnabled?: boolean;
         autoMoveDelayHours?: number;
         autoMoveTargetStageId?: string | null;
         discountEnabled?: boolean;
         discountPercent?: number;
         discountMessage?: string;
+        discountTemplate?: string;
       };
 
       const existing = await prisma.pipelineStage.findFirst({ where: { id, tenantId: user.tenantId } });
@@ -265,12 +276,14 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
           ...(body.autoMessageEnabled !== undefined && { autoMessageEnabled: body.autoMessageEnabled }),
           ...(body.autoMessageDelayHours !== undefined && { autoMessageDelayHours: body.autoMessageDelayHours }),
           ...(body.autoMessageTemplate !== undefined && { autoMessageTemplate: body.autoMessageTemplate }),
+          ...(body.autoMessageMaxRetries !== undefined && { autoMessageMaxRetries: body.autoMessageMaxRetries }),
           ...(body.autoMoveEnabled !== undefined && { autoMoveEnabled: body.autoMoveEnabled }),
           ...(body.autoMoveDelayHours !== undefined && { autoMoveDelayHours: body.autoMoveDelayHours }),
           ...(body.autoMoveTargetStageId !== undefined && { autoMoveTargetStageId: body.autoMoveTargetStageId }),
           ...(body.discountEnabled !== undefined && { discountEnabled: body.discountEnabled }),
           ...(body.discountPercent !== undefined && { discountPercent: body.discountPercent }),
           ...(body.discountMessage !== undefined && { discountMessage: body.discountMessage }),
+          ...(body.discountTemplate !== undefined && { discountTemplate: body.discountTemplate }),
         },
       });
       return stage;
@@ -389,7 +402,21 @@ export async function syncPipelineFromAppointment(
     }
 
     case "COMPLETED": {
-      const targetStage = priorCompletedCount === 0 ? "En Tratamiento" : "Seguimiento";
+      // Use isMultiSession to decide target stage
+      const lastCompleted = await prisma.appointment.findFirst({
+        where: { tenantId, patientId, status: "COMPLETED" },
+        orderBy: { updatedAt: "desc" },
+        select: { treatmentTypeId: true },
+      });
+      let isMulti = false;
+      if (lastCompleted?.treatmentTypeId) {
+        const tt = await prisma.treatmentType.findUnique({
+          where: { id: lastCompleted.treatmentTypeId },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        isMulti = (tt as any)?.isMultiSession ?? false;
+      }
+      const targetStage = isMulti ? "En Tratamiento" : "Seguimiento";
       await autoMoveToStageByName(tenantId, patientId, targetStage);
       break;
     }

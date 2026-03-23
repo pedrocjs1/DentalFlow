@@ -114,6 +114,17 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
     fetchGoogleBlockedSlots();
   }, [fetchGoogleBlockedSlots]);
 
+  // Polling: refresh appointments every 10s when tab is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) {
+        fetchAppointments();
+        fetchGoogleBlockedSlots();
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchAppointments, fetchGoogleBlockedSlots]);
+
   function navigate(direction: -1 | 1) {
     const d = new Date(currentDate);
     if (viewMode === "week") {

@@ -503,6 +503,14 @@ export function CampanasClient() {
     loadCampaigns();
   }, [loadCampaigns]);
 
+  // Polling: refresh campaigns every 30s when tab is visible
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (!document.hidden) loadCampaigns();
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [loadCampaigns]);
+
   // ── Close action menu on outside click ────────────────────────────────────
 
   useEffect(() => {
@@ -821,7 +829,7 @@ export function CampanasClient() {
         {(
           [
             { key: "list", label: `Mis Campañas (${campaigns.length})` },
-            { key: "templates", label: "Catálogo de Templates" },
+            { key: "templates", label: "Templates WhatsApp" },
           ] as { key: "list" | "templates"; label: string }[]
         ).map(({ key, label }) => (
           <button
@@ -1067,7 +1075,7 @@ export function CampanasClient() {
 
       {/* ── Template catalog ───────────────────────────────────────────────── */}
       {activeView === "templates" && (
-        <TemplateCatalog onApply={applyTemplate} />
+        <TemplatesManager />
       )}
 
       {/* ── Create / Edit wizard ───────────────────────────────────────────── */}
@@ -1969,6 +1977,141 @@ function Step4({
           </span>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Templates Manager (3-level architecture) ────────────────────────────────
+
+interface WATemplate {
+  id: string;
+  name: string;
+  displayName: string;
+  category: string;
+  bodyText: string;
+  status: string;
+  isSystemTemplate: boolean;
+  isActive: boolean;
+  triggerType: string | null;
+  rejectionReason: string | null;
+  createdAt: string;
+}
+
+const TPL_STATUS: Record<string, { label: string; color: string }> = {
+  DRAFT: { label: "Borrador", color: "bg-gray-100 text-gray-700" },
+  SUBMITTED: { label: "En revisión", color: "bg-yellow-100 text-yellow-700" },
+  APPROVED: { label: "Aprobado ✅", color: "bg-green-100 text-green-700" },
+  REJECTED: { label: "Rechazado ❌", color: "bg-red-100 text-red-700" },
+  PAUSED: { label: "Pausado", color: "bg-orange-100 text-orange-700" },
+};
+
+const TPL_CATEGORY: Record<string, { label: string; color: string }> = {
+  UTILITY: { label: "UTILITY", color: "bg-blue-50 text-blue-700" },
+  MARKETING: { label: "MARKETING", color: "bg-purple-50 text-purple-700" },
+};
+
+function TemplatesManager() {
+  const [templates, setTemplates] = useState<WATemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [subTab, setSubTab] = useState<"system" | "custom">("system");
+
+  useEffect(() => {
+    apiFetch<{ templates: WATemplate[] }>("/api/v1/whatsapp-templates")
+      .then((d) => setTemplates(d.templates))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function toggleActive(id: string, isActive: boolean) {
+    await apiFetch(`/api/v1/whatsapp-templates/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isActive: !isActive }),
+    }).catch(() => {});
+    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, isActive: !isActive } : t)));
+  }
+
+  const systemTemplates = templates.filter((t) => t.isSystemTemplate);
+  const customTemplates = templates.filter((t) => !t.isSystemTemplate);
+
+  if (loading) {
+    return <div className="bg-white rounded-xl border p-12 text-center text-gray-400">Cargando templates...</div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+        <strong>Arquitectura de 3 niveles.</strong> Los templates del sistema vienen pre-aprobados. Los templates personalizados necesitan aprobación de Meta antes de poder usarse.
+      </div>
+
+      {/* Sub-tabs */}
+      <div className="flex gap-1 border-b">
+        {([
+          { key: "system" as const, label: `Templates del sistema (${systemTemplates.length})` },
+          { key: "custom" as const, label: `Mis templates (${customTemplates.length})` },
+        ]).map(({ key, label }) => (
+          <button key={key} onClick={() => setSubTab(key)} className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${subTab === key ? "border-primary-600 text-primary-700" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {subTab === "system" && (
+        <div className="space-y-2">
+          {systemTemplates.map((tpl) => (
+            <div key={tpl.id} className={`bg-white rounded-xl border p-4 ${!tpl.isActive ? "opacity-50" : ""}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-semibold text-gray-900">{tpl.displayName || tpl.name.replace(/_/g, " ")}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${TPL_CATEGORY[tpl.category]?.color ?? "bg-gray-100 text-gray-700"}`}>{tpl.category}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${TPL_STATUS[tpl.status]?.color ?? TPL_STATUS.DRAFT.color}`}>{TPL_STATUS[tpl.status]?.label ?? tpl.status}</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600">🔒 Sistema</span>
+                  </div>
+                  <div className="bg-green-50 border border-green-100 rounded-lg p-3 mt-2">
+                    <p className="text-xs text-gray-700 whitespace-pre-wrap">{tpl.bodyText}</p>
+                  </div>
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0">
+                  <input type="checkbox" checked={tpl.isActive} onChange={() => toggleActive(tpl.id, tpl.isActive)} className="w-4 h-4 accent-primary-600" />
+                  <span className="text-xs text-gray-500">Activo</span>
+                </label>
+              </div>
+            </div>
+          ))}
+          {systemTemplates.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No hay templates del sistema</p>}
+        </div>
+      )}
+
+      {subTab === "custom" && (
+        <div className="space-y-2">
+          <div className="bg-gray-50 border border-dashed border-gray-300 rounded-xl p-6 text-center">
+            <p className="text-sm text-gray-500 mb-1">Los templates personalizados requieren aprobación de Meta.</p>
+            <p className="text-xs text-gray-400">Proximamente: crear y enviar templates para revisión.</p>
+          </div>
+          {customTemplates.map((tpl) => (
+            <div key={tpl.id} className={`bg-white rounded-xl border p-4 ${!tpl.isActive ? "opacity-50" : ""}`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap mb-1">
+                    <span className="text-sm font-semibold text-gray-900">{tpl.displayName || tpl.name.replace(/_/g, " ")}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${TPL_CATEGORY[tpl.category]?.color ?? "bg-gray-100 text-gray-700"}`}>{tpl.category}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${TPL_STATUS[tpl.status]?.color ?? TPL_STATUS.DRAFT.color}`}>{TPL_STATUS[tpl.status]?.label ?? tpl.status}</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mt-1">{tpl.bodyText}</p>
+                  {tpl.status === "REJECTED" && tpl.rejectionReason && (
+                    <p className="text-xs text-red-600 mt-1">Motivo: {tpl.rejectionReason}</p>
+                  )}
+                </div>
+                <label className="flex items-center gap-1.5 cursor-pointer flex-shrink-0">
+                  <input type="checkbox" checked={tpl.isActive} onChange={() => toggleActive(tpl.id, tpl.isActive)} className="w-4 h-4 accent-primary-600" />
+                  <span className="text-xs text-gray-500">Activo</span>
+                </label>
+              </div>
+            </div>
+          ))}
+          {customTemplates.length === 0 && <p className="text-sm text-gray-400 text-center py-4">No has creado templates personalizados</p>}
+        </div>
+      )}
     </div>
   );
 }

@@ -20,14 +20,7 @@ export async function treatmentTypeRoutes(app: FastifyInstance): Promise<void> {
           tenantId: user.tenantId,
           ...(includeInactive ? {} : { isActive: true }),
         },
-        select: {
-          id: true,
-          name: true,
-          durationMin: true,
-          price: true,
-          color: true,
-          isActive: true,
-        },
+        // All fields returned (includes followUp*, isMultiSession)
         orderBy: { name: "asc" },
       });
       return { treatmentTypes };
@@ -72,6 +65,12 @@ export async function treatmentTypeRoutes(app: FastifyInstance): Promise<void> {
         price?: number | null;
         color?: string | null;
         isActive?: boolean;
+        followUpEnabled?: boolean;
+        followUpMonths?: number;
+        postProcedureCheck?: boolean;
+        postProcedureDays?: number;
+        followUpMessage?: string | null;
+        isMultiSession?: boolean;
       };
 
       const existing = await prisma.treatmentType.findFirst({ where: { id, tenantId: user.tenantId } });
@@ -85,6 +84,12 @@ export async function treatmentTypeRoutes(app: FastifyInstance): Promise<void> {
           ...(body.price !== undefined && { price: body.price }),
           ...(body.color !== undefined && { color: body.color }),
           ...(body.isActive !== undefined && { isActive: body.isActive }),
+          ...(body.followUpEnabled !== undefined && { followUpEnabled: body.followUpEnabled }),
+          ...(body.followUpMonths !== undefined && { followUpMonths: body.followUpMonths }),
+          ...(body.postProcedureCheck !== undefined && { postProcedureCheck: body.postProcedureCheck }),
+          ...(body.postProcedureDays !== undefined && { postProcedureDays: body.postProcedureDays }),
+          ...(body.followUpMessage !== undefined && { followUpMessage: body.followUpMessage }),
+          ...(body.isMultiSession !== undefined && { isMultiSession: body.isMultiSession }),
         },
         select: { id: true, name: true, durationMin: true, price: true, color: true, isActive: true },
       });
