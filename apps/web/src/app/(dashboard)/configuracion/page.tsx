@@ -2378,6 +2378,312 @@ function TabChatbotIA() {
   );
 }
 
+// ─── Tab: Facturación ─────────────────────────────────────────────────────────
+
+interface BillingInfo {
+  plan: string;
+  status: string;
+  trialStartDate?: string;
+  trialEndDate?: string;
+  currentPeriodStart?: string;
+  currentPeriodEnd?: string;
+  paymentMethod?: string;
+  cancelsAt?: string;
+  failedPaymentAttempts?: number;
+  mpConfigured: boolean;
+  planPrice?: number;
+  planCurrency?: string;
+}
+
+const PLAN_INFO: Record<string, { name: string; price: number; features: string[] }> = {
+  STARTER: {
+    name: "Starter",
+    price: 99,
+    features: ["2 dentistas", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
+  },
+  PROFESSIONAL: {
+    name: "Professional",
+    price: 199,
+    features: ["Dentistas ilimitados", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
+  },
+  ENTERPRISE: {
+    name: "Enterprise",
+    price: 299,
+    features: ["Dentistas ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
+  },
+};
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  TRIALING: { label: "Período de prueba", color: "bg-blue-100 text-blue-700" },
+  ACTIVE: { label: "Activo", color: "bg-green-100 text-green-700" },
+  PAST_DUE: { label: "Pago pendiente", color: "bg-yellow-100 text-yellow-700" },
+  CANCELLED: { label: "Cancelado", color: "bg-red-100 text-red-700" },
+  PAUSED: { label: "Pausado", color: "bg-gray-100 text-gray-700" },
+};
+
+function TabFacturacion() {
+  const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [changePlanOpen, setChangePlanOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    apiFetch<BillingInfo>("/api/v1/billing/subscription")
+      .then(setBilling)
+      .catch(() => setBilling(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleCreateSubscription = async (plan: string) => {
+    setActionLoading(true);
+    try {
+      const result = await apiFetch<{ checkoutUrl: string | null; error?: string }>(
+        "/api/v1/billing/create-subscription",
+        { method: "POST", body: JSON.stringify({ plan }) }
+      );
+      if (result.checkoutUrl) {
+        window.open(result.checkoutUrl, "_blank");
+      }
+    } catch (err) {
+      console.error("Error creating subscription:", err);
+    } finally {
+      setActionLoading(false);
+      setChangePlanOpen(false);
+    }
+  };
+
+  const handleChangePlan = async (newPlan: string) => {
+    setActionLoading(true);
+    try {
+      await apiFetch("/api/v1/billing/change-plan", {
+        method: "POST",
+        body: JSON.stringify({ newPlan }),
+      });
+      // Refresh billing info
+      const updated = await apiFetch<BillingInfo>("/api/v1/billing/subscription");
+      setBilling(updated);
+    } catch (err) {
+      console.error("Error changing plan:", err);
+    } finally {
+      setActionLoading(false);
+      setChangePlanOpen(false);
+    }
+  };
+
+  const handleCancel = async () => {
+    setActionLoading(true);
+    try {
+      await apiFetch("/api/v1/billing/cancel", { method: "POST", body: JSON.stringify({}) });
+      const updated = await apiFetch<BillingInfo>("/api/v1/billing/subscription");
+      setBilling(updated);
+    } catch (err) {
+      console.error("Error cancelling:", err);
+    } finally {
+      setActionLoading(false);
+      setCancelOpen(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 py-8 text-center">Cargando facturación...</div>;
+  }
+
+  const plan = billing?.plan ?? "STARTER";
+  const status = billing?.status ?? "TRIALING";
+  const planInfo = PLAN_INFO[plan] ?? PLAN_INFO.STARTER;
+  const statusInfo = STATUS_LABELS[status] ?? STATUS_LABELS.TRIALING;
+
+  // Calculate trial days remaining
+  const trialEnd = billing?.trialEndDate ? new Date(billing.trialEndDate) : null;
+  const trialDaysLeft = trialEnd ? Math.max(0, Math.ceil((trialEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+
+  return (
+    <>
+      {/* Trial banner */}
+      {status === "TRIALING" && trialDaysLeft !== null && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-blue-800">
+                Tu período de prueba vence en {trialDaysLeft} días
+              </p>
+              <p className="text-xs text-blue-600 mt-0.5">
+                Activá tu plan para no perder acceso
+              </p>
+            </div>
+            <Button
+              onClick={() => setChangePlanOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm"
+            >
+              Activar plan
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Past due banner */}
+      {status === "PAST_DUE" && (
+        <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+          <p className="text-sm font-semibold text-yellow-800">
+            Tu último pago fue rechazado ({billing?.failedPaymentAttempts ?? 0}/3 intentos)
+          </p>
+          <p className="text-xs text-yellow-600 mt-0.5">
+            Actualizá tu método de pago para evitar la cancelación
+          </p>
+        </div>
+      )}
+
+      {/* Current plan card */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">
+              Plan {planInfo.name}
+            </h3>
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color} mt-1`}>
+              {statusInfo.label}
+            </span>
+          </div>
+          <div className="text-right">
+            <p className="text-3xl font-bold text-gray-900">${planInfo.price}</p>
+            <p className="text-sm text-gray-500">USD/mes</p>
+          </div>
+        </div>
+
+        <ul className="space-y-1.5 mb-4">
+          {planInfo.features.map((f) => (
+            <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
+              <span className="text-green-500">✓</span>
+              {f}
+            </li>
+          ))}
+        </ul>
+
+        {billing?.currentPeriodEnd && status === "ACTIVE" && (
+          <p className="text-xs text-gray-500 mb-4">
+            Próximo cobro: {new Date(billing.currentPeriodEnd).toLocaleDateString("es-AR")}
+          </p>
+        )}
+
+        {billing?.cancelsAt && status === "CANCELLED" && (
+          <p className="text-xs text-red-500 mb-4">
+            Acceso hasta: {new Date(billing.cancelsAt).toLocaleDateString("es-AR")}
+          </p>
+        )}
+
+        <div className="flex gap-3">
+          {status !== "CANCELLED" && (
+            <Button
+              onClick={() => setChangePlanOpen(true)}
+              variant="outline"
+              className="text-sm"
+            >
+              Cambiar plan
+            </Button>
+          )}
+          {status === "ACTIVE" && (
+            <Button
+              onClick={() => setCancelOpen(true)}
+              variant="outline"
+              className="text-sm text-red-600 border-red-200 hover:bg-red-50"
+            >
+              Cancelar suscripción
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {!billing?.mpConfigured && (
+        <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm text-gray-600">
+          <p className="font-medium text-gray-800">Pagos no configurados</p>
+          <p className="mt-1">
+            Mercado Pago será habilitado próximamente. Por ahora, el acceso a tu clínica no se verá afectado.
+          </p>
+        </div>
+      )}
+
+      {/* Change plan modal */}
+      {changePlanOpen && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setChangePlanOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-3xl w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Elegí tu plan</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {Object.entries(PLAN_INFO).map(([key, info]) => (
+                <div
+                  key={key}
+                  className={`border-2 rounded-xl p-4 transition-colors ${
+                    key === plan ? "border-primary-600 bg-primary-50" : "border-gray-200 hover:border-gray-300"
+                  }`}
+                >
+                  <h4 className="font-semibold text-gray-900">{info.name}</h4>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">${info.price}<span className="text-sm font-normal text-gray-500">/mes</span></p>
+                  <ul className="mt-3 space-y-1">
+                    {info.features.map((f) => (
+                      <li key={f} className="text-xs text-gray-600 flex items-center gap-1">
+                        <span className="text-green-500">✓</span> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    onClick={() => {
+                      if (billing?.mpConfigured) {
+                        if (status === "TRIALING" || status === "CANCELLED") {
+                          handleCreateSubscription(key);
+                        } else {
+                          handleChangePlan(key);
+                        }
+                      } else {
+                        handleChangePlan(key);
+                      }
+                    }}
+                    disabled={key === plan || actionLoading}
+                    className="w-full mt-4 text-sm"
+                    variant={key === plan ? "outline" : "default"}
+                  >
+                    {key === plan ? "Plan actual" : "Seleccionar"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button
+              onClick={() => setChangePlanOpen(false)}
+              variant="outline"
+              className="mt-4 w-full text-sm"
+            >
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel confirmation modal */}
+      {cancelOpen && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setCancelOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">¿Cancelar suscripción?</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Tu acceso continuará hasta el final del período actual. Después de eso, perderás acceso a las funciones premium.
+            </p>
+            <div className="flex gap-3">
+              <Button onClick={() => setCancelOpen(false)} variant="outline" className="flex-1 text-sm">
+                No, mantener
+              </Button>
+              <Button
+                onClick={handleCancel}
+                disabled={actionLoading}
+                className="flex-1 text-sm bg-red-600 hover:bg-red-700 text-white"
+              >
+                {actionLoading ? "Cancelando..." : "Sí, cancelar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -2388,6 +2694,7 @@ const TABS = [
   { key: "sillones", label: "Sillones" },
   { key: "pipeline", label: "Pipeline" },
   { key: "integraciones", label: "Integraciones" },
+  { key: "facturacion", label: "Facturación" },
   { key: "equipo", label: "Equipo" },
 ] as const;
 
@@ -2400,6 +2707,7 @@ function ConfiguracionContent() {
   // If coming back from GCal OAuth or ?tab=X, show the correct tab
   useEffect(() => {
     if (searchParams.get("gcal")) setActiveTab("integraciones");
+    if (searchParams.get("mp")) setActiveTab("facturacion");
     const tabParam = searchParams.get("tab");
     if (tabParam && TABS.some((t) => t.key === tabParam)) {
       setActiveTab(tabParam as TabKey);
@@ -2434,6 +2742,7 @@ function ConfiguracionContent() {
       {activeTab === "sillones" && <TabSillones />}
       {activeTab === "pipeline" && <TabPipelineConfig />}
       {activeTab === "integraciones" && <TabIntegraciones />}
+      {activeTab === "facturacion" && <TabFacturacion />}
       {activeTab === "equipo" && <TabEquipo />}
     </div>
   );

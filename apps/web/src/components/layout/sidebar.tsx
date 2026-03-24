@@ -14,6 +14,7 @@ import {
   Settings,
   Menu,
   X,
+  BarChart3,
 } from "lucide-react";
 
 const navigation = [
@@ -22,6 +23,7 @@ const navigation = [
   { name: "Pacientes", href: "/pacientes", icon: Users },
   { name: "Pipeline", href: "/pipeline", icon: Kanban },
   { name: "Campañas", href: "/campanas", icon: Megaphone },
+  { name: "Estadísticas", href: "/estadisticas", icon: BarChart3 },
   { name: "Conversaciones", href: "/conversaciones", icon: MessageSquare },
 ];
 
@@ -104,7 +106,7 @@ export function Sidebar() {
             </Link>
           );
         })}
-        <p className="text-[10px] text-gray-300 text-center pt-2">v0.1.0</p>
+        <p className="text-[10px] text-gray-300 text-center pt-2">v0.5.0</p>
       </div>
     </>
   );

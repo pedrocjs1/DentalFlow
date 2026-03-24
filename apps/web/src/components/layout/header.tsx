@@ -15,6 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/pacientes": "Pacientes",
   "/pipeline": "Pipeline CRM",
   "/campanas": "Campañas",
+  "/estadisticas": "Estadísticas",
   "/conversaciones": "Conversaciones",
   "/configuracion": "Configuración",
 };
@@ -25,6 +26,7 @@ const PAGE_SUBTITLES: Record<string, string> = {
   "/pacientes": "Historial y fichas de pacientes",
   "/pipeline": "Seguimiento comercial de pacientes",
   "/campanas": "Marketing y comunicaciones masivas",
+  "/estadisticas": "Métricas, gráficos y análisis de rendimiento",
   "/conversaciones": "Mensajes de WhatsApp",
   "/configuracion": "Ajustes de tu clínica",
 };

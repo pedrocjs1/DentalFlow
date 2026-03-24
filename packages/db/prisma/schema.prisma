@@ -263,6 +263,7 @@ model Appointment {
   cancelledAt     DateTime?
   cancelReason    String?
   reminderSent    Boolean           @default(false)
+  postCheckSent   Boolean           @default(false)
   googleEventId   String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -631,6 +632,7 @@ model PatientPipeline {
   notes                 String?
   interestTreatment     String?
   lastAutoMessageSentAt DateTime?
+  lastManualMoveAt      DateTime?
 
   @@index([stageId])
   @@index([movedAt])
@@ -981,9 +983,12 @@ model Subscription {
   currentPeriodEnd   DateTime?
   paymentMethod      String?   // "transfer", "mercadopago", "stripe", "pending"
 
-  // Mercado Pago (future)
-  mpSubscriptionId   String?
-  mpPayerId          String?
+  // Mercado Pago
+  mpSubscriptionId     String?
+  mpPayerId            String?
+  mpLastPaymentId      String?
+  cancelsAt            DateTime?
+  failedPaymentAttempts Int       @default(0)
 
   // Stripe (future)
   stripeCustomerId     String?

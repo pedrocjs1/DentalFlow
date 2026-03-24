@@ -6,6 +6,7 @@ import { adminWhatsAppNumberRoutes } from "./whatsapp-numbers.js";
 import { adminUsageRoutes } from "./usage.js";
 import { adminTemplateRoutes } from "./templates.js";
 import { adminClinicaRoutes } from "./clinicas.js";
+import { adminJobRoutes } from "./jobs.js";
 
 export async function adminRoutes(app: FastifyInstance): Promise<void> {
   await app.register(adminAuthRoutes);
@@ -15,4 +16,5 @@ export async function adminRoutes(app: FastifyInstance): Promise<void> {
   await app.register(adminUsageRoutes);
   await app.register(adminTemplateRoutes);
   await app.register(adminClinicaRoutes);
+  await app.register(adminJobRoutes);
 }

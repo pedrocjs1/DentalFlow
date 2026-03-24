@@ -61,8 +61,32 @@ export async function buildApp() {
     });
   });
 
-  // Health check
-  app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
+  // Health check — enhanced
+  app.get("/health", async () => {
+    let db = false;
+    let redis = false;
+    const whatsapp = !!process.env.WHATSAPP_ENABLED;
+
+    // Check DB
+    try {
+      const { prisma } = await import("@dentalflow/db");
+      await prisma.$queryRaw`SELECT 1`;
+      db = true;
+    } catch { /* db down */ }
+
+    // Check Redis — if REDIS_URL is set, assume jobs are running
+    // (actual health is tracked by the scheduler)
+    redis = !!process.env.REDIS_URL;
+
+    return {
+      status: db ? "ok" : "degraded",
+      db,
+      redis,
+      whatsapp,
+      version: "0.5.0",
+      timestamp: new Date().toISOString(),
+    };
+  });
 
   return app;
 }

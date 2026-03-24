@@ -1,4 +1,4 @@
-# CLAUDE.md — DentalFlow SaaS Platform (v0.4.0)
+# CLAUDE.md — DentalFlow SaaS Platform (v0.5.0)
 
 ## IDENTIDAD DEL PROYECTO
 
@@ -90,6 +90,53 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - Todos los mockups construidos con código (no imágenes)
 - Texto completo en español orientado a clínicas dentales LATAM
 
+### ✅ Completado — Google Calendar + Cron Jobs + Estadísticas + Mercado Pago (v0.5.0)
+
+**Google Calendar — CONFIGURADO:**
+- Credenciales GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET agregadas al .env
+- Flujo OAuth2 completo operativo, código 100% listo y verificado
+- GOOGLE_REDIRECT_URI configurado para ngrok/producción
+
+**Cron Jobs BullMQ — IMPLEMENTADOS (4 workers):**
+- pipeline-automations: cada 15 min (auto-mensaje WhatsApp + auto-move entre etapas)
+- appointment-reminders: cada 30 min (recordatorio 24h antes de cita)
+- treatment-followup: cada 1 hora (seguimiento post-tratamiento según followUpMonths)
+- post-procedure-check: cada 1 hora (control post-procedimiento según postProcedureDays)
+- Scheduler se inicia con el server, graceful degradation si Redis no disponible
+- Endpoint admin: GET /api/v1/admin/jobs/status (estado de jobs para Super Admin)
+- Todos los jobs son idempotentes (flags reminderSent, postCheckSent, lastAutoMessageSentAt)
+
+**Estadísticas con Recharts — IMPLEMENTADAS (8 páginas):**
+- Nueva página /estadísticas con 7 endpoints de analytics:
+  - GET /statistics/overview (métricas principales con comparación vs período anterior)
+  - GET /statistics/appointments-chart (citas por período: completadas/canceladas/no-show)
+  - GET /statistics/revenue-chart (ingresos facturados vs pendientes)
+  - GET /statistics/patients-chart (pacientes nuevos + citas)
+  - GET /statistics/top-treatments (top 10 tratamientos por ingresos)
+  - GET /statistics/dentist-performance (rendimiento por dentista)
+  - GET /statistics/hours-heatmap (mapa de calor día×hora)
+- Filtro por período: 7d, 30d, 90d, 12m
+- 4 metric cards con cambio % vs período anterior
+- 6 gráficos Recharts: LineChart citas, BarChart ingresos, BarChart horizontal tratamientos, BarChart pipeline funnel, barras de progreso dentistas, heatmap horarios
+- Sección WhatsApp & IA stats
+- Responsive, loading states, empty states
+
+**Mercado Pago — IMPLEMENTADO:**
+- Servicio apps/api/src/services/mercadopago.ts (createSubscription, getSubscriptionStatus, cancelMpSubscription, updateSubscriptionPlan)
+- 4 endpoints billing: GET subscription, POST create-subscription, POST change-plan, POST cancel
+- Webhook mercadopago actualizado: procesa subscription_preapproval + payment events
+- Idempotencia: mpLastPaymentId para no procesar doble
+- Dunning: 3 intentos fallidos → CANCELLED automático
+- Tab "Facturación" en Configuración: plan actual, estado, cambiar plan (modal 3 cards), cancelar suscripción
+- Trial banner ("Tu trial vence en X días"), past_due banner
+- Graceful degradation: si MP_ACCESS_TOKEN no configurado → "Próximamente"
+
+**Deploy Prep:**
+- Health check mejorado: GET /health con status DB/Redis/WhatsApp + version
+- Rate limiting granular: 200/min general, 100/min webhook WA, 50/min webhook MP, 10/min login
+- env.production.example con todas las variables documentadas
+- Migración: 20260324154409_cron_stats_billing_fields (postCheckSent, lastManualMoveAt, mpLastPaymentId, cancelsAt, failedPaymentAttempts)
+
 ### ✅ Completado — WhatsApp Embedded Signup (end-to-end funcionando)
 - Flujo completo operativo con número real +54 9 261 231-2567
 - WABA "Dental Link" (ID: 158155033313211) conectada al portfolio "EPRE MDZ"
@@ -132,12 +179,12 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - ~~Templates WhatsApp~~ → ✅ Arquitectura 3 niveles (sistema/personalizados/pipeline)
 - ~~Pipeline configurable~~ → ✅ Auto-mensaje con SELECT de templates + auto-move + descuentos
 - ~~Tratamientos con seguimiento~~ → ✅ followUp + postProcedure + isMultiSession
-- Google Calendar credenciales → ⏳ Pendiente configurar GOOGLE_CLIENT_ID y GOOGLE_CLIENT_SECRET en .env (código 100% listo)
-- Cron jobs para automatizaciones del pipeline (BullMQ workers)
-- Estadísticas y gráficos avanzados
+- ~~Google Calendar credenciales~~ → ✅ Configuradas en .env, flujo OAuth2 completo operativo
+- ~~Cron jobs para automatizaciones del pipeline~~ → ✅ BullMQ workers (4 jobs: pipeline 15min, reminders 30min, follow-up 1h, post-procedure 1h)
+- ~~Estadísticas y gráficos avanzados~~ → ✅ Página completa con Recharts (7 endpoints, 6 gráficos, heatmap)
 - Recomendaciones de IA basadas en estadísticas (tab IA en notificaciones preparado)
 - ~~Enviar templates a Meta para aprobación real~~ → ✅ Panel Super Admin con Meta API (submit/check/sync)
-- Billing (Stripe/MP suscripciones)
+- ~~Billing (Mercado Pago suscripciones)~~ → ✅ Servicio MP + endpoints billing + webhook + tab Facturación
 - Deploy landing (Vercel → dentalflow.app)
 - Conectar dominio dentalflow.app para landing + app.dentalflow.app para dashboard
 - Deploy (Vercel + Railway + Supabase)
@@ -154,7 +201,7 @@ MONOREPO
 ├── CLAUDE.md, WHATSAPP_SETUP.md, .env
 ```
 
-Frontend: Next.js 15 + shadcn/ui + Tailwind | State: Zustand + TanStack Query | Backend: Fastify+TS | DB: PostgreSQL Supabase + Prisma | Cache: Redis + BullMQ | Auth: @fastify/jwt (OWNER/ADMIN/DENTIST/RECEPTIONIST/SUPER_ADMIN) | IA: Anthropic claude-haiku-4-5-20251001 | WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 | DnD: @dnd-kit | Email: Resend | FB SDK: Facebook JS SDK | Tunnel: ngrok (dev)
+Frontend: Next.js 15 + shadcn/ui + Tailwind + Recharts | State: Zustand + TanStack Query | Backend: Fastify+TS | DB: PostgreSQL Supabase + Prisma | Cache: Redis + BullMQ | Auth: @fastify/jwt (OWNER/ADMIN/DENTIST/RECEPTIONIST/SUPER_ADMIN) | IA: Anthropic claude-haiku-4-5-20251001 | WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 (credenciales configuradas) | DnD: @dnd-kit | Email: Resend | FB SDK: Facebook JS SDK | Billing: Mercado Pago SDK | Tunnel: ngrok (dev)
 
 ---
 
@@ -273,6 +320,59 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-24 — Google Calendar + Cron Jobs + Estadísticas + Mercado Pago (v0.5.0)
+
+**Google Calendar — CONFIGURADO:**
+- Credenciales de producción agregadas a .env
+- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET configurados
+- Código verificado: compilación limpia, rutas registradas, flujo OAuth2 completo
+- GOOGLE_REDIRECT_URI apunta a ngrok en dev, app.dentalflow.app en prod
+
+**Schema Prisma — Migración 20260324154409_cron_stats_billing_fields:**
+- Appointment: +postCheckSent Boolean @default(false)
+- PatientPipeline: +lastManualMoveAt DateTime?
+- Subscription: +mpLastPaymentId String?, +cancelsAt DateTime?, +failedPaymentAttempts Int @default(0)
+
+**Cron Jobs BullMQ — 4 nuevos workers + scheduler:**
+- Nuevo: apps/api/src/jobs/scheduler.ts — registra todos los jobs con BullMQ
+- Nuevo: apps/api/src/jobs/appointment-reminders.ts — recordatorio 24h antes
+- Nuevo: apps/api/src/jobs/treatment-followup.ts — seguimiento + post-procedimiento
+- Actualizado: apps/api/src/jobs/pipeline-automations.ts — ahora envía WhatsApp real (sendWhatsAppTemplate)
+- Scheduler se registra en server.ts al inicio
+- Graceful degradation si Redis no disponible
+- Todos los jobs idempotentes con flags en DB
+- Endpoint: GET /api/v1/admin/jobs/status (admin only)
+
+**Estadísticas — 7 endpoints + página frontend completa:**
+- Nuevo: apps/api/src/routes/statistics/index.ts
+- Endpoints: overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap
+- Filtro por período: 7d, 30d, 90d, 12m
+- Comparación vs período anterior (changePercent)
+- Nueva página: apps/web/src/app/(dashboard)/estadisticas/
+- Componentes Recharts: LineChart, BarChart, BarChart horizontal, Cell colores, heatmap custom
+- 4 metric cards, 6 gráficos, sección WhatsApp/IA stats
+- Sidebar actualizado con "Estadísticas" (ícono BarChart3)
+- Header actualizado con título/subtítulo
+
+**Mercado Pago — Servicio + API + Webhook + Frontend:**
+- Nuevo: apps/api/src/services/mercadopago.ts — SDK wrapper (createSubscription, getSubscriptionStatus, cancel, updatePlan)
+- Nuevo: apps/api/src/routes/billing/index.ts — 4 endpoints (subscription, create, change-plan, cancel)
+- Actualizado: apps/api/src/routes/webhooks/mercadopago.ts — procesa subscription_preapproval + payment events
+- Idempotencia: mpLastPaymentId check, dunning 3 intentos → CANCELLED
+- Frontend: tab "Facturación" en Configuración con plan actual, trial banner, cambiar plan (modal 3 cards), cancelar
+- Graceful degradation: si MP_ACCESS_TOKEN no configurado → "Próximamente"
+
+**Deploy Prep:**
+- Health check mejorado: /health con DB/Redis/WhatsApp status + version 0.5.0
+- Rate limiting granular: 200/min general, 100/min WA webhook, 50/min MP webhook, 10/min login
+- env.production.example con todas las variables documentadas
+- Version bumped a v0.5.0
+
+**Dependencias instaladas:**
+- bullmq (apps/api) — cron jobs
+- recharts (apps/web) — gráficos
+- mercadopago (apps/api) — SDK de pagos
 
 ### 2026-03-24 — Historial Clínico Profesional (12 fases)
 
