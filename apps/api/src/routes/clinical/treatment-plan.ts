@@ -7,7 +7,34 @@ import { AppError } from "../../errors/app-error.js";
 export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
 
-  // Get active treatment plan (create one if none exists)
+  // List ALL treatment plans for a patient
+  app.get("/api/v1/patients/:patientId/treatment-plans", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const { patientId } = request.params as { patientId: string };
+
+      const patient = await prisma.patient.findFirst({
+        where: { id: patientId, tenantId: user.tenantId, isActive: true },
+      });
+      if (!patient) throw new AppError(404, "PATIENT_NOT_FOUND", "Paciente no encontrado");
+
+      const plans = await prisma.treatmentPlan.findMany({
+        where: { patientId, tenantId: user.tenantId },
+        include: {
+          items: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          },
+          dentist: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return { plans };
+    },
+  });
+
+  // Get active treatment plan (kept for backward compatibility)
   app.get("/api/v1/patients/:patientId/treatment-plan", {
     preHandler,
     handler: async (request) => {
@@ -25,6 +52,7 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
           items: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
           },
+          dentist: { select: { id: true, name: true } },
         },
       });
 
@@ -44,7 +72,7 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!patient) throw new AppError(404, "PATIENT_NOT_FOUND", "Paciente no encontrado");
 
-      const body = request.body as { title?: string; notes?: string };
+      const body = request.body as { title?: string; notes?: string; dentistId?: string; discountPercent?: number };
 
       const plan = await prisma.treatmentPlan.create({
         data: {
@@ -52,11 +80,55 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
           tenantId: user.tenantId,
           title: body.title ?? "Plan de Tratamiento",
           notes: body.notes ?? null,
+          dentistId: body.dentistId ?? null,
+          discountPercent: body.discountPercent ?? 0,
         },
-        include: { items: true },
+        include: {
+          items: true,
+          dentist: { select: { id: true, name: true } },
+        },
       });
 
       return reply.status(201).send({ plan });
+    },
+  });
+
+  // Update treatment plan (plan-level fields)
+  app.patch("/api/v1/patients/:patientId/treatment-plan/:planId", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const { patientId, planId } = request.params as { patientId: string; planId: string };
+
+      const body = request.body as {
+        title?: string;
+        notes?: string;
+        status?: string;
+        dentistId?: string | null;
+        discountPercent?: number;
+      };
+
+      const existing = await prisma.treatmentPlan.findFirst({
+        where: { id: planId, patientId, tenantId: user.tenantId },
+      });
+      if (!existing) throw new AppError(404, "NOT_FOUND", "Plan no encontrado");
+
+      const plan = await prisma.treatmentPlan.update({
+        where: { id: planId },
+        data: {
+          ...(body.title !== undefined && { title: body.title }),
+          ...(body.notes !== undefined && { notes: body.notes }),
+          ...(body.status !== undefined && { status: body.status }),
+          ...(body.dentistId !== undefined && { dentistId: body.dentistId }),
+          ...(body.discountPercent !== undefined && { discountPercent: body.discountPercent }),
+        },
+        include: {
+          items: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+          dentist: { select: { id: true, name: true } },
+        },
+      });
+
+      return { plan };
     },
   });
 
@@ -74,6 +146,8 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
         unitCost?: number;
         quantity?: number;
         notes?: string;
+        discountPercent?: number;
+        section?: string;
       };
 
       if (!body.procedureName) {
@@ -103,6 +177,8 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
           unitCost,
           quantity,
           notes: body.notes ?? null,
+          discountPercent: body.discountPercent ?? 0,
+          section: body.section ?? null,
         },
       });
 
@@ -124,6 +200,8 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
         procedureName?: string;
         notes?: string;
         toothFdi?: number;
+        discountPercent?: number;
+        section?: string;
       };
 
       const item = await prisma.treatmentPlanItem.findFirst({
@@ -140,6 +218,8 @@ export async function treatmentPlanRoutes(app: FastifyInstance): Promise<void> {
           ...(body.procedureName !== undefined && { procedureName: body.procedureName }),
           ...(body.notes !== undefined && { notes: body.notes }),
           ...(body.toothFdi !== undefined && { toothFdi: body.toothFdi }),
+          ...(body.discountPercent !== undefined && { discountPercent: body.discountPercent }),
+          ...(body.section !== undefined && { section: body.section }),
           ...(body.status === "COMPLETED" && { completedAt: new Date() }),
         },
       });

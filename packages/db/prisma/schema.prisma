@@ -90,6 +90,16 @@ model Tenant {
   disabledTemplateIds   String[]           @default([]) // Template IDs disabled for this clinic
   notifications         Notification[]
   subscription          Subscription?
+  // Historial clínico profesional
+  odontogramVersions      OdontogramVersion[]
+  periodontogramVersions  PeriodontogramVersion[]
+  patientImages           PatientImage[]
+  prescriptions           Prescription[]
+  consentTemplates        ConsentTemplate[]
+  patientConsents         PatientConsent[]
+  evolutionTemplates      EvolutionTemplate[]
+  plaqueRecords           PlaqueRecord[]
+  medicalHistoryAudits    MedicalHistoryAudit[]
 }
 
 enum Plan {
@@ -161,6 +171,10 @@ model Dentist {
   workingHours        DentistWorkingHours[]
   googleCalendarToken GoogleCalendarToken?
   treatments          DentistTreatment[]
+  // Historial clínico profesional
+  prescriptions       Prescription[]
+  consents            PatientConsent[]
+  treatmentPlansLed   TreatmentPlan[]   @relation("TreatmentPlanDentist")
 
   @@index([tenantId])
 }
@@ -303,16 +317,24 @@ model Patient {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  appointments       Appointment[]
-  conversations      Conversation[]
-  pipelineEntry      PatientPipeline?
-  campaignSends      CampaignSend[]
-  clinicalNotes      ClinicalNote[]
-  medicalHistory     MedicalHistory?
-  odontogramFindings OdontogramFinding[]
-  treatmentPlans     TreatmentPlan[]
-  visitNotes         ClinicalVisitNote[]
-  periodontogram     PeriodontogramEntry[]
+  appointments            Appointment[]
+  conversations           Conversation[]
+  pipelineEntry           PatientPipeline?
+  campaignSends           CampaignSend[]
+  clinicalNotes           ClinicalNote[]
+  medicalHistory          MedicalHistory?
+  odontogramFindings      OdontogramFinding[]
+  treatmentPlans          TreatmentPlan[]
+  visitNotes              ClinicalVisitNote[]
+  periodontogram          PeriodontogramEntry[]
+  // Historial clínico profesional
+  odontogramVersions      OdontogramVersion[]
+  periodontogramVersions  PeriodontogramVersion[]
+  images                  PatientImage[]
+  prescriptions           Prescription[]
+  consents                PatientConsent[]
+  plaqueRecords           PlaqueRecord[]
+  medicalHistoryAudits    MedicalHistoryAudit[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])
@@ -366,6 +388,7 @@ model MedicalHistory {
   tenantId          String
   tenant            Tenant    @relation(fields: [tenantId], references: [id])
   bloodType         String?
+  rhFactor          String?               // "+", "-"
   allergies         String[]  @default([])
   medications       String[]  @default([])
   hasDiabetes       Boolean   @default(false)
@@ -385,6 +408,20 @@ model MedicalHistory {
   consentSigned     Boolean   @default(false)
   consentSignedAt   DateTime?
   consentNotes      String?
+  // Campos mejorados — Historial Clínico Profesional
+  primaryDoctor         String?
+  primaryDoctorPhone    String?
+  latexAllergy          Boolean   @default(false)
+  anestheticAllergy     Boolean   @default(false)
+  allergyDetails        Json?     // [{ name, severity: "MILD"|"MODERATE"|"SEVERE" }]
+  medicationDetails     Json?     // [{ name, dose, frequency, since }]
+  conditionDetails      Json?     // [{ name, type, since, currentTreatment, isActive }]
+  familyHistory         Json?     // { diabetes, hypertension, cancer, heartDisease, other }
+  smokingAmount         String?   // "5 por día"
+  alcoholFrequency      String?   // "Ocasional", "Semanal"
+  pregnancyWeeks        Int?
+  breastfeeding         Boolean   @default(false)
+  surgeryHistory        Json?     // [{ name, date, hospital, notes }]
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
@@ -403,6 +440,11 @@ model OdontogramFinding {
   status      OdontogramStatus @default(EXISTING)
   notes       String?
   recordedBy  String
+  // Campos mejorados — Historial Clínico Profesional
+  diagnosis              String?
+  dentistId              String?
+  linkedTreatmentItemId  String?
+  versionId              String?
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
 
@@ -449,6 +491,12 @@ model TreatmentPlan {
   title     String      @default("Plan de Tratamiento")
   notes     String?
   isActive  Boolean     @default(true)
+  // Campos mejorados — Presupuesto profesional
+  status          String    @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  dentistId       String?
+  dentist         Dentist?  @relation("TreatmentPlanDentist", fields: [dentistId], references: [id])
+  totalAmount     Float     @default(0)
+  discountPercent Float     @default(0)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
@@ -472,6 +520,10 @@ model TreatmentPlanItem {
   notes         String?
   sortOrder     Int                 @default(0)
   completedAt   DateTime?
+  // Campos mejorados — Presupuesto profesional
+  discountPercent Float             @default(0)
+  section         String?           // "Fase 1: Urgencia"
+  completedById   String?
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
 
@@ -500,6 +552,14 @@ model ClinicalVisitNote {
   content       String
   nextStep      String?
   attachments   Json     @default("[]")
+  // Campos mejorados — Evoluciones profesionales
+  dentistId            String?
+  treatmentPlanId      String?
+  treatmentPlanItemId  String?
+  diagnosis            String?
+  signaturePatient     String?  @db.Text
+  signatureDentist     String?  @db.Text
+  templateUsed         String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -518,6 +578,11 @@ model PeriodontogramEntry {
   recordedAt  DateTime @default(now())
   findings    Json     @default("{}")
   notes       String?
+  // Campos mejorados — Periodontograma profesional
+  furca        String?   // "NONE", "I", "II", "III"
+  suppuration  Boolean   @default(false)
+  plaque       Boolean   @default(false)
+  versionId    String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -975,4 +1040,166 @@ enum UsageType {
   AI_TOKENS
   CAMPAIGN_SEND
   EMAIL_SEND
+}
+
+// ═══════════════════════════════════════
+// HISTORIAL CLÍNICO PROFESIONAL (nuevos modelos)
+// ═══════════════════════════════════════
+
+model OdontogramVersion {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  versionNumber Int
+  label         String?  // "Versión inicial", "Control 3 meses"
+  findings      Json     // Snapshot de todos los findings al momento de crear la versión
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([patientId, tenantId])
+}
+
+model PeriodontogramVersion {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  versionNumber Int
+  label         String?
+  entries       Json     // Snapshot completo del periodontograma
+  metrics       Json?    // { bop, avgPD, avgNIC, plaqueIndex }
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  @@index([patientId, tenantId])
+}
+
+model PatientImage {
+  id            String   @id @default(cuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  category      String   // RADIOGRAPHY, INTRAORAL, EXTRAORAL, DOCUMENT, OTHER
+  description   String?
+  fileName      String
+  fileSize      Int
+  mimeType      String
+  imageData     String   @db.Text  // base64 para MVP
+  toothNumbers  String?  // "16,17,18" piezas asociadas
+  evolutionId   String?  // Si está asociada a una evolución
+  uploadedById  String?
+  createdAt     DateTime @default(now())
+
+  @@index([patientId, tenantId])
+  @@index([category])
+}
+
+model Prescription {
+  id                 String   @id @default(cuid())
+  patientId          String
+  patient            Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id])
+  dentistId          String
+  dentist            Dentist  @relation(fields: [dentistId], references: [id])
+  evolutionId        String?  // Vinculada a una evolución (opcional)
+  prescriptionNumber Int      // Auto-incremental por tenant
+  diagnosis          String?
+  medications        Json     // [{ name, dose, frequency, duration, route, instructions }]
+  notes              String?
+  templateUsed       String?  // Nombre de la plantilla usada
+  signatureData      String?  @db.Text // Firma digital base64
+  createdAt          DateTime @default(now())
+
+  @@index([patientId, tenantId])
+}
+
+model ConsentTemplate {
+  id            String           @id @default(cuid())
+  tenantId      String
+  tenant        Tenant           @relation(fields: [tenantId], references: [id])
+  name          String           // "Consentimiento de extracción"
+  category      String           // GENERAL, EXTRACTION, ENDODONTICS, SURGERY, ORTHODONTICS, WHITENING, DATA_PRIVACY
+  content       String           @db.Text // Template con placeholders: {{patientName}}, {{date}}, etc.
+  isActive      Boolean          @default(true)
+  isDefault     Boolean          @default(false) // Templates del seed
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  consents      PatientConsent[]
+
+  @@index([tenantId])
+}
+
+model PatientConsent {
+  id               String           @id @default(cuid())
+  patientId        String
+  patient          Patient          @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId         String
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  templateId       String?
+  template         ConsentTemplate? @relation(fields: [templateId], references: [id])
+  dentistId        String
+  dentist          Dentist          @relation(fields: [dentistId], references: [id])
+  title            String
+  content          String           @db.Text // Contenido final renderizado
+  status           String           @default("DRAFT") // DRAFT, SIGNED, REVOKED
+  patientSignature String?          @db.Text // base64
+  dentistSignature String?          @db.Text // base64
+  signedAt         DateTime?
+  revokedAt        DateTime?
+  revokedReason    String?
+  createdAt        DateTime         @default(now())
+
+  @@index([patientId, tenantId])
+}
+
+model EvolutionTemplate {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+  name          String   // "Limpieza dental"
+  procedure     String?  // Procedimiento pre-llenado
+  materials     String?  // Materiales pre-llenados (comma separated)
+  description   String?  @db.Text // Descripción base
+  instructions  String?  @db.Text // Indicaciones post-procedimiento
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model PlaqueRecord {
+  id               String   @id @default(cuid())
+  patientId        String
+  patient          Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId         String
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  affectedSurfaces Json     // { "16": ["V", "L", "M", "D", "O"], "17": ["V", "M"] }
+  totalSurfaces    Int
+  affectedCount    Int
+  percentage       Float    // affectedCount / totalSurfaces * 100
+  comments         String?
+  createdById      String?
+  createdAt        DateTime @default(now())
+
+  @@index([patientId, tenantId])
+}
+
+model MedicalHistoryAudit {
+  id           String   @id @default(cuid())
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  changedById  String
+  fieldChanged String   // "allergies", "medications", "conditions"
+  oldValue     String?  @db.Text
+  newValue     String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([patientId, tenantId])
 }

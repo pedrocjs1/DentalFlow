@@ -22,7 +22,7 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
         where: { patientId },
       });
 
-      return history ?? { patientId, bloodType: null, allergies: [], medications: [], hasDiabetes: false, hasHypertension: false, hasHeartDisease: false, hasAsthma: false, hasHIV: false, hasEpilepsy: false, otherDiseases: null, hasBruxism: false, isSmoker: false, smokingDetails: null, surgicalHistory: null, hospitalizations: null, isPregnant: false, lastDoctorVisit: null, consentSigned: false, consentSignedAt: null, consentNotes: null };
+      return history ?? { patientId, bloodType: null, rhFactor: null, allergies: [], medications: [], hasDiabetes: false, hasHypertension: false, hasHeartDisease: false, hasAsthma: false, hasHIV: false, hasEpilepsy: false, otherDiseases: null, hasBruxism: false, isSmoker: false, smokingDetails: null, surgicalHistory: null, hospitalizations: null, isPregnant: false, lastDoctorVisit: null, consentSigned: false, consentSignedAt: null, consentNotes: null, primaryDoctor: null, primaryDoctorPhone: null, latexAllergy: false, anestheticAllergy: false, allergyDetails: null, medicationDetails: null, conditionDetails: null, familyHistory: null, smokingAmount: null, alcoholFrequency: null, pregnancyWeeks: null, breastfeeding: false, surgeryHistory: null };
     },
   });
 
@@ -39,6 +39,7 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
 
       const body = request.body as {
         bloodType?: string;
+        rhFactor?: string;
         allergies?: string[];
         medications?: string[];
         hasDiabetes?: boolean;
@@ -58,11 +59,29 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
         consentSigned?: boolean;
         consentSignedAt?: string;
         consentNotes?: string;
+        // New fields
+        primaryDoctor?: string;
+        primaryDoctorPhone?: string;
+        latexAllergy?: boolean;
+        anestheticAllergy?: boolean;
+        allergyDetails?: unknown;
+        medicationDetails?: unknown;
+        conditionDetails?: unknown;
+        familyHistory?: unknown;
+        smokingAmount?: string;
+        alcoholFrequency?: string;
+        pregnancyWeeks?: number;
+        breastfeeding?: boolean;
+        surgeryHistory?: unknown;
       };
+
+      // Read existing for audit trail
+      const existing = await prisma.medicalHistory.findUnique({ where: { patientId } });
 
       const data = {
         tenantId: user.tenantId,
         bloodType: body.bloodType ?? null,
+        rhFactor: body.rhFactor ?? null,
         allergies: body.allergies ?? [],
         medications: body.medications ?? [],
         hasDiabetes: body.hasDiabetes ?? false,
@@ -82,6 +101,20 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
         consentSigned: body.consentSigned ?? false,
         consentSignedAt: body.consentSignedAt ? new Date(body.consentSignedAt) : null,
         consentNotes: body.consentNotes ?? null,
+        // New fields
+        primaryDoctor: body.primaryDoctor ?? null,
+        primaryDoctorPhone: body.primaryDoctorPhone ?? null,
+        latexAllergy: body.latexAllergy ?? false,
+        anestheticAllergy: body.anestheticAllergy ?? false,
+        allergyDetails: body.allergyDetails ?? undefined,
+        medicationDetails: body.medicationDetails ?? undefined,
+        conditionDetails: body.conditionDetails ?? undefined,
+        familyHistory: body.familyHistory ?? undefined,
+        smokingAmount: body.smokingAmount ?? null,
+        alcoholFrequency: body.alcoholFrequency ?? null,
+        pregnancyWeeks: body.pregnancyWeeks ?? null,
+        breastfeeding: body.breastfeeding ?? false,
+        surgeryHistory: body.surgeryHistory ?? undefined,
       };
 
       const history = await prisma.medicalHistory.upsert({
@@ -89,6 +122,27 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
         create: { patientId, ...data },
         update: data,
       });
+
+      // Create audit trail entries for changed fields
+      if (existing) {
+        const auditFields = ["allergies", "medications", "allergyDetails", "medicationDetails", "conditionDetails", "familyHistory", "surgeryHistory", "latexAllergy", "anestheticAllergy"] as const;
+        for (const field of auditFields) {
+          const oldVal = JSON.stringify((existing as Record<string, unknown>)[field] ?? null);
+          const newVal = JSON.stringify((history as Record<string, unknown>)[field] ?? null);
+          if (oldVal !== newVal) {
+            await prisma.medicalHistoryAudit.create({
+              data: {
+                patientId,
+                tenantId: user.tenantId,
+                changedById: user.sub,
+                fieldChanged: field,
+                oldValue: oldVal,
+                newValue: newVal,
+              },
+            });
+          }
+        }
+      }
 
       return history;
     },

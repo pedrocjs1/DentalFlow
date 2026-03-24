@@ -553,6 +553,51 @@ async function main() {
   });
   console.log("Super admin seeded: admin@dentalflow.app");
 
+  // ─── Evolution Templates (6 plantillas) ────────────────────
+  const evolutionTemplates = [
+    { name: "Limpieza dental", procedure: "Profilaxis dental", materials: "Pasta profiláctica, ultrasonido, hilo dental", description: "Se realizó profilaxis dental supragingival con ultrasonido y pulido con pasta profiláctica. Se instruyó al paciente en técnica de cepillado.", instructions: "Cepillado 3 veces al día con cepillo de cerdas suaves. Hilo dental diario. Control en 6 meses." },
+    { name: "Restauración directa (resina)", procedure: "Restauración con resina compuesta", materials: "Resina Z350, ácido grabador 37%, adhesivo, matriz", description: "Se realizó restauración directa con resina compuesta. Anestesia local, aislamiento relativo, grabado ácido, adhesivo, resina por capas incrementales, fotopolimerización, pulido.", instructions: "No masticar alimentos duros por 24 horas. Si presenta sensibilidad, puede tomar un analgésico." },
+    { name: "Extracción simple", procedure: "Extracción dental simple", materials: "Anestesia local, fórceps, cureta, gasa", description: "Se realizó extracción simple bajo anestesia local. Luxación y avulsión sin complicaciones. Hemostasia con gasa. Se verificó integridad de la pieza.", instructions: "Morder gasa 30 minutos. No escupir ni enjuagar por 24 horas. Dieta blanda y fría. No fumar por 72 horas. Tomar medicación indicada." },
+    { name: "Endodoncia", procedure: "Tratamiento de conducto radicular", materials: "Limas endodónticas, hipoclorito de sodio, EDTA, gutapercha, cemento endodóntico", description: "Se realizó tratamiento de conducto. Apertura cameral, instrumentación biomecánica, irrigación con hipoclorito y EDTA, obturación con gutapercha y cemento.", instructions: "Puede presentar molestias por 48-72 horas. Tomar medicación indicada. No masticar del lado tratado hasta la restauración definitiva. Acudir a la próxima cita para la corona." },
+    { name: "Corona/Prótesis fija", procedure: "Preparación y cementado de corona", materials: "Corona (material según caso), cemento definitivo, hilo retractor", description: "Se realizó tallado de la pieza, toma de impresión, prueba y cementado de corona definitiva. Se verificó oclusión y contactos proximales.", instructions: "Evitar alimentos pegajosos por 24 horas. Cepillado normal. Hilo dental con cuidado alrededor de la corona. Control en 1 semana." },
+    { name: "Control periódico", procedure: "Control y seguimiento", materials: "Espejo, explorador, sonda periodontal", description: "Se realizó control periódico. Examen clínico, evaluación de tratamientos previos, control de higiene oral.", instructions: "Continuar con rutina de higiene indicada. Próximo control según plan de tratamiento." },
+  ];
+
+  for (const t of evolutionTemplates) {
+    const existing = await prisma.evolutionTemplate.findFirst({
+      where: { tenantId: tenant.id, name: t.name },
+    });
+    if (!existing) {
+      await prisma.evolutionTemplate.create({
+        data: { tenantId: tenant.id, ...t },
+      });
+    }
+  }
+  console.log("  ✓ Evolution templates seeded");
+
+  // ─── Consent Templates (7 plantillas) ────────────────────
+  const consentTemplates = [
+    { name: "Consentimiento general de tratamiento", category: "GENERAL", content: "Yo, {{patientName}}, DNI {{documentNumber}}, declaro que he sido informado/a sobre el diagnóstico, plan de tratamiento propuesto, alternativas, riesgos y beneficios del tratamiento odontológico. He tenido la oportunidad de hacer preguntas y estas han sido respondidas satisfactoriamente. Autorizo al profesional a realizar el tratamiento planificado.\n\nFecha: {{date}}\nPaciente: {{patientName}}\nProfesional: {{dentistName}}\nMatrícula: {{licenseNumber}}" },
+    { name: "Consentimiento de extracción", category: "EXTRACTION", content: "Yo, {{patientName}}, autorizo al Dr./Dra. {{dentistName}} a realizar la extracción de la/s pieza/s dental/es indicada/s. He sido informado/a de los riesgos del procedimiento incluyendo: dolor, sangrado, infección, daño a piezas adyacentes, comunicación bucosinusal, fractura radicular, y parestesia temporal o permanente del nervio.\n\nComprendo las instrucciones postoperatorias y me comprometo a seguirlas.\n\nFecha: {{date}}" },
+    { name: "Consentimiento de endodoncia", category: "ENDODONTICS", content: "Yo, {{patientName}}, autorizo la realización del tratamiento de conducto radicular en la/s pieza/s indicada/s. He sido informado/a de que el tratamiento puede requerir múltiples sesiones y que existe la posibilidad de complicaciones como: fractura del instrumento, perforación, reinfección, y en algunos casos la necesidad de retratamiento o extracción.\n\nFecha: {{date}}" },
+    { name: "Consentimiento de cirugía", category: "SURGERY", content: "Yo, {{patientName}}, autorizo al Dr./Dra. {{dentistName}} a realizar el procedimiento quirúrgico indicado. He sido informado/a de la naturaleza del procedimiento, los riesgos generales y específicos, las alternativas al tratamiento, y las posibles complicaciones postoperatorias incluyendo: dolor, inflamación, infección, hemorragia, hematoma, parestesia, y la posible necesidad de un segundo procedimiento.\n\nFecha: {{date}}" },
+    { name: "Consentimiento de ortodoncia", category: "ORTHODONTICS", content: "Yo, {{patientName}}, autorizo el inicio del tratamiento de ortodoncia. Comprendo que el tratamiento puede durar entre 12 y 36 meses, que requiere controles regulares, y que los resultados dependen de la colaboración del paciente. He sido informado/a de los posibles efectos secundarios: molestias iniciales, úlceras, reabsorción radicular, descalcificación, y recidiva.\n\nMe comprometo a seguir las indicaciones del profesional y asistir a los controles programados.\n\nFecha: {{date}}" },
+    { name: "Consentimiento de blanqueamiento", category: "WHITENING", content: "Yo, {{patientName}}, autorizo la realización del tratamiento de blanqueamiento dental. He sido informado/a de que los resultados varían según cada paciente, que puede existir sensibilidad dental temporal durante y después del tratamiento, y que el resultado no es permanente.\n\nFecha: {{date}}" },
+    { name: "Manejo de datos personales (HABEAS DATA)", category: "DATA_PRIVACY", content: "En cumplimiento con la legislación vigente sobre protección de datos personales, {{clinicName}} informa que los datos proporcionados serán utilizados exclusivamente para la prestación de servicios de salud bucodental, la gestión de turnos y la comunicación relacionada con su tratamiento.\n\nSus datos serán almacenados de forma segura y no serán compartidos con terceros sin su consentimiento, excepto cuando sea requerido por ley.\n\nUsted tiene derecho a acceder, rectificar y suprimir sus datos en cualquier momento.\n\nYo, {{patientName}}, autorizo el tratamiento de mis datos personales según lo descrito.\n\nFecha: {{date}}" },
+  ];
+
+  for (const t of consentTemplates) {
+    const existing = await prisma.consentTemplate.findFirst({
+      where: { tenantId: tenant.id, name: t.name },
+    });
+    if (!existing) {
+      await prisma.consentTemplate.create({
+        data: { tenantId: tenant.id, ...t, isDefault: true },
+      });
+    }
+  }
+  console.log("  ✓ Consent templates seeded");
+
   console.log("Seed completed successfully!");
   console.log("\nDemo credentials:");
   console.log("  Email: admin@clinica-demo.com");

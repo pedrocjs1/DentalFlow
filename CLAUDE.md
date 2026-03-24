@@ -20,7 +20,7 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 **Dashboard Clínica (7 páginas):**
 - **Home** — métricas + widget uso mensual (WhatsApp/IA barras de progreso)
 - **Agenda** — calendario semanal/diario, multi-dentista, GCal integrado, drag-and-drop, validaciones horario laboral + conflictos + GCal
-- **Pacientes** — tabla + ficha con 5 tabs (Odontograma SVG interactivo, Historia Médica, Plan Tratamiento, Notas Clínicas, Periodontograma)
+- **Pacientes** — tabla + ficha profesional con 8 tabs (Resumen ejecutivo, Odontograma con versionado+pediátrico, Periodontograma con métricas+versionado, Plan Tratamiento multi-plan+presupuesto, Evoluciones con plantillas+firma digital, Historia Médica mejorada+audit trail, Imágenes galería+visor, Recetas y Documentos+consentimientos). Header con alertas médicas visibles y click-to-copy.
 - **Pipeline CRM** — Kanban 8 stages, drag-and-drop persistente, drawer, valor monetario por columna ($), auto config por stage, sync bidireccional con Agenda
 - **Campañas** — wizard 4 pasos, 8 campañas default (idempotente), 15 templates catálogo, segmentación, métricas, retry failed
 - **Conversaciones** — inbox estilo WhatsApp Web, burbujas, delivery status, toggle IA activo/pausado, polling 3-5s, datos demo en seed
@@ -273,6 +273,55 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-24 — Historial Clínico Profesional (12 fases)
+
+**Schema Prisma — 9 nuevos modelos + 6 modificados:**
+- Nuevos: OdontogramVersion, PeriodontogramVersion, PatientImage, Prescription, ConsentTemplate, PatientConsent, EvolutionTemplate, PlaqueRecord, MedicalHistoryAudit
+- MedicalHistory: +14 campos (rhFactor, primaryDoctor, latexAllergy, anestheticAllergy, allergyDetails JSON, medicationDetails JSON, conditionDetails JSON, familyHistory JSON, smokingAmount, alcoholFrequency, pregnancyWeeks, breastfeeding, surgeryHistory JSON)
+- OdontogramFinding: +diagnosis, dentistId, linkedTreatmentItemId, versionId
+- TreatmentPlan: +status (ACTIVE/COMPLETED/CANCELLED), dentistId, totalAmount, discountPercent
+- TreatmentPlanItem: +discountPercent, section (fases), completedById
+- ClinicalVisitNote: +dentistId, treatmentPlanId, treatmentPlanItemId, diagnosis, signaturePatient, signatureDentist, templateUsed
+- PeriodontogramEntry: +furca, suppuration, plaque, versionId
+- Migración: 20260324012848_historial_clinico_profesional
+
+**Backend API — 9 nuevos archivos de rutas:**
+- patient-summary.ts: GET /patients/:id/summary (vista ejecutiva con stats, plan activo, timeline, citas)
+- odontogram-versions.ts: GET/POST versionado del odontograma (snapshots)
+- periodontogram-versions.ts: GET/POST versionado con métricas (BOP, avgPD, avgNIC, plaqueIndex)
+- patient-images.ts: CRUD imágenes (base64 MVP, categorías, metadata sin imageData en lista)
+- prescriptions.ts: CRUD recetas + 4 plantillas hardcoded (post-extracción, post-endodoncia, profilaxis, dolor agudo)
+- consents.ts: CRUD consentimientos + firmar/revocar + plantillas CRUD
+- evolution-templates.ts: CRUD plantillas de evolución
+- plaque-records.ts: GET/POST registros de placa bacteriana
+- medical-history-audit.ts: GET audit trail de cambios en historia médica
+- medical-history.ts actualizado: acepta 14 campos nuevos + genera audit trail automático
+
+**Ficha del paciente — 8 tabs (antes 5):**
+1. Resumen (NUEVO): alertas médicas, 4 stats cards, plan activo con progreso, próximas citas, timeline actividades
+2. Odontograma: versionado (snapshot/restaurar), toggle dentición permanente/temporal (32 vs 20 piezas), diagnóstico por hallazgo, historial por pieza
+3. Periodontograma: 4 métricas cards (BOP%, prof. sondaje, NIC, placa), versionado, furca/supuración/placa por sitio, leyenda visual
+4. Plan de Tratamiento: múltiples planes, secciones/fases, descuento por ítem, subtotales/totales, estado por ítem con dropdown, dentista responsable, botón "Evolucionar"
+5. Evoluciones (renombrado de "Notas Clínicas"): plantillas pre-llenables, vinculación dentista/plan, firma digital (canvas), timeline con filtros (fecha, dentista, búsqueda)
+6. Historia Médica: factor RH, médico cabecera, alergia látex/anestésicos con styling rojo, detalle alergias con severidad, detalle medicamentos con dosis/frecuencia, condiciones con tratamiento actual, antecedentes familiares, cirugías como array, hábitos mejorados, audit trail colapsable
+7. Imágenes (NUEVO): galería con categorías (Radiografías/Intraorales/Extraorales/Documentos/Otros), drag-drop upload base64, visor con zoom/rotar, comparación lado a lado
+8. Recetas y Documentos (NUEVO): recetas con plantillas + firma digital, consentimientos con plantillas + firma paciente/profesional + revocar
+
+**Header del paciente mejorado:**
+- Alertas médicas visibles (badges rojos): alergias, látex, anestésicos, diabetes, hipertensión, anticoagulantes, etc.
+- Badge verde "Sin alertas médicas" si no hay alertas
+- Obra social / seguro médico visible
+- Click-to-copy en teléfono y email
+- Avatar con gradiente
+
+**Seed data:**
+- 6 plantillas de evolución: Limpieza, Restauración, Extracción, Endodoncia, Corona, Control
+- 7 plantillas de consentimiento: General, Extracción, Endodoncia, Cirugía, Ortodoncia, Blanqueamiento, Habeas Data
+
+**Fix: runtime error en tab Resumen:**
+- Backend: renombrado recentActivity→recentActivities, agregado medicalHistory al response, alias value/totalCost en pendingTreatments
+- Frontend: optional chaining y defaults defensivos para todos los campos del summary (stats, recentActivities, upcomingAppointments, activePlan, medicalHistory)
 
 ### 2026-03-24 — Templates Meta API + Wizard 5 pasos + Importador mejorado + Fixes
 

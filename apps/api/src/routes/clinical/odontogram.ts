@@ -44,6 +44,7 @@ export async function odontogramRoutes(app: FastifyInstance): Promise<void> {
         condition: string;
         status?: "EXISTING" | "PLANNED";
         notes?: string;
+        diagnosis?: string;
       };
 
       if (!body.toothFdi || !body.condition) {
@@ -59,6 +60,7 @@ export async function odontogramRoutes(app: FastifyInstance): Promise<void> {
           condition: body.condition as any,
           status: body.status ?? "EXISTING",
           notes: body.notes ?? null,
+          diagnosis: body.diagnosis ?? null,
           recordedBy: user.sub,
         },
       });

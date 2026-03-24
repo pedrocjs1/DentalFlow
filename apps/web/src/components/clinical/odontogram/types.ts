@@ -23,6 +23,16 @@ export interface OdontogramFinding {
   condition: ToothCondition;
   status: OdontogramStatus;
   notes: string | null;
+  diagnosis: string | null;
+  createdAt: string;
+}
+
+export interface OdontogramVersion {
+  id: string;
+  patientId: string;
+  versionNumber: number;
+  label: string | null;
+  findings: OdontogramFinding[];
   createdAt: string;
 }
 
@@ -58,11 +68,17 @@ export const CONDITION_LABELS: Record<ToothCondition, string> = {
   ABSENT: "Ausente",
 };
 
-// FDI arch layout
+// FDI arch layout — Permanent dentition
 export const UPPER_RIGHT = [18, 17, 16, 15, 14, 13, 12, 11];
 export const UPPER_LEFT = [21, 22, 23, 24, 25, 26, 27, 28];
 export const LOWER_LEFT = [38, 37, 36, 35, 34, 33, 32, 31];
 export const LOWER_RIGHT = [48, 47, 46, 45, 44, 43, 42, 41];
+
+// FDI arch layout — Pediatric (temporal) dentition
+export const PED_UPPER_RIGHT = [55, 54, 53, 52, 51];
+export const PED_UPPER_LEFT = [61, 62, 63, 64, 65];
+export const PED_LOWER_LEFT = [75, 74, 73, 72, 71];
+export const PED_LOWER_RIGHT = [85, 84, 83, 82, 81];
 
 // Whole-tooth conditions (no surface applies)
 export const WHOLE_TOOTH_CONDITIONS: ToothCondition[] = [
