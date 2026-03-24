@@ -418,82 +418,104 @@ async function main() {
   console.log("Demo conversations skipped (real data from WhatsApp)");
   } // end skipDemoConversations
 
-  // ─── WhatsApp Templates (10 system templates) ───────────────────────────────
-  // Delete old templates that had the wrong schema fields
-  await prisma.whatsAppTemplate.deleteMany({ where: { tenantId: tenant.id } });
+  // ─── WhatsApp Templates (10 system templates — GLOBAL, no tenantId) ─────────
+  // Clean old tenant-bound templates
+  await prisma.whatsAppTemplate.deleteMany({
+    where: { tenantId: { not: null }, isSystemTemplate: true },
+  });
 
   const templatesData = [
     {
-      id: "tpl-sys-1", name: "appointment_reminder_24h", displayName: "Recordatorio de cita 24hs", category: "UTILITY",
+      id: "tpl-sys-1", name: "appointment_reminder_24h", displayName: "Recordatorio de cita 24hs",
+      description: "Se envía 24hs antes de la cita programada",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! 📅 Te recordamos tu cita mañana a las {{2}} con {{3}} en {{4}}. ¡Te esperamos! Si necesitás reprogramar, escribinos con anticipación. 😊",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "time", example: "10:00" }, { position: 3, field: "dentistName", example: "Dra. González" }, { position: 4, field: "clinicName", example: "Clínica Dental" }],
-      triggerType: "appointment_reminder",
+      suggestedTrigger: "appointment_reminder",
     },
     {
-      id: "tpl-sys-2", name: "post_visit_followup", displayName: "Seguimiento post-visita", category: "UTILITY",
+      id: "tpl-sys-2", name: "post_visit_followup", displayName: "Seguimiento post-visita",
+      description: "Se envía después de una visita para seguimiento",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! 😊 ¿Cómo te sentiste después de tu {{2}}? Si tenés alguna molestia o duda, no dudes en escribirnos. Tu salud dental es nuestra prioridad.",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "treatmentName", example: "limpieza dental" }],
-      triggerType: "post_visit",
+      suggestedTrigger: "post_visit",
     },
     {
-      id: "tpl-sys-3", name: "treatment_followup_6m", displayName: "Control periódico", category: "UTILITY",
+      id: "tpl-sys-3", name: "treatment_followup_6m", displayName: "Control periódico",
+      description: "Recordatorio de control periódico (cada 6 meses)",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! Ya pasaron {{2}} meses desde tu última {{3}} en {{4}}. Es momento de tu control periódico. ¿Te gustaría agendar? 🦷",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "months", example: "6" }, { position: 3, field: "treatmentName", example: "limpieza" }, { position: 4, field: "clinicName", example: "Clínica Dental" }],
-      triggerType: "follow_up",
+      suggestedTrigger: "follow_up",
     },
     {
-      id: "tpl-sys-4", name: "interested_not_booked", displayName: "Interesado sin agendar", category: "UTILITY",
+      id: "tpl-sys-4", name: "interested_not_booked", displayName: "Interesado sin agendar",
+      description: "Para pacientes interesados que no agendaron cita",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! Vi que estabas interesado en {{2}}. Tenemos horarios disponibles esta semana. ¿Te ayudo a agendar? 📅",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "treatmentName", example: "ortodoncia" }],
-      triggerType: "interested_not_booked",
+      suggestedTrigger: "interested_not_booked",
     },
     {
-      id: "tpl-sys-5", name: "reactivation_standard", displayName: "Reactivación estándar", category: "MARKETING",
+      id: "tpl-sys-5", name: "reactivation_standard", displayName: "Reactivación estándar",
+      description: "Reactivar pacientes inactivos sin descuento",
+      category: "MARKETING",
       bodyText: "¡Hola {{1}}! Te extrañamos en {{2}}. Tu salud dental es importante. ¿Agendamos un control? Tenemos horarios disponibles para vos. 😊",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "clinicName", example: "Clínica Dental" }],
-      triggerType: "reactivation",
+      suggestedTrigger: "reactivation",
     },
     {
-      id: "tpl-sys-6", name: "reactivation_discount", displayName: "Reactivación con descuento", category: "MARKETING",
+      id: "tpl-sys-6", name: "reactivation_discount", displayName: "Reactivación con descuento",
+      description: "Reactivar pacientes inactivos con descuento especial",
+      category: "MARKETING",
       bodyText: "¡Hola {{1}}! En {{2}} tenemos un {{3}}% de descuento especial para vos en tu próxima visita. ¡Aprovechalo! ¿Te gustaría agendar? 🎉",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "clinicName", example: "Clínica Dental" }, { position: 3, field: "discountPercent", example: "10" }],
-      triggerType: "reactivation",
+      suggestedTrigger: "reactivation",
     },
     {
-      id: "tpl-sys-7", name: "birthday_greeting", displayName: "Feliz cumpleaños", category: "MARKETING",
+      id: "tpl-sys-7", name: "birthday_greeting", displayName: "Feliz cumpleaños",
+      description: "Saludo de cumpleaños con descuento",
+      category: "MARKETING",
       bodyText: "¡Feliz cumpleaños {{1}}! 🎂🎉 En {{2}} queremos celebrar con vos. Te regalamos un {{3}}% de descuento en tu próximo tratamiento. ¡Válido por 30 días!",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "clinicName", example: "Clínica Dental" }, { position: 3, field: "discountPercent", example: "15" }],
-      triggerType: "birthday",
+      suggestedTrigger: "birthday",
     },
     {
-      id: "tpl-sys-8", name: "no_show_followup", displayName: "No asistió a cita", category: "UTILITY",
+      id: "tpl-sys-8", name: "no_show_followup", displayName: "No asistió a cita",
+      description: "Seguimiento cuando un paciente no asiste a su cita",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! Notamos que no pudiste asistir a tu cita. No te preocupes, estas cosas pasan. ¿Te gustaría que busquemos otro horario? 😊",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }],
-      triggerType: "no_show",
+      suggestedTrigger: "no_show",
     },
     {
-      id: "tpl-sys-9", name: "post_procedure_check", displayName: "Control post-procedimiento", category: "UTILITY",
+      id: "tpl-sys-9", name: "post_procedure_check", displayName: "Control post-procedimiento",
+      description: "Control días después de un procedimiento",
+      category: "UTILITY",
       bodyText: "¡Hola {{1}}! Ya pasaron {{2}} días desde tu {{3}}. ¿Cómo te sentís? Si tenés alguna molestia o duda, escribinos. Estamos para ayudarte. 🦷",
       variablesJson: [{ position: 1, field: "firstName", example: "Pedro" }, { position: 2, field: "days", example: "7" }, { position: 3, field: "treatmentName", example: "extracción" }],
-      triggerType: "post_procedure",
+      suggestedTrigger: "post_procedure",
     },
     {
-      id: "tpl-sys-10", name: "welcome_new_patient", displayName: "Bienvenida nuevo paciente", category: "UTILITY",
+      id: "tpl-sys-10", name: "welcome_new_patient", displayName: "Bienvenida nuevo paciente",
+      description: "Mensaje de bienvenida para nuevos pacientes",
+      category: "UTILITY",
       bodyText: "¡Bienvenido/a a {{1}}, {{2}}! 😊 Gracias por elegirnos para cuidar tu sonrisa. Si necesitás agendar una cita o tenés alguna consulta, escribinos por acá.",
       variablesJson: [{ position: 1, field: "clinicName", example: "Clínica Dental" }, { position: 2, field: "firstName", example: "Pedro" }],
-      triggerType: "welcome",
+      suggestedTrigger: "welcome",
     },
   ];
 
   for (const { id, variablesJson, ...tplData } of templatesData) {
     await prisma.whatsAppTemplate.upsert({
       where: { id },
-      update: { ...tplData, variablesJson: variablesJson as unknown as undefined, isSystemTemplate: true, status: "APPROVED", isActive: true },
+      update: { ...tplData, variablesJson: variablesJson as unknown as undefined, isSystemTemplate: true, status: "DRAFT", isActive: true, tenantId: null },
       create: {
         id,
-        tenantId: tenant.id,
+        tenantId: null,
         language: "es_AR",
-        status: "APPROVED",
+        status: "DRAFT",
         isSystemTemplate: true,
         isActive: true,
         variablesJson: variablesJson as unknown as undefined,
@@ -501,7 +523,22 @@ async function main() {
       },
     });
   }
-  console.log("WhatsApp templates seeded (10 system templates)");
+  console.log("WhatsApp templates seeded (10 global system templates — DRAFT)");
+
+  // ─── Subscription ─────────────────────────────────────────────────────────────
+  await prisma.subscription.upsert({
+    where: { tenantId: tenant.id },
+    update: {},
+    create: {
+      tenantId: tenant.id,
+      plan: "PROFESSIONAL",
+      status: "TRIALING",
+      trialStartDate: new Date(),
+      trialEndDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      paymentMethod: "pending",
+    },
+  });
+  console.log("Subscription seeded (PROFESSIONAL, TRIALING, 14 days)");
 
   // ─── Super Admin ────────────────────────────────────────────────────────────
   const adminPassword = await bcrypt.hash("DentalFlow2026!", 10);

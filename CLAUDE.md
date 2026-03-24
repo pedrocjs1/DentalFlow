@@ -63,7 +63,7 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - appointment_end_reminder: auto-detect citas pasadas cada 60s
 - Badge: rojo si human_needed, azul normal, contador por tab
 
-**Super Admin** (/admin): Dashboard Global (MRR, gráfico crecimiento), Clínicas (CRUD+impersonar), WhatsApp (monitoreo+force-disconnect), Uso & Límites
+**Super Admin** (/admin): Dashboard Global (MRR, gráfico crecimiento), Clínicas (wizard crear+detalle tabs+importar pacientes+suscripción+impersonar), WhatsApp (monitoreo+force-disconnect), Templates (CRUD+Meta API submit/check/sync+timeline), Uso & Límites
 
 **Usage Tracking:** UsageRecord por tenant, widget barras progreso, límites por plan
 
@@ -136,7 +136,7 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - Cron jobs para automatizaciones del pipeline (BullMQ workers)
 - Estadísticas y gráficos avanzados
 - Recomendaciones de IA basadas en estadísticas (tab IA en notificaciones preparado)
-- Enviar templates a Meta para aprobación real
+- ~~Enviar templates a Meta para aprobación real~~ → ✅ Panel Super Admin con Meta API (submit/check/sync)
 - Billing (Stripe/MP suscripciones)
 - Deploy landing (Vercel → dentalflow.app)
 - Conectar dominio dentalflow.app para landing + app.dentalflow.app para dashboard
@@ -160,13 +160,13 @@ Frontend: Next.js 15 + shadcn/ui + Tailwind | State: Zustand + TanStack Query | 
 
 ## SCHEMA (SIEMPRE leer packages/db/prisma/schema.prisma para estado real)
 
-26+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus, botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, Automation, FaqEntry, UsageRecord
+28+ modelos: Tenant (con wabaId, whatsappPhoneNumberId, whatsappDisplayNumber, whatsappAccessToken, whatsappConnectedAt, whatsappStatus, botTone, botLanguage, askBirthdate, askInsurance, offerDiscounts, maxDiscountPercent, proactiveFollowUp, leadRecontactHours, campaignBirthday, campaignPeriodicReminder, campaignReactivation, messageDebounceSeconds, disabledTemplateIds), User, Dentist, DentistTreatment, DentistWorkingHours, DentistGoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, TreatmentPlan+Items, ClinicalVisitNote, PeriodontogramEntry, ClinicalNote, PipelineStage (auto-config), PatientPipeline (interestTreatment, lastAutoMessageSentAt), Conversation, Message, Campaign, CampaignSend, WhatsAppTemplate (global, tenantId nullable), TemplateEvent, Subscription (plan, status, trial, billing), Automation, FaqEntry, UsageRecord
 
 ---
 
 ## ENDPOINTS PRINCIPALES
 
-Auth: login, me | Dashboard: stats+usage | Pacientes: CRUD + historial clínico completo | Citas: CRUD con validación GCal+horario+conflictos | Agenda: dentists, blocked-slots | Pipeline: stages+patients+move (stageValue) | Campañas: CRUD + segment-count + setup-defaults(idempotente) + duplicate + sends + retry-failed | Conversaciones: CRUD + messages + toggle IA | Config: clínica/working-hours/equipo/dentists/treatments/chairs + **bot** (GET/PUT configuración chatbot con Zod) | GCal: auth-url/callback/status/disconnect/sync | WhatsApp: embedded-signup-complete/disconnect/status/send-test + webhook | Admin: login/dashboard/tenants/impersonate/usage/whatsapp-monitor/force-disconnect
+Auth: login, me | Dashboard: stats+usage | Pacientes: CRUD + historial clínico completo | Citas: CRUD con validación GCal+horario+conflictos | Agenda: dentists, blocked-slots | Pipeline: stages+patients+move (stageValue) | Campañas: CRUD + segment-count + setup-defaults(idempotente) + duplicate + sends + retry-failed | Conversaciones: CRUD + messages + toggle IA | Config: clínica/working-hours/equipo/dentists/treatments/chairs + **bot** (GET/PUT configuración chatbot con Zod) | GCal: auth-url/callback/status/disconnect/sync | WhatsApp: embedded-signup-complete/disconnect/status/send-test + webhook | Admin: login/dashboard/tenants/impersonate/usage/whatsapp-monitor/force-disconnect/templates(CRUD+submit+check+sync)/connected-wabas/clinicas(crear+import-patients+subscription+patients) | Templates catálogo: catalog/toggle
 
 ---
 
@@ -273,6 +273,145 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-24 — Templates Meta API + Wizard 5 pasos + Importador mejorado + Fixes
+
+**Templates Meta API — IMPLEMENTADO:**
+- Servicio completo whatsapp-templates.ts: submitTemplate(), checkTemplateStatus(), syncAllTemplates(), deleteTemplateFromMeta()
+- Panel Super Admin (/admin/templates): CRUD + enviar a Meta + verificar estado + sincronizar todos
+- Timeline de progreso por template (modelo TemplateEvent)
+- Catálogo para clínicas: solo templates APPROVED, toggle activar/desactivar por clínica
+- Templates globales: tenantId nullable, isSystemTemplate para templates del sistema (solo lectura)
+
+**Creador de clínicas (wizard 5 pasos) — MEJORADO:**
+- Nuevo paso 5: Importar pacientes (opcional) con CSV drag-and-drop
+- Paso 5 con 3 estados: elegir (Sí/No) → subir archivo → mapeo columnas + preview → crear clínica e importar
+- Fix: field name mismatches frontend↔backend (ownerEmail→adminEmail, contactEmail→email, createDefaultPipeline→createDefaultStages)
+- Fix: workingHours convertido de Record<day,WorkingDay> a Array con dayOfWeek numérico
+- Fix: response parsing (data.tenant.id en vez de data.tenantId)
+
+**Importador de pacientes — MEJORADO:**
+- CSV con auto-detección de separador (coma/punto y coma)
+- 30+ nombres de columnas en español/inglés auto-mapeados
+- Mapeo de columnas editable con selects + preview de primeras 5 filas
+- Normalización de teléfonos robusta con validación de longitud mínima
+- Birthdate parsing seguro (no crashea con fechas inválidas)
+- Error logging detallado: errorDetails array en response + app.log.warn() por error
+- Cada error incluye: número de fila, nombre/teléfono, mensaje truncado
+
+**Modelo Subscription — IMPLEMENTADO:**
+- Prisma: plan, status (TRIALING/ACTIVE/PAST_DUE/CANCELLED/PAUSED), trialStartDate, trialEndDate, currentPeriodStart/End, paymentMethod, billingNotes
+- Relación 1:1 con Tenant (tenantId unique)
+- Endpoints: GET/PATCH /api/v1/admin/clinicas/:tenantId/subscription
+- Sync bidireccional: cambiar plan/status en Subscription actualiza Tenant
+
+**Vista mejorada clínicas admin — IMPLEMENTADA:**
+- Lista: cards en grid (reemplazó tabla), botón "+ Crear clínica", filtro por estado, trial days remaining
+- Detalle: 3 tabs (Resumen, Pacientes con importador, Configuración con suscripción)
+- Fix: toLocaleString crash cuando count/limit es undefined (added ?? 0 defaults)
+- Fix: pct calculation guarda contra limit <= 0 para evitar NaN/Infinity
+
+### 2026-03-23 — Creador de clínicas + Importador de pacientes + Suscripciones
+
+**Creador de clínicas (wizard 4 pasos) — IMPLEMENTADO:**
+- Nueva página /admin/clinicas/crear con wizard completo
+- Paso 1: Datos de la clínica (nombre, slug auto-generado, dirección, teléfono, email, timezone)
+- Paso 2: Plan y facturación (3 cards STARTER/PROFESSIONAL/ENTERPRISE, estado, trial, método pago, notas)
+- Paso 3: Usuario administrador (nombre, email, contraseña auto-generada, copiable)
+- Paso 4: Configuración inicial (horarios por día, bot tone/language/debounce, checkboxes pipeline+tratamientos)
+- Backend: POST /api/v1/admin/clinicas/crear — transacción que crea Tenant + User(OWNER) + Subscription + WorkingHours + PipelineStages(8) + TreatmentTypes(5)
+- Pantalla de éxito con credenciales copiables y link a la clínica
+
+**Importador de pacientes (CSV) — IMPLEMENTADO:**
+- Sección en /admin/clinicas/:id (tab Pacientes)
+- Drag-and-drop de archivos CSV
+- Parseo en frontend: auto-detección de separador (coma/punto y coma), 30+ nombres de columnas en español/inglés
+- Mapeo de columnas editable con selects
+- Vista previa de las primeras 5 filas
+- Backend: POST /api/v1/admin/clinicas/:tenantId/import-patients — normalización de teléfonos, detección de duplicados, pipeline auto
+- Resultado: imported/skipped/errors con detalle
+
+**Modelo Subscription — NUEVO:**
+- Modelo Prisma Subscription (plan, status, trialStartDate, trialEndDate, currentPeriodStart/End, paymentMethod, billing notes, MP/Stripe IDs futuros)
+- Relación 1:1 con Tenant (tenantId unique)
+- Endpoints: GET/PATCH /api/v1/admin/clinicas/:tenantId/subscription
+- Sync bidireccional: al cambiar plan/status en Subscription, se actualiza también en Tenant
+- Seed: Subscription demo (PROFESSIONAL, TRIALING, 14 días)
+
+**Vista mejorada de clínicas — IMPLEMENTADA:**
+- Lista: layout de cards en grid (reemplazó tabla), botón "+ Crear clínica", filtro por estado, trial days remaining
+- Detalle: 3 tabs (Resumen, Pacientes con importador, Configuración con suscripción)
+- Resumen: info clínica + suscripción + 4 stat cards + usage bars + users table
+- Configuración: plan/status/payment method/billing notes con save
+
+**Endpoints API — Admin clínicas:**
+- POST /api/v1/admin/clinicas/crear — wizard completo con transacción
+- POST /api/v1/admin/clinicas/:tenantId/import-patients — importar pacientes CSV
+- GET /api/v1/admin/clinicas/:tenantId/subscription — ver suscripción
+- PATCH /api/v1/admin/clinicas/:tenantId/subscription — editar suscripción
+- GET /api/v1/admin/clinicas/:tenantId/patients — listar pacientes (admin)
+
+**Migración Prisma:**
+- 20260323210000_subscriptions_clinic_onboarding
+
+### 2026-03-23 — Templates globales + Meta API + Super Admin Templates Panel
+
+**Templates refactorizados como GLOBALES — IMPLEMENTADO:**
+- WhatsAppTemplate.tenantId ahora es nullable — templates del sistema (isSystemTemplate=true) tienen tenantId=null
+- Nuevo modelo TemplateEvent para timeline de progreso (created, submitted, approved, rejected, edited, status_check, etc.)
+- Campos nuevos: description, metaStatus, qualityScore, lastCheckedAt, suggestedTrigger
+- Campo triggerType renombrado a suggestedTrigger
+- Tenant tiene nuevo campo disabledTemplateIds (String[]) para que cada clínica desactive templates individualmente
+- Migración: 20260323200000_templates_global_timeline
+- Seed actualizado: 10 templates globales con status DRAFT (antes estaban APPROVED por tenant)
+
+**Servicio de Meta API para templates (whatsapp-templates.ts) — NUEVO:**
+- submitTemplate(): envía template a Meta para aprobación (POST /message_templates)
+- checkTemplateStatus(): verifica estado actual en Meta (GET /message_templates?name=X)
+- syncAllTemplates(): sincroniza TODOS los templates con Meta (bulk status check)
+- deleteTemplateFromMeta(): elimina template de Meta (DELETE /message_templates)
+- buildComponents(): convierte formato DB a formato Meta API components
+- Manejo de errores de Meta (100, 190, 2388023, 2388024, 2388047)
+- Cada acción crea TemplateEvent en timeline
+- allow_category_change: true en cada envío
+
+**Panel Super Admin — Templates — NUEVO:**
+- Nueva sección "Templates" en sidebar del admin (/admin/templates)
+- Lista con filtros: Todos, DRAFT, PENDING, APPROVED, REJECTED
+- Selector de WABA: elige desde qué clínica enviar (GET /admin/connected-wabas)
+- Crear template: nombre (validación minúsculas+números+_), displayName, categoría, idioma, body con variables {{1}}..{{N}}, footer, trigger sugerido
+- Editar template: solo DRAFT o REJECTED, reset a DRAFT al editar
+- Enviar a Meta: POST /admin/templates/:id/submit con tenantId seleccionado
+- Verificar estado: POST /admin/templates/:id/check (actualiza status, qualityScore)
+- Sincronizar todos: POST /admin/templates/sync (bulk sync con Meta)
+- Vista detalle: preview burbuja WhatsApp, variables, info de Meta, timeline de eventos
+- Detección automática de variables al escribir {{N}} en el body
+- Eliminar template (con cascade de TemplateEvents)
+
+**Endpoints API — Admin templates:**
+- GET /api/v1/admin/templates — listar (con filtro ?status=)
+- GET /api/v1/admin/templates/:id — detalle con timeline
+- GET /api/v1/admin/templates/:id/timeline — timeline de eventos
+- POST /api/v1/admin/templates — crear (DRAFT)
+- PUT /api/v1/admin/templates/:id — editar (solo DRAFT/REJECTED)
+- DELETE /api/v1/admin/templates/:id — eliminar
+- POST /api/v1/admin/templates/:id/submit — enviar a Meta
+- POST /api/v1/admin/templates/:id/check — verificar estado en Meta
+- POST /api/v1/admin/templates/sync — sincronizar todos con Meta
+- GET /api/v1/admin/connected-wabas — clínicas con WhatsApp conectado
+
+**Endpoints API — Catálogo clínica:**
+- GET /api/v1/templates/catalog — templates aprobados con campo isEnabledForClinic
+- PATCH /api/v1/templates/:id/toggle — activar/desactivar template para esta clínica
+- GET /api/v1/whatsapp-templates — ahora devuelve globales APPROVED + custom de la clínica
+
+**Seguridad:**
+- Todas las rutas /admin/templates protegidas por adminMiddleware (SUPER_ADMIN)
+- Clínicas no pueden ver DRAFT, REJECTED ni el timeline
+- Clínicas no pueden editar templates del sistema (isSystemTemplate check)
+
+**Migración Prisma:**
+- 20260323200000_templates_global_timeline
 
 ### 2026-03-23 — Reagendamiento + Cancelación + Pipeline automático + Templates + Notificaciones
 

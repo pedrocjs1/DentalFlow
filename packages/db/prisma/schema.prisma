@@ -87,7 +87,9 @@ model Tenant {
   dentistTreatments     DentistTreatment[]
   usageRecords          UsageRecord[]
   whatsappTemplates     WhatsAppTemplate[]
+  disabledTemplateIds   String[]           @default([]) // Template IDs disabled for this clinic
   notifications         Notification[]
+  subscription          Subscription?
 }
 
 enum Plan {
@@ -734,45 +736,64 @@ enum SendStatus {
 }
 
 // ═══════════════════════════════════════
-// WHATSAPP TEMPLATES
+// WHATSAPP TEMPLATES (GLOBAL — system templates have no tenant)
 // ═══════════════════════════════════════
 
 model WhatsAppTemplate {
   id               String    @id @default(cuid())
-  tenantId         String
-  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  name             String                 // Internal name (e.g., "appointment_reminder_24h")
-  displayName      String    @default("") // Human-readable name for the clinic
-  category         String                 // UTILITY, MARKETING, AUTHENTICATION
+  // System templates are global (tenantId = null). Custom clinic templates have tenantId.
+  tenantId         String?
+  tenant           Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name             String                 // Only lowercase, numbers, underscores (Meta requirement)
+  displayName      String    @default("") // Human-readable name for the dashboard
+  description      String?               // When to use this template
+  category         String                 // UTILITY, MARKETING
   language         String    @default("es_AR")
-  // Content
+  // Content (Meta API components format)
   headerType       String?                // TEXT, IMAGE, VIDEO, DOCUMENT, NONE
   headerText       String?
   bodyText         String                 // Body with variables {{1}}, {{2}}, etc.
   footerText       String?
-  buttonsJson      Json?                  // Optional buttons (CTA, quick reply)
+  buttonsJson      Json?                  // Buttons CTA or quick reply
   // Variables mapping
   variablesJson    Json?                  // [{position: 1, field: "firstName", example: "Pedro"}, ...]
-  // Status & approval
-  status           String    @default("DRAFT") // DRAFT, SUBMITTED, APPROVED, REJECTED, PAUSED
-  metaTemplateId   String?                // ID in Meta after approval
-  rejectionReason  String?                // Meta rejection reason
+  // Meta approval state
+  status           String    @default("DRAFT") // DRAFT, SUBMITTED, PENDING, APPROVED, REJECTED, PAUSED, DISABLED
+  metaTemplateId   String?                // ID returned by Meta on creation
+  metaStatus       String?                // Raw status from Meta (for sync)
+  rejectionReason  String?
+  qualityScore     String?                // GREEN, YELLOW, RED (Meta quality rating)
+  // Timeline
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
   submittedAt      DateTime?
   approvedAt       DateTime?
   rejectedAt       DateTime?
-  // Type flags
-  isSystemTemplate Boolean   @default(false) // true = DentalFlow system template, not editable
+  lastCheckedAt    DateTime?              // Last time status was checked on Meta
+  // Control
+  isSystemTemplate Boolean   @default(true)  // true = created by Super Admin
   isActive         Boolean   @default(true)
-  // Pipeline link
-  triggerType      String?                // "appointment_reminder", "follow_up", "reactivation", "birthday", "no_show", "interested_not_booked", "post_visit", "post_procedure", "welcome"
-  // Versioning
   version          Int       @default(1)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  // Suggested usage
+  suggestedTrigger String?                // "appointment_reminder", "follow_up", "reactivation", etc.
 
+  events           TemplateEvent[]
+
+  @@index([status])
+  @@index([isSystemTemplate, status])
   @@index([tenantId])
-  @@index([tenantId, status])
-  @@index([tenantId, triggerType])
+}
+
+model TemplateEvent {
+  id          String           @id @default(cuid())
+  templateId  String
+  template    WhatsAppTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  event       String           // "created", "submitted", "approved", "rejected", "resubmitted", "paused", "disabled", "edited", "status_check"
+  details     String?          // Event detail (e.g. rejection reason, who edited)
+  metadata    Json?            // Extra data (Meta API response, etc.)
+  createdAt   DateTime         @default(now())
+
+  @@index([templateId, createdAt])
 }
 
 // ═══════════════════════════════════════
@@ -872,6 +893,46 @@ model GoogleCalendarToken {
   updatedAt    DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// ═══════════════════════════════════════
+// SUBSCRIPTIONS & BILLING
+// ═══════════════════════════════════════
+
+model Subscription {
+  id          String   @id @default(cuid())
+  tenantId    String   @unique
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  plan        String   @default("PROFESSIONAL")  // STARTER, PROFESSIONAL, ENTERPRISE
+  status      String   @default("TRIALING")      // TRIALING, ACTIVE, PAST_DUE, CANCELLED, SUSPENDED
+
+  // Trial period
+  trialStartDate     DateTime  @default(now())
+  trialEndDate       DateTime?
+
+  // Billing period
+  currentPeriodStart DateTime  @default(now())
+  currentPeriodEnd   DateTime?
+  paymentMethod      String?   // "transfer", "mercadopago", "stripe", "pending"
+
+  // Mercado Pago (future)
+  mpSubscriptionId   String?
+  mpPayerId          String?
+
+  // Stripe (future)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?
+
+  // Control
+  billingNotes    String?
+  cancelledAt     DateTime?
+  cancelReason    String?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
 }
 
 // ═══════════════════════════════════════

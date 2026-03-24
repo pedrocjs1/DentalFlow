@@ -39,6 +39,7 @@ export async function adminTenantRoutes(app: FastifyInstance): Promise<void> {
           email: true,
           city: true,
           country: true,
+          trialEndsAt: true,
           whatsappStatus: true,
           whatsappDisplayNumber: true,
           _count: { select: { patients: true, users: true } },

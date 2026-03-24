@@ -954,16 +954,16 @@ function TabPipelineConfig() {
 interface WATemplate {
   id: string;
   name: string;
+  displayName: string;
   category: string;
   language: string;
   bodyText: string;
   headerText: string | null;
   footerText: string | null;
   status: string;
-  isDefault: boolean;
+  isSystemTemplate: boolean;
   isActive: boolean;
-  triggerType: string | null;
-  pipelineStageId: string | null;
+  suggestedTrigger: string | null;
 }
 
 function TabTemplates() {
@@ -1038,11 +1038,11 @@ function TabTemplates() {
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-semibold text-gray-900">{tpl.name.replace(/_/g, " ")}</span>
+                  <span className="text-sm font-semibold text-gray-900">{tpl.displayName || tpl.name.replace(/_/g, " ")}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${CATEGORY_COLORS[tpl.category] ?? "bg-gray-100 text-gray-700"}`}>{tpl.category}</span>
                   <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[tpl.status] ?? STATUS_COLORS.DRAFT}`}>{tpl.status}</span>
-                  {tpl.isDefault && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700">Default</span>}
-                  {tpl.triggerType && <span className="text-[10px] text-gray-500">{TRIGGER_LABELS[tpl.triggerType] ?? tpl.triggerType}</span>}
+                  {tpl.isSystemTemplate && <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-primary-50 text-primary-700">Sistema</span>}
+                  {tpl.suggestedTrigger && <span className="text-[10px] text-gray-500">{TRIGGER_LABELS[tpl.suggestedTrigger] ?? tpl.suggestedTrigger}</span>}
                 </div>
                 {editingId === tpl.id ? (
                   <div className="mt-2 space-y-2">
@@ -1057,7 +1057,7 @@ function TabTemplates() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                {tpl.isEditable && editingId !== tpl.id && (
+                {!tpl.isSystemTemplate && editingId !== tpl.id && (
                   <button onClick={() => { setEditingId(tpl.id); setEditBody(tpl.bodyText); }} className="text-xs text-primary-600 hover:text-primary-700">Editar</button>
                 )}
                 <label className="flex items-center gap-1 cursor-pointer">

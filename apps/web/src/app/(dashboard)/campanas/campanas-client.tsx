@@ -1992,7 +1992,7 @@ interface WATemplate {
   status: string;
   isSystemTemplate: boolean;
   isActive: boolean;
-  triggerType: string | null;
+  suggestedTrigger: string | null;
   rejectionReason: string | null;
   createdAt: string;
 }
