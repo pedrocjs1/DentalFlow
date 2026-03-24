@@ -1208,3 +1208,27 @@ model MedicalHistoryAudit {
 
   @@index([patientId, tenantId])
 }
+
+// ═══════════════════════════════════════
+// SECURITY LOGGING
+// ═══════════════════════════════════════
+
+model SecurityLog {
+  id        String   @id @default(cuid())
+  type      String   // LOGIN_ATTEMPT, LOGIN_FAILED, UNAUTHORIZED_ACCESS, RATE_LIMITED,
+                     // WEBHOOK_INVALID_SIGNATURE, PROMPT_INJECTION_ATTEMPT, SUSPICIOUS_ACTIVITY
+  ip        String?
+  email     String?
+  userId    String?
+  tenantId  String?
+  endpoint  String?
+  details   String?  @db.Text
+  success   Boolean  @default(false)
+  userAgent String?
+  severity  String   @default("LOW") // LOW, MEDIUM, HIGH, CRITICAL
+  createdAt DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([tenantId, createdAt])
+  @@index([ip, createdAt])
+}

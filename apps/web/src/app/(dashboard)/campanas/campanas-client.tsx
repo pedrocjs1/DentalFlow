@@ -1537,10 +1537,9 @@ function Step2({
         </label>
         <div className="bg-gray-100 rounded-xl p-4">
           <div className="bg-white rounded-xl shadow-sm p-3 max-w-xs ml-auto">
-            <div
-              className="text-sm text-gray-800 leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: preview || "<em class='text-gray-400'>El mensaje aparecerá acá...</em>" }}
-            />
+            <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+              {preview || "El mensaje aparecerá acá..."}
+            </p>
             <p className="text-right text-xs text-gray-400 mt-2">
               {new Date().toLocaleTimeString("es-AR", {
                 hour: "2-digit",

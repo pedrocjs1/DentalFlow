@@ -1,4 +1,4 @@
-# CLAUDE.md — DentalFlow SaaS Platform (v0.5.0)
+# CLAUDE.md — DentalFlow SaaS Platform (v0.5.1)
 
 ## IDENTIDAD DEL PROYECTO
 
@@ -89,6 +89,32 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - SEO meta tags configurados
 - Todos los mockups construidos con código (no imágenes)
 - Texto completo en español orientado a clínicas dentales LATAM
+
+### ✅ Completado — Mercado Pago Real + Audit de Seguridad Total (v0.5.1)
+
+**Mercado Pago — Suscripciones reales (ARS, Sandbox):**
+- Credenciales sandbox configuradas (MP_ACCESS_TOKEN, MP_PUBLIC_KEY)
+- Servicio reescrito para API de Suscripciones (preapproval): create, get, cancel, pause
+- Precios en ARS: Starter $89.900, Professional $179.900, Enterprise $269.900
+- Endpoint getPaymentById para verificar pagos contra MP API (nunca confiar solo en webhook)
+- Billing endpoints actualizados: create-subscription genera URL checkout MP, change-plan cancela+crea nueva
+- Webhook verifica contra MP API antes de procesar (no confía en payload)
+- Frontend Facturación actualizado: precios en ARS con Intl.NumberFormat
+- Tarjetas de prueba: Visa 4509953566233704, MC 5031755734530604
+
+**Audit de Seguridad — Implementado:**
+- **@fastify/helmet** — headers de seguridad (X-Frame-Options, X-Content-Type-Options, etc.)
+- **CORS estricto** — origin APP_URL, methods/headers explícitos
+- **Login lockout** — 5 intentos fallidos en 5 min → bloqueo 15 min por IP
+- **SecurityLog model** — tipo, IP, email, userId, tenantId, endpoint, severity, userAgent
+- **Security logger** — fire-and-forget, logSecurityEvent() usado en login, webhook, prompt injection
+- **Input sanitizer** — stripHtml, sanitizeText, sanitizeForLLM, detectPromptInjection, sanitizeLLMOutput, validateFileUpload
+- **Prompt injection protection** — system prompt con reglas de seguridad explícitas + sanitización de mensajes WhatsApp antes del LLM + detección de patrones de inyección
+- **File upload validation** — MIME type whitelist + magic bytes verification + size limit 10MB
+- **dangerouslySetInnerHTML eliminado** — reemplazado por texto plano en preview de campañas
+- **Admin Security Dashboard** — GET /admin/security/dashboard (24h stats) + GET /admin/security/logs (filtrable por tipo/período)
+- **Secret scanning** — verificado: no hay secrets hardcodeados, .env en .gitignore, no $queryRawUnsafe
+- **Migración** — 20260324233601_security_log
 
 ### ✅ Completado — Google Calendar + Cron Jobs + Estadísticas + Mercado Pago (v0.5.0)
 
@@ -201,7 +227,7 @@ MONOREPO
 ├── CLAUDE.md, WHATSAPP_SETUP.md, .env
 ```
 
-Frontend: Next.js 15 + shadcn/ui + Tailwind + Recharts | State: Zustand + TanStack Query | Backend: Fastify+TS | DB: PostgreSQL Supabase + Prisma | Cache: Redis + BullMQ | Auth: @fastify/jwt (OWNER/ADMIN/DENTIST/RECEPTIONIST/SUPER_ADMIN) | IA: Anthropic claude-haiku-4-5-20251001 | WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 (credenciales configuradas) | DnD: @dnd-kit | Email: Resend | FB SDK: Facebook JS SDK | Billing: Mercado Pago SDK | Tunnel: ngrok (dev)
+Frontend: Next.js 15 + shadcn/ui + Tailwind + Recharts | State: Zustand + TanStack Query | Backend: Fastify+TS + @fastify/helmet | DB: PostgreSQL Supabase + Prisma | Cache: Redis + BullMQ | Auth: @fastify/jwt (OWNER/ADMIN/DENTIST/RECEPTIONIST/SUPER_ADMIN) + login lockout | IA: Anthropic claude-haiku-4-5-20251001 (prompt injection protection) | WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 (credenciales configuradas) | DnD: @dnd-kit | Email: Resend | FB SDK: Facebook JS SDK | Billing: Mercado Pago preapproval API (ARS, sandbox) | Security: Helmet + input sanitizer + file validation + security logging | Tunnel: ngrok (dev)
 
 ---
 
@@ -320,6 +346,64 @@ Modelo IA: Haiku 4.5 principal, Sonnet 4 para escalaciones (3x usage). NUNCA se 
 ---
 
 ## CHANGELOG
+
+### 2026-03-24 — Mercado Pago Real + Audit de Seguridad Total (v0.5.1)
+
+**Mercado Pago — Reescritura completa:**
+- Servicio reescrito: preapproval API para suscripciones Argentina (ARS)
+- Credenciales sandbox: TEST-2924140900871698-... + TEST-46b71113-...
+- Precios ARS: Starter $89.900, Professional $179.900, Enterprise $269.900
+- getPaymentById: verificar pagos contra MP API (no confiar en webhook payload)
+- Billing endpoints: create genera checkout URL, change-plan cancela vieja + crea nueva
+- Webhook MP: verifica subscription y payment contra API de MP antes de procesar
+- Frontend: precios formateados con Intl.NumberFormat("es-AR", ARS)
+
+**Security Headers + Helmet:**
+- @fastify/helmet instalado con X-Frame-Options, X-Content-Type-Options, HSTS, etc.
+- CSP y COEP desactivados para no romper embeds (configurar per-deploy)
+- CORS estricto: origin=APP_URL, methods explícitos, allowedHeaders explícitos
+
+**Auth Hardening:**
+- Login lockout: 5 failed attempts en 5 min → 429 TOO_MANY_ATTEMPTS
+- isLoginLocked(): cuenta SecurityLog type=LOGIN_FAILED por IP
+- Todos los intentos de login logueados (success y failed) con IP, email, userAgent
+- Schema validation: email maxLength 254, password maxLength 128
+
+**Input Sanitization + XSS Prevention:**
+- Nuevo: apps/api/src/services/input-sanitizer.ts
+- stripHtml(): remove HTML tags de user input
+- sanitizeText(): strip + trim + max length
+- sanitizeForLLM(): strip prompt injection patterns (\n\nHuman:, <|system|>, [INST], etc.)
+- detectPromptInjection(): score-based detection (2+ matches = suspicious)
+- sanitizeLLMOutput(): redact API keys, tokens, internal IDs
+- validateFileUpload(): MIME whitelist + magic bytes + size limit
+- dangerouslySetInnerHTML eliminado de campanas-client.tsx
+
+**Prompt Injection Protection:**
+- System prompt del chatbot ahora incluye REGLAS DE SEGURIDAD explícitas
+- Mensajes WhatsApp se sanitizan con sanitizeForLLM() antes del LLM
+- Prompt injection attempts se detectan y loguean en SecurityLog (severity HIGH)
+
+**File Upload Validation:**
+- MIME type whitelist: jpeg, png, gif, webp, pdf
+- Magic bytes verification (compara header bytes del base64)
+- Size limit: 10MB
+- SVG bloqueado por seguridad (XSS vector)
+
+**Security Logging:**
+- Nuevo modelo SecurityLog: type, ip, email, userId, tenantId, endpoint, details, success, userAgent, severity
+- logSecurityEvent() fire-and-forget en login, webhook, prompt injection
+- Admin endpoints: GET /admin/security/dashboard (24h stats), GET /admin/security/logs (filtrable)
+- Dashboard: loginSuccess/Failed, rateLimited, webhookInvalid, promptInjection, recentEvents
+
+**Secret Scanning:**
+- Verificado: no hay secrets hardcodeados en source
+- $queryRawUnsafe y $executeRawUnsafe: no existen en el codebase
+- .env correctamente en .gitignore
+- npm audit: solo vulnerabilidades en prisma/effect (no explotables)
+
+**Migración Prisma:**
+- 20260324233601_security_log
 
 ### 2026-03-24 — Google Calendar + Cron Jobs + Estadísticas + Mercado Pago (v0.5.0)
 

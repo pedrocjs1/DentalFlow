@@ -1,6 +1,7 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import fastifyJwt from "@fastify/jwt";
+import helmet from "@fastify/helmet";
 import rawBody from "fastify-raw-body";
 import { rateLimitPlugin } from "./plugins/rate-limit.js";
 import { registerRoutes } from "./routes/index.js";
@@ -17,10 +18,18 @@ export async function buildApp() {
     },
   });
 
-  // CORS
+  // Security headers (Helmet)
+  await app.register(helmet, {
+    contentSecurityPolicy: false, // CSP can break embedded scripts; configure per-deploy
+    crossOriginEmbedderPolicy: false, // Can break loading external resources
+  });
+
+  // CORS — strict origin
   await app.register(cors, {
     origin: process.env.APP_URL ?? "http://localhost:3000",
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // JWT — registered at root so it's available in all child scopes

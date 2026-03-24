@@ -30,6 +30,8 @@ import { SONNET_USAGE_MULTIPLIER } from "@dentalflow/shared";
 import { recordUsage, checkPlanLimit } from "./usage-tracker.js";
 import { createNotification } from "./notifications.js";
 import { decryptToken } from "./encryption.js";
+import { sanitizeForLLM, detectPromptInjection } from "./input-sanitizer.js";
+import { logSecurityEvent } from "./security-logger.js";
 import type { FastifyBaseLogger } from "fastify";
 
 // ─── Resolved tenant shape ─────────────────────────────────────────────────────
@@ -2094,12 +2096,24 @@ async function processDebouncedMessages(
   // Acquire processing lock — new messages arriving will queue instead of starting a new timer
   processingLock.set(conversationId, true);
 
-  // Concatenate all accumulated messages
-  const combinedMessage = messages.join("\n");
+  // Concatenate all accumulated messages and sanitize for LLM
+  const rawMessage = messages.join("\n");
+  const combinedMessage = sanitizeForLLM(rawMessage);
   log.info(
     { conversationId, messageCount: messages.length, combinedLength: combinedMessage.length },
     "Processing debounced messages as single input"
   );
+
+  // Detect prompt injection attempts
+  if (detectPromptInjection(rawMessage)) {
+    log.warn({ conversationId }, "Possible prompt injection attempt detected");
+    logSecurityEvent({
+      type: "PROMPT_INJECTION_ATTEMPT",
+      tenantId: ctx.tenant.id,
+      details: `Conversation ${conversationId}: ${rawMessage.slice(0, 200)}`,
+      severity: "HIGH",
+    }).catch(() => {});
+  }
 
   try {
     // ─── Registration flow (Layer 1, 0 tokens) ──────────────────────────

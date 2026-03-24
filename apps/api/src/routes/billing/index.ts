@@ -6,11 +6,11 @@ import {
   isMercadoPagoConfigured,
   createSubscription,
   cancelMpSubscription,
-  updateSubscriptionPlan,
+  getSubscriptionStatus,
   getPlanDetails,
 } from "../../services/mercadopago.js";
 
-type UserPayload = { tenantId: string; sub: string; email: string; name: string };
+type UserPayload = { tenantId: string; sub: string; email: string; name: string; role: string };
 
 export async function billingRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
@@ -39,6 +39,17 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         };
       }
 
+      // If we have an MP subscription, optionally sync its status
+      let mpStatus: string | null = null;
+      if (subscription.mpSubscriptionId && isMercadoPagoConfigured()) {
+        try {
+          const mpSub = await getSubscriptionStatus(subscription.mpSubscriptionId);
+          mpStatus = mpSub.status;
+        } catch {
+          // MP down or invalid ID — use local status
+        }
+      }
+
       const planDetails = getPlanDetails(subscription.plan);
 
       return {
@@ -52,6 +63,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         cancelsAt: subscription.cancelsAt,
         failedPaymentAttempts: subscription.failedPaymentAttempts,
         mpConfigured: isMercadoPagoConfigured(),
+        mpStatus,
         planPrice: planDetails.price,
         planCurrency: planDetails.currency,
       };
@@ -61,16 +73,25 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // ─── Create subscription (redirect to MP checkout) ────────────────────────
   app.post("/api/v1/billing/create-subscription", {
     preHandler,
-    handler: async (request) => {
+    handler: async (request, reply) => {
       const user = request.user as UserPayload;
-      const { plan } = request.body as { plan: string };
+      const body = request.body as { plan?: string } | null;
+      const plan = body?.plan;
 
       if (!isMercadoPagoConfigured()) {
-        return { error: "Mercado Pago no está configurado", checkoutUrl: null };
+        return reply.status(400).send({ error: "Mercado Pago no está configurado", checkoutUrl: null });
       }
 
-      if (!["STARTER", "PROFESSIONAL", "ENTERPRISE"].includes(plan)) {
-        return { error: "Plan inválido" };
+      if (!plan || !["STARTER", "PROFESSIONAL", "ENTERPRISE"].includes(plan)) {
+        return reply.status(400).send({ error: "Plan inválido" });
+      }
+
+      // Check for existing active MP subscription
+      const existing = await prisma.subscription.findUnique({
+        where: { tenantId: user.tenantId },
+      });
+      if (existing?.mpSubscriptionId && existing.status === "ACTIVE") {
+        return reply.status(400).send({ error: "Ya tenés una suscripción activa. Cancelala primero para cambiar." });
       }
 
       const tenant = await prisma.tenant.findUnique({
@@ -112,28 +133,59 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // ─── Change plan ──────────────────────────────────────────────────────────
   app.post("/api/v1/billing/change-plan", {
     preHandler,
-    handler: async (request) => {
+    handler: async (request, reply) => {
       const user = request.user as UserPayload;
-      const { newPlan } = request.body as { newPlan: string };
+      const body = request.body as { newPlan?: string } | null;
+      const newPlan = body?.newPlan;
 
-      if (!["STARTER", "PROFESSIONAL", "ENTERPRISE"].includes(newPlan)) {
-        return { error: "Plan inválido" };
+      if (!newPlan || !["STARTER", "PROFESSIONAL", "ENTERPRISE"].includes(newPlan)) {
+        return reply.status(400).send({ error: "Plan inválido" });
       }
 
       const subscription = await prisma.subscription.findUnique({
         where: { tenantId: user.tenantId },
       });
 
-      // Update in MP if connected
+      // For MP: cancel old + create new subscription
       if (subscription?.mpSubscriptionId && isMercadoPagoConfigured()) {
         try {
-          await updateSubscriptionPlan(subscription.mpSubscriptionId, newPlan);
-        } catch (err) {
-          console.error("[billing] Failed to update MP subscription:", err);
+          await cancelMpSubscription(subscription.mpSubscriptionId);
+        } catch {
+          // Old sub might already be cancelled
         }
+
+        const tenant = await prisma.tenant.findUnique({
+          where: { id: user.tenantId },
+          select: { name: true },
+        });
+
+        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+        const result = await createSubscription({
+          tenantId: user.tenantId,
+          tenantName: tenant?.name ?? "Clínica",
+          payerEmail: user.email,
+          plan: newPlan,
+          backUrl: `${appUrl}/configuracion?tab=facturacion&mp=callback`,
+        });
+
+        await prisma.subscription.update({
+          where: { tenantId: user.tenantId },
+          data: {
+            plan: newPlan,
+            mpSubscriptionId: result.mpSubscriptionId,
+            paymentMethod: "mercadopago",
+          },
+        });
+
+        await prisma.tenant.update({
+          where: { id: user.tenantId },
+          data: { plan: newPlan as "STARTER" | "PROFESSIONAL" | "ENTERPRISE" },
+        });
+
+        return { success: true, plan: newPlan, checkoutUrl: result.checkoutUrl };
       }
 
-      // Update locally
+      // No MP — update locally only
       await prisma.subscription.upsert({
         where: { tenantId: user.tenantId },
         update: { plan: newPlan },
@@ -145,7 +197,6 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      // Sync tenant plan
       await prisma.tenant.update({
         where: { id: user.tenantId },
         data: { plan: newPlan as "STARTER" | "PROFESSIONAL" | "ENTERPRISE" },
@@ -158,7 +209,7 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
   // ─── Cancel subscription ──────────────────────────────────────────────────
   app.post("/api/v1/billing/cancel", {
     preHandler,
-    handler: async (request) => {
+    handler: async (request, reply) => {
       const user = request.user as UserPayload;
 
       const subscription = await prisma.subscription.findUnique({
@@ -166,15 +217,15 @@ export async function billingRoutes(app: FastifyInstance): Promise<void> {
       });
 
       if (!subscription) {
-        return { error: "No hay suscripción activa" };
+        return reply.status(400).send({ error: "No hay suscripción activa" });
       }
 
       // Cancel in MP if connected
       if (subscription.mpSubscriptionId && isMercadoPagoConfigured()) {
         try {
           await cancelMpSubscription(subscription.mpSubscriptionId);
-        } catch (err) {
-          console.error("[billing] Failed to cancel MP subscription:", err);
+        } catch {
+          // Already cancelled or MP down
         }
       }
 

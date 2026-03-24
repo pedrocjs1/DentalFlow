@@ -2395,23 +2395,30 @@ interface BillingInfo {
   planCurrency?: string;
 }
 
-const PLAN_INFO: Record<string, { name: string; price: number; features: string[] }> = {
+const PLAN_INFO: Record<string, { name: string; price: number; currency: string; features: string[] }> = {
   STARTER: {
     name: "Starter",
-    price: 99,
+    price: 89900,
+    currency: "ARS",
     features: ["2 dentistas", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
   },
   PROFESSIONAL: {
     name: "Professional",
-    price: 199,
+    price: 179900,
+    currency: "ARS",
     features: ["Dentistas ilimitados", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
   },
   ENTERPRISE: {
     name: "Enterprise",
-    price: 299,
+    price: 269900,
+    currency: "ARS",
     features: ["Dentistas ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
   },
 };
+
+function formatPrice(amount: number): string {
+  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(amount);
+}
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   TRIALING: { label: "Período de prueba", color: "bg-blue-100 text-blue-700" },
@@ -2546,8 +2553,8 @@ function TabFacturacion() {
             </span>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-bold text-gray-900">${planInfo.price}</p>
-            <p className="text-sm text-gray-500">USD/mes</p>
+            <p className="text-3xl font-bold text-gray-900">{formatPrice(planInfo.price)}</p>
+            <p className="text-sm text-gray-500">/mes</p>
           </div>
         </div>
 
@@ -2617,7 +2624,7 @@ function TabFacturacion() {
                   }`}
                 >
                   <h4 className="font-semibold text-gray-900">{info.name}</h4>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">${info.price}<span className="text-sm font-normal text-gray-500">/mes</span></p>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">{formatPrice(info.price)}<span className="text-sm font-normal text-gray-500">/mes</span></p>
                   <ul className="mt-3 space-y-1">
                     {info.features.map((f) => (
                       <li key={f} className="text-xs text-gray-600 flex items-center gap-1">

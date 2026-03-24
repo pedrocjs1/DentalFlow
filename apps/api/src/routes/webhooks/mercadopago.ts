@@ -1,13 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentalflow/db";
 import { createNotification } from "../../services/notifications.js";
-import { isMercadoPagoConfigured, getSubscriptionStatus } from "../../services/mercadopago.js";
+import { isMercadoPagoConfigured, getSubscriptionStatus, getPaymentById } from "../../services/mercadopago.js";
+import { logSecurityEvent } from "../../services/security-logger.js";
 
 export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/v1/webhooks/mercadopago", {
     handler: async (request, reply) => {
-      app.log.info("Mercado Pago webhook received");
-
       if (!isMercadoPagoConfigured()) {
         return reply.status(200).send({ received: true });
       }
@@ -25,15 +24,29 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<vo
       const eventType = body.type;
       const resourceId = body.data.id;
 
-      try {
-        // Handle subscription events
-        if (eventType === "subscription_preapproval") {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const mpSub: any = await getSubscriptionStatus(resourceId);
-          const externalRef = mpSub.external_reference;
+      app.log.info(`[mp-webhook] Event: ${eventType}, action: ${body.action ?? "none"}, id: ${resourceId}`);
 
+      try {
+        // ─── Subscription events ────────────────────────────────────────
+        if (eventType === "subscription_preapproval") {
+          // Always verify against MP API — never trust webhook payload alone
+          let mpSub: { status?: string; external_reference?: string; payer_id?: number; next_payment_date?: string };
+          try {
+            mpSub = await getSubscriptionStatus(resourceId);
+          } catch {
+            app.log.warn(`[mp-webhook] Could not verify subscription ${resourceId} with MP API`);
+            await logSecurityEvent({
+              type: "WEBHOOK_INVALID_SIGNATURE",
+              endpoint: "/api/v1/webhooks/mercadopago",
+              details: `Could not verify subscription ${resourceId}`,
+              ip: request.ip,
+              severity: "MEDIUM",
+            });
+            return reply.status(200).send({ received: true });
+          }
+
+          const externalRef = mpSub.external_reference;
           if (!externalRef) {
-            app.log.warn(`[mp-webhook] No external_reference for subscription ${resourceId}`);
             return reply.status(200).send({ received: true });
           }
 
@@ -53,23 +66,14 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<vo
 
           const tenantId = subscription.tenantId;
 
-          // Map MP status to our status
+          // Map MP status → our status
           let newStatus: string;
           switch (mpSub.status) {
-            case "authorized":
-              newStatus = "ACTIVE";
-              break;
-            case "paused":
-              newStatus = "PAUSED";
-              break;
-            case "cancelled":
-              newStatus = "CANCELLED";
-              break;
-            case "pending":
-              newStatus = subscription.status; // Keep current
-              break;
-            default:
-              newStatus = subscription.status;
+            case "authorized": newStatus = "ACTIVE"; break;
+            case "paused": newStatus = "PAUSED"; break;
+            case "cancelled": newStatus = "CANCELLED"; break;
+            case "pending": newStatus = subscription.status; break;
+            default: newStatus = subscription.status;
           }
 
           await prisma.subscription.update({
@@ -78,27 +82,20 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<vo
               status: newStatus,
               mpSubscriptionId: resourceId,
               mpPayerId: mpSub.payer_id?.toString() ?? subscription.mpPayerId,
-              ...(newStatus === "ACTIVE"
-                ? {
-                    currentPeriodStart: new Date(),
-                    currentPeriodEnd: mpSub.next_payment_date
-                      ? new Date(mpSub.next_payment_date)
-                      : undefined,
-                    failedPaymentAttempts: 0,
-                  }
-                : {}),
-              ...(newStatus === "CANCELLED"
-                ? { cancelledAt: new Date() }
-                : {}),
+              ...(newStatus === "ACTIVE" ? {
+                currentPeriodStart: new Date(),
+                currentPeriodEnd: mpSub.next_payment_date ? new Date(mpSub.next_payment_date) : undefined,
+                failedPaymentAttempts: 0,
+              } : {}),
+              ...(newStatus === "CANCELLED" ? { cancelledAt: new Date() } : {}),
             },
           });
 
-          // Sync tenant subscription status
+          // Sync tenant
           const tenantStatus = newStatus === "ACTIVE" ? "ACTIVE"
             : newStatus === "CANCELLED" ? "CANCELLED"
             : newStatus === "PAUSED" ? "PAUSED"
             : "TRIALING";
-
           await prisma.tenant.update({
             where: { id: tenantId },
             data: { subscriptionStatus: tenantStatus as "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELLED" | "PAUSED" },
@@ -115,95 +112,78 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<vo
           app.log.info(`[mp-webhook] Subscription ${resourceId} → ${newStatus} for tenant ${tenantId}`);
         }
 
-        // Handle payment events
+        // ─── Payment events ─────────────────────────────────────────────
         if (eventType === "payment") {
-          // Find subscription by searching for the tenant from the payment
-          const MP_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN;
-          if (!MP_ACCESS_TOKEN) {
+          // Verify payment against MP API
+          let payment: { status?: string; external_reference?: string };
+          try {
+            payment = await getPaymentById(resourceId);
+          } catch {
+            app.log.warn(`[mp-webhook] Could not verify payment ${resourceId} with MP API`);
             return reply.status(200).send({ received: true });
           }
 
-          try {
-            const paymentRes = await fetch(
-              `https://api.mercadopago.com/v1/payments/${resourceId}`,
-              {
-                headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
-              }
-            );
+          const externalRef = payment.external_reference;
+          if (!externalRef) {
+            return reply.status(200).send({ received: true });
+          }
 
-            if (paymentRes.ok) {
-              const payment = await paymentRes.json() as {
-                status: string;
-                external_reference?: string;
-              };
-              const externalRef = payment.external_reference;
+          const subscription = await prisma.subscription.findUnique({
+            where: { tenantId: externalRef },
+          });
 
-              if (externalRef) {
-                const subscription = await prisma.subscription.findUnique({
-                  where: { tenantId: externalRef },
-                });
+          if (!subscription) {
+            return reply.status(200).send({ received: true });
+          }
 
-                if (subscription) {
-                  // Idempotency: check if we already processed this payment
-                  if (subscription.mpLastPaymentId === resourceId) {
-                    return reply.status(200).send({ received: true });
-                  }
+          // Idempotency check
+          if (subscription.mpLastPaymentId === resourceId) {
+            return reply.status(200).send({ received: true });
+          }
 
-                  if (payment.status === "approved") {
-                    await prisma.subscription.update({
-                      where: { id: subscription.id },
-                      data: {
-                        status: "ACTIVE",
-                        mpLastPaymentId: resourceId,
-                        failedPaymentAttempts: 0,
-                        currentPeriodStart: new Date(),
-                      },
-                    });
+          if (payment.status === "approved") {
+            await prisma.subscription.update({
+              where: { id: subscription.id },
+              data: {
+                status: "ACTIVE",
+                mpLastPaymentId: resourceId,
+                failedPaymentAttempts: 0,
+                currentPeriodStart: new Date(),
+              },
+            });
 
-                    await prisma.tenant.update({
-                      where: { id: externalRef },
-                      data: { subscriptionStatus: "ACTIVE" },
-                    });
+            await prisma.tenant.update({
+              where: { id: externalRef },
+              data: { subscriptionStatus: "ACTIVE" },
+            });
 
-                    app.log.info(`[mp-webhook] Payment approved for tenant ${externalRef}`);
-                  } else if (payment.status === "rejected") {
-                    const attempts = (subscription.failedPaymentAttempts ?? 0) + 1;
+            app.log.info(`[mp-webhook] Payment approved for tenant ${externalRef}`);
+          } else if (payment.status === "rejected") {
+            const attempts = (subscription.failedPaymentAttempts ?? 0) + 1;
+            const newStatus = attempts >= 3 ? "CANCELLED" : "PAST_DUE";
 
-                    await prisma.subscription.update({
-                      where: { id: subscription.id },
-                      data: {
-                        mpLastPaymentId: resourceId,
-                        failedPaymentAttempts: attempts,
-                        status: attempts >= 3 ? "CANCELLED" : "PAST_DUE",
-                      },
-                    });
+            await prisma.subscription.update({
+              where: { id: subscription.id },
+              data: {
+                mpLastPaymentId: resourceId,
+                failedPaymentAttempts: attempts,
+                status: newStatus,
+              },
+            });
 
-                    if (attempts >= 3) {
-                      await prisma.tenant.update({
-                        where: { id: externalRef },
-                        data: { subscriptionStatus: "CANCELLED" },
-                      });
-                    } else {
-                      await prisma.tenant.update({
-                        where: { id: externalRef },
-                        data: { subscriptionStatus: "PAST_DUE" },
-                      });
-                    }
+            await prisma.tenant.update({
+              where: { id: externalRef },
+              data: { subscriptionStatus: newStatus as "PAST_DUE" | "CANCELLED" },
+            });
 
-                    await createNotification(externalRef, {
-                      type: "system",
-                      title: "Pago rechazado",
-                      message: `Tu pago fue rechazado (intento ${attempts}/3). Actualizá tu método de pago.`,
-                      link: "/configuracion?tab=facturacion",
-                    });
+            await createNotification(externalRef, {
+              type: "system",
+              title: "Pago rechazado",
+              message: `Tu pago fue rechazado (intento ${attempts}/3). Actualizá tu método de pago.`,
+              link: "/configuracion?tab=facturacion",
+            });
 
-                    app.log.warn(`[mp-webhook] Payment rejected for tenant ${externalRef} (attempt ${attempts})`);
-                  }
-                }
-              }
-            }
-          } catch (err) {
-            app.log.error(`[mp-webhook] Error fetching payment ${resourceId}: ${String(err)}`);
+            app.log.warn(`[mp-webhook] Payment rejected for tenant ${externalRef} (attempt ${attempts})`);
           }
         }
       } catch (err) {

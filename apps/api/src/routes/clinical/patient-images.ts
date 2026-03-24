@@ -3,6 +3,7 @@ import { prisma } from "@dentalflow/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
+import { validateFileUpload } from "../../services/input-sanitizer.js";
 
 const VALID_CATEGORIES = ["RADIOGRAPHY", "INTRAORAL", "EXTRAORAL", "DOCUMENT", "OTHER"];
 
@@ -101,6 +102,12 @@ export async function patientImageRoutes(app: FastifyInstance): Promise<void> {
       }
       if (!body.fileName || !body.mimeType || !body.imageData) {
         throw new AppError(400, "VALIDATION_ERROR", "fileName, mimeType e imageData son requeridos");
+      }
+
+      // Validate file: MIME type, size, and magic bytes
+      const validation = validateFileUpload(body.mimeType, body.imageData);
+      if (!validation.valid) {
+        throw new AppError(400, "INVALID_FILE", validation.error ?? "Archivo inválido");
       }
 
       const image = await prisma.patientImage.create({
