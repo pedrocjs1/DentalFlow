@@ -46,6 +46,15 @@ export default function AdminWhatsAppPage() {
     loadData();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Polling every 15s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      loadData();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleForceDisconnect(tenantId: string) {
     if (!confirm("¿Desconectar forzosamente el WhatsApp de esta clínica?")) return;
     setDisconnecting(tenantId);

@@ -208,6 +208,25 @@ export default function AdminTemplatesPage() {
     loadWabas();
   }, [loadTemplates, loadWabas]);
 
+  // Polling every 15s (for Meta approval status updates)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      loadTemplates();
+    }, 15_000);
+    return () => clearInterval(interval);
+  }, [loadTemplates]);
+
+  // Keep detail view in sync with list data
+  useEffect(() => {
+    if (detailTemplate) {
+      const updated = templates.find((t) => t.id === detailTemplate.id);
+      if (updated && updated.status !== detailTemplate.status) {
+        setDetailTemplate(updated);
+      }
+    }
+  }, [templates, detailTemplate]);
+
   // ─── Actions ────────────────────────────────────────────────────────────────
 
   async function handleCreate() {
@@ -293,7 +312,8 @@ export default function AdminTemplatesPage() {
         body: JSON.stringify({ tenantId: selectedWabaId }),
       });
       setSuccess("Template enviado a Meta para aprobación");
-      loadTemplates();
+      setFilter("ALL"); // Show all so PENDING template is visible
+      // loadTemplates will fire via the filter useEffect dependency
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error enviando a Meta");
     } finally {

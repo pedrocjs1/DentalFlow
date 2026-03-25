@@ -80,6 +80,15 @@ export default function AdminClinicasPage() {
     loadTenants();
   }, [search, planFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Polling every 30s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      loadTenants();
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [search, planFilter, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function handleImpersonate(tenantId: string) {
     setImpersonating(tenantId);
     try {

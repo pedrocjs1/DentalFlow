@@ -2398,19 +2398,19 @@ interface BillingInfo {
 const PLAN_INFO: Record<string, { name: string; price: number; currency: string; features: string[] }> = {
   STARTER: {
     name: "Starter",
-    price: 89900,
+    price: 139000,
     currency: "ARS",
     features: ["2 dentistas", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
   },
   PROFESSIONAL: {
     name: "Professional",
-    price: 179900,
+    price: 279000,
     currency: "ARS",
     features: ["Dentistas ilimitados", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
   },
   ENTERPRISE: {
     name: "Enterprise",
-    price: 269900,
+    price: 419000,
     currency: "ARS",
     features: ["Dentistas ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
   },

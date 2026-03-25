@@ -10,13 +10,15 @@ async function start() {
   try {
     await app.listen({ port: PORT, host: HOST });
     console.log(`API running at http://${HOST}:${PORT}`);
-
-    // Register BullMQ cron jobs (graceful — won't crash if Redis is down)
-    await registerAllJobs();
   } catch (err) {
     app.log.error(err);
     process.exit(1);
   }
+
+  // Register BullMQ cron jobs AFTER server is listening.
+  // This is intentionally outside the try-catch above so a Redis
+  // failure never kills the server.
+  await registerAllJobs();
 }
 
 start();

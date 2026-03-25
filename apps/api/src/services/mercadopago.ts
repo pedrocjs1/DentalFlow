@@ -17,9 +17,9 @@ const PLANS_ARS: Record<
   string,
   { reason: string; amount: number; currency: string }
 > = {
-  STARTER: { reason: "DentalFlow Starter", amount: 89900, currency: "ARS" },
-  PROFESSIONAL: { reason: "DentalFlow Professional", amount: 179900, currency: "ARS" },
-  ENTERPRISE: { reason: "DentalFlow Enterprise", amount: 269900, currency: "ARS" },
+  STARTER: { reason: "DentalFlow Starter", amount: 139000, currency: "ARS" },
+  PROFESSIONAL: { reason: "DentalFlow Professional", amount: 279000, currency: "ARS" },
+  ENTERPRISE: { reason: "DentalFlow Enterprise", amount: 419000, currency: "ARS" },
 };
 
 export function getPlanDetails(plan: string) {
