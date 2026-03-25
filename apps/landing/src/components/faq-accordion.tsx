@@ -5,36 +5,36 @@ import { ChevronDown } from "lucide-react";
 
 const FAQS = [
   {
-    q: "¿Necesito conocimientos técnicos para usar DentalFlow?",
-    a: "No. DentalFlow está diseñado para que cualquier odontólogo o recepcionista pueda usarlo sin capacitación técnica. La interfaz es intuitiva y ofrecemos soporte por WhatsApp para ayudarte en cada paso.",
-  },
-  {
-    q: "¿Cómo conecto mi WhatsApp?",
-    a: "Usamos la API oficial de WhatsApp Business de Meta. En pocos clics conectás el número de tu clínica desde el panel de configuración. No necesitás un teléfono dedicado ni compartir tu WhatsApp personal.",
-  },
-  {
-    q: "¿Mis datos están seguros?",
-    a: "Absolutamente. Usamos encriptación AES-256-GCM para todos los datos sensibles, base de datos PostgreSQL con backups automáticos y cumplimos con las mejores prácticas de seguridad de la industria.",
-  },
-  {
-    q: "¿Puedo migrar desde otra herramienta?",
-    a: "Sí. Nuestro equipo te ayuda a migrar tus pacientes, historial y datos desde Kommo, Dentalink, Excel o cualquier otra herramienta que uses actualmente. La migración está incluida en todos los planes.",
-  },
-  {
-    q: "¿Hay período de prueba?",
-    a: "Sí, ofrecemos 14 días de prueba gratuita con todas las funcionalidades del plan Pro. No necesitás tarjeta de crédito para empezar.",
+    q: "¿Qué necesito para empezar?",
+    a: "Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar DentalFlow. Sin instalaciones, sin hardware especial.",
   },
   {
     q: "¿Funciona en mi país?",
-    a: "DentalFlow funciona en toda Latinoamérica. Soportamos múltiples zonas horarias, monedas locales y el formato de WhatsApp de cada país. Ya tenemos clínicas en Argentina, Chile, Colombia, México y Perú.",
+    a: "Sí, DentalFlow funciona en toda Latinoamérica. Los precios están en ARS pero aceptamos pagos de cualquier país vía Mercado Pago. Soportamos múltiples zonas horarias y formatos locales.",
   },
   {
-    q: "¿Qué pasa si supero los límites del plan?",
-    a: "Te avisamos cuando estés cerca del límite. Podés actualizar tu plan en cualquier momento desde la configuración. Nunca se corta el servicio sin previo aviso.",
+    q: "¿Puedo migrar mis datos desde otro software?",
+    a: "Sí. Podemos importar tus pacientes desde un archivo CSV/Excel. Nuestro equipo te ayuda a migrar desde Kommo, Dentalink, o cualquier herramienta que uses actualmente. La migración está incluida.",
   },
   {
-    q: "¿Puedo cancelar en cualquier momento?",
-    a: "Sí. No hay contratos de permanencia ni penalidades por cancelación. Podés cancelar tu suscripción en cualquier momento y seguirás teniendo acceso hasta el final del período facturado.",
+    q: "¿Es seguro?",
+    a: "Muy seguro. Usamos encriptación AES-256-GCM para todos los datos sensibles, tokens encriptados, audit logs de seguridad, protección anti prompt-injection en la IA, y validación de archivos. Base de datos PostgreSQL con respaldos automáticos.",
+  },
+  {
+    q: "¿Qué pasa después de los 14 días gratis?",
+    a: "Elegís un plan y pagás con Mercado Pago. Si no te convence, cancelás sin costo. Nunca se bloquea el acceso a tus datos — te avisamos antes de que venza el período.",
+  },
+  {
+    q: "¿Necesito instalar algo?",
+    a: "No. DentalFlow funciona 100% en el navegador, en cualquier dispositivo — computadora, tablet o celular. No hay apps que instalar ni software que actualizar.",
+  },
+  {
+    q: "¿Puedo usar DentalFlow sin el chatbot de WhatsApp?",
+    a: "Sí. El chatbot es una funcionalidad que podés activar o desactivar desde la configuración. El resto del sistema (agenda, historial clínico, pipeline, estadísticas) funciona independientemente.",
+  },
+  {
+    q: "¿Ofrecen soporte?",
+    a: "Sí, por WhatsApp y email. Los planes Professional y Enterprise tienen soporte prioritario. Además, tenés documentación completa y un equipo que te acompaña en el onboarding.",
   },
 ];
 

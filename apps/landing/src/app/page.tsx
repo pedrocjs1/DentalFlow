@@ -18,10 +18,24 @@ import {
   Instagram,
   Linkedin,
   Phone,
+  BarChart3,
+  PenTool,
+  FileText,
+  Image,
+  Pill,
+  Bell,
+  UserCheck,
+  Building2,
+  Smartphone,
+  Lock,
+  MessageCircle,
 } from "lucide-react";
 import { ScrollAnimate } from "@/components/scroll-animate";
 import { MobileNav } from "@/components/mobile-nav";
 import { FaqAccordion } from "@/components/faq-accordion";
+
+const APP_URL = "https://app.dentalflow.app/registro";
+const WA_URL = "https://wa.me/5492612312567?text=Hola%2C%20quiero%20info%20sobre%20DentalFlow";
 
 /* ─── Navbar ─────────────────────────────────────────────────────────────── */
 
@@ -29,42 +43,28 @@ function Navbar() {
   return (
     <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-lg border-b border-gray-200/60">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        {/* Logo */}
         <a href="#" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
             <span className="text-white text-sm font-bold">DF</span>
           </div>
-          <span className="text-lg font-bold text-gray-900 tracking-tight">
-            Dental<span className="text-primary-600">Flow</span>
-          </span>
+          <div className="flex flex-col">
+            <span className="text-lg font-bold text-gray-900 tracking-tight leading-none">
+              Dental<span className="text-primary-600">Flow</span>
+            </span>
+            <span className="text-[9px] text-gray-400 leading-none">by Violet Wave IA</span>
+          </div>
         </a>
 
-        {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-8">
-          <a href="#funcionalidades" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">
-            Funcionalidades
-          </a>
-          <a href="#precios" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">
-            Precios
-          </a>
-          <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">
-            FAQ
-          </a>
+          <a href="#funcionalidades" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Funcionalidades</a>
+          <a href="#precios" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Precios</a>
+          <a href="#testimonios" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Testimonios</a>
+          <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">FAQ</a>
         </nav>
 
-        {/* CTA */}
         <div className="hidden md:flex items-center gap-3">
-          <a
-            href="http://localhost:3000/login"
-            className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors px-3 py-2"
-          >
-            Iniciar sesión
-          </a>
-          <a
-            href="http://localhost:3000/login"
-            className="text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 px-4 py-2 rounded-lg transition-colors shadow-sm"
-          >
-            Empezar gratis
+          <a href={APP_URL} className="text-sm font-semibold text-white bg-primary-600 hover:bg-primary-700 px-5 py-2 rounded-lg transition-colors shadow-sm">
+            Probá gratis 14 días
           </a>
         </div>
 
@@ -79,38 +79,33 @@ function Navbar() {
 function DashboardMockup() {
   return (
     <div className="bg-white rounded-xl shadow-2xl border border-gray-200/80 overflow-hidden w-full max-w-lg">
-      {/* Title bar */}
       <div className="bg-gray-50 border-b px-4 py-2.5 flex items-center gap-2">
         <div className="flex gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-400" />
           <div className="w-3 h-3 rounded-full bg-yellow-400" />
           <div className="w-3 h-3 rounded-full bg-green-400" />
         </div>
-        <span className="text-xs text-gray-400 ml-2">app.dentalflow.com</span>
+        <span className="text-xs text-gray-400 ml-2">app.dentalflow.app</span>
       </div>
-
       <div className="p-4 space-y-3">
-        {/* Metric cards */}
         <div className="grid grid-cols-3 gap-2">
           {[
-            { label: "Citas hoy", value: "12", color: "bg-blue-50 text-blue-600" },
-            { label: "Pacientes", value: "847", color: "bg-emerald-50 text-emerald-600" },
-            { label: "Mensajes", value: "156", color: "bg-purple-50 text-purple-600" },
+            { label: "Citas hoy", value: "12", color: "text-blue-600" },
+            { label: "Pacientes", value: "847", color: "text-emerald-600" },
+            { label: "IA activa", value: "24/7", color: "text-purple-600" },
           ].map((m) => (
             <div key={m.label} className="bg-white border rounded-lg p-2.5">
               <p className="text-[10px] text-gray-400">{m.label}</p>
-              <p className={`text-lg font-bold ${m.color.split(" ")[1]}`}>{m.value}</p>
+              <p className={`text-lg font-bold ${m.color}`}>{m.value}</p>
             </div>
           ))}
         </div>
-
-        {/* Mini agenda */}
         <div className="border rounded-lg p-3">
           <p className="text-xs font-semibold text-gray-700 mb-2">Próximas citas</p>
           {[
-            { time: "09:00", name: "María López", color: "#3b82f6" },
-            { time: "10:30", name: "Carlos Ruiz", color: "#10b981" },
-            { time: "11:00", name: "Ana García", color: "#8b5cf6" },
+            { time: "09:00", name: "María López — Limpieza", color: "#3b82f6" },
+            { time: "10:30", name: "Carlos Ruiz — Ortodoncia", color: "#10b981" },
+            { time: "11:00", name: "Ana García — Control", color: "#8b5cf6" },
           ].map((a) => (
             <div key={a.time} className="flex items-center gap-2 py-1.5 border-b border-gray-100 last:border-0">
               <span className="text-[10px] font-mono text-gray-500 w-10">{a.time}</span>
@@ -119,13 +114,11 @@ function DashboardMockup() {
             </div>
           ))}
         </div>
-
-        {/* Mini pipeline */}
-        <div className="flex gap-1.5 overflow-hidden">
+        <div className="flex gap-1.5">
           {[
             { name: "Nuevo", count: 5, color: "#3b82f6" },
             { name: "Interesado", count: 8, color: "#f59e0b" },
-            { name: "Agendado", count: 3, color: "#10b981" },
+            { name: "Agendado", count: 12, color: "#10b981" },
           ].map((s) => (
             <div key={s.name} className="flex-1 bg-gray-50 rounded-lg p-2">
               <div className="flex items-center gap-1 mb-1">
@@ -146,43 +139,40 @@ function Hero() {
     <section className="pt-24 pb-16 sm:pt-32 sm:pb-24 bg-gradient-to-b from-primary-50/40 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Text */}
           <div>
             <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-6">
               <Zap className="h-3.5 w-3.5" />
-              Plataforma todo-en-uno para clínicas dentales
+              Plataforma todo-en-uno con IA integrada
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-gray-900 leading-[1.1] tracking-tight">
-              Tu clínica dental.{" "}
-              <span className="text-primary-600">Una sola plataforma.</span>
+              El software dental con IA{" "}
+              <span className="text-primary-600">que tu clínica necesita</span>
             </h1>
             <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
-              Agenda, CRM, WhatsApp, chatbot IA y campañas de marketing. Todo lo que
-              necesitás para gestionar y hacer crecer tu clínica dental, en un solo lugar.
+              Agenda, historial clínico, WhatsApp con chatbot IA, pipeline CRM, estadísticas y
+              más — todo en una sola plataforma. Reemplazá 5 herramientas con una.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
               <a
-                href="http://localhost:3000/login"
+                href={APP_URL}
                 className="inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-semibold px-6 py-3 rounded-lg transition-all shadow-lg shadow-primary-600/25 hover:shadow-xl hover:shadow-primary-600/30 text-sm"
               >
-                Empezar gratis
+                Empezá tu prueba gratis de 14 días
                 <ArrowRight className="h-4 w-4" />
               </a>
               <a
                 href="#funcionalidades"
                 className="inline-flex items-center justify-center gap-2 border border-gray-300 hover:border-gray-400 text-gray-700 font-semibold px-6 py-3 rounded-lg transition-colors text-sm bg-white"
               >
-                Ver demo
+                Ver funcionalidades
               </a>
             </div>
             <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500">
-              <span>🇦🇷 Hecho en Argentina</span>
-              <span>🔒 Datos encriptados</span>
-              <span>⚡ Setup en 5 minutos</span>
+              <span>🚀 +50 funcionalidades</span>
+              <span>🤖 IA integrada</span>
+              <span>📱 WhatsApp Business</span>
             </div>
           </div>
-
-          {/* Mockup */}
           <div className="flex justify-center lg:justify-end">
             <DashboardMockup />
           </div>
@@ -192,36 +182,27 @@ function Hero() {
   );
 }
 
-/* ─── Social Proof / Logos ────────────────────────────────────────────────── */
+/* ─── Social Proof ────────────────────────────────────────────────────────── */
 
 function SocialProof() {
   return (
     <section className="py-12 border-y border-gray-100 bg-gray-50/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <p className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-8">
-          Diseñado para clínicas que quieren crecer
+          Confiado por clínicas dentales en Argentina, Chile, Colombia y México
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-8 sm:gap-12 opacity-40">
-          {/* WhatsApp */}
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-7 w-7" />
-            <span className="text-sm font-semibold hidden sm:inline">WhatsApp</span>
-          </div>
-          {/* Google Calendar */}
-          <div className="flex items-center gap-2">
-            <Calendar className="h-7 w-7" />
-            <span className="text-sm font-semibold hidden sm:inline">Google Calendar</span>
-          </div>
-          {/* Anthropic */}
-          <div className="flex items-center gap-2">
-            <Bot className="h-7 w-7" />
-            <span className="text-sm font-semibold hidden sm:inline">Claude IA</span>
-          </div>
-          {/* Meta */}
-          <div className="flex items-center gap-2">
-            <Users className="h-7 w-7" />
-            <span className="text-sm font-semibold hidden sm:inline">Meta Business</span>
-          </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-3xl mx-auto">
+          {[
+            { label: "8+ módulos", desc: "integrados" },
+            { label: "24/7", desc: "chatbot IA" },
+            { label: "3 capas", desc: "de inteligencia artificial" },
+            { label: "0 papel", desc: "100% digital" },
+          ].map((s) => (
+            <div key={s.label} className="text-center">
+              <p className="text-2xl font-bold text-gray-900">{s.label}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{s.desc}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -235,7 +216,7 @@ function ProblemSolution() {
     {
       icon: <TrendingDown className="h-6 w-6 text-red-500" />,
       title: "Perdés pacientes",
-      desc: "No tenés seguimiento de los interesados. Te escriben por WhatsApp, les pasás el precio, y después... nada. Se olvidan.",
+      desc: "Te escriben por WhatsApp, les pasás el precio, y después... nada. No tenés seguimiento de los interesados.",
       bg: "bg-red-50",
     },
     {
@@ -247,7 +228,7 @@ function ProblemSolution() {
     {
       icon: <DollarSign className="h-6 w-6 text-orange-500" />,
       title: "Perdés dinero",
-      desc: "Pagás Kommo + Dentalink + ManyChat + herramientas separadas. $300/mes en tools que ni se comunican entre sí.",
+      desc: "Pagás Kommo + Dentalink + ManyChat + herramientas separadas. $300.000/mes en tools que ni se comunican entre sí.",
       bg: "bg-orange-50",
     },
   ];
@@ -261,8 +242,11 @@ function ProblemSolution() {
             El problema
           </div>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            ¿Seguís usando WhatsApp personal, Excel y 5 herramientas diferentes?
+            ¿Usás WhatsApp personal para hablar con pacientes?
           </h2>
+          <p className="text-gray-500 mt-3">
+            ¿Tenés la agenda en una app, el historial en otra y los cobros en un Excel?
+          </p>
         </ScrollAnimate>
 
         <div className="grid md:grid-cols-3 gap-6 mb-16">
@@ -285,10 +269,10 @@ function ProblemSolution() {
             La solución
           </div>
           <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            Con DentalFlow, todo está conectado en un solo lugar
+            DentalFlow centraliza TODO en una plataforma
           </h3>
           <p className="text-gray-500 mt-3 max-w-lg mx-auto">
-            Un paciente te escribe por WhatsApp → la IA lo atiende → agenda una cita → entra al CRM → recibe recordatorios automáticos. Todo sin que levantes un dedo.
+            Un chatbot con IA atiende por WhatsApp 24/7, agenda citas automáticamente, envía recordatorios, y vos te concentrás en atender pacientes.
           </p>
         </ScrollAnimate>
       </div>
@@ -296,14 +280,113 @@ function ProblemSolution() {
   );
 }
 
-/* ─── Features ────────────────────────────────────────────────────────────── */
+/* ─── Feature Mockups ────────────────────────────────────────────────────── */
+
+function WhatsAppChatMockup() {
+  return (
+    <div className="bg-white rounded-xl shadow-lg border overflow-hidden w-full max-w-md">
+      <div className="bg-emerald-600 px-4 py-2.5 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+          <Bot className="h-4 w-4 text-white" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-white">Dental Smile IA</p>
+          <p className="text-[10px] text-emerald-200">Escribiendo...</p>
+        </div>
+      </div>
+      <div className="p-3 bg-[#efeae2] space-y-2">
+        <div className="flex justify-start">
+          <div className="bg-white rounded-xl rounded-tl-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
+            Hola, quisiera agendar un turno para limpieza dental
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="bg-[#dcf8c6] rounded-xl rounded-tr-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
+            <p className="text-[10px] text-emerald-600 font-medium mb-1">🤖 IA</p>
+            ¡Hola María! Tenemos estos turnos disponibles:
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="flex flex-col gap-1.5">
+            {["🗓 Mar 17 — 10:00hs", "🗓 Mié 18 — 14:00hs", "🗓 Jue 19 — 09:30hs"].map((s) => (
+              <span key={s} className="bg-white text-primary-700 text-[10px] font-medium px-3 py-1.5 rounded-lg border border-primary-200 text-center">{s}</span>
+            ))}
+          </div>
+        </div>
+        <div className="flex justify-start">
+          <div className="bg-white rounded-xl rounded-tl-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
+            El martes a las 10 me viene perfecto!
+          </div>
+        </div>
+        <div className="flex justify-end">
+          <div className="bg-[#dcf8c6] rounded-xl rounded-tr-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
+            ¡Listo! Tu cita quedó agendada para el *martes 17 a las 10:00* con la Dra. López. Te envío un recordatorio 24hs antes. 😊
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HistorialMockup() {
+  return (
+    <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
+      <div className="flex items-center gap-3 mb-3 pb-3 border-b">
+        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+          <span className="text-sm font-bold text-primary-700">ML</span>
+        </div>
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-gray-900">María López</p>
+          <p className="text-xs text-gray-400">32 años · OSDE 310</p>
+        </div>
+        <div className="flex gap-1">
+          <span className="text-[9px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded font-medium">Alergia látex</span>
+        </div>
+      </div>
+      <div className="flex gap-1 mb-3 overflow-x-auto">
+        {["Resumen", "Odontograma", "Perio", "Tratamiento", "Evoluciones", "Historia", "Imágenes", "Recetas"].map((tab, i) => (
+          <span
+            key={tab}
+            className={`text-[9px] font-medium px-2 py-1 rounded-full whitespace-nowrap ${
+              i === 1 ? "bg-primary-50 text-primary-700" : "text-gray-400"
+            }`}
+          >
+            {tab}
+          </span>
+        ))}
+      </div>
+      <div className="grid grid-cols-8 gap-0.5">
+        {Array.from({ length: 16 }).map((_, i) => (
+          <div
+            key={i}
+            className={`w-full aspect-square rounded border text-center flex items-center justify-center text-[7px] font-mono ${
+              [2, 5].includes(i) ? "bg-red-100 border-red-300 text-red-600"
+              : [8, 11].includes(i) ? "bg-blue-100 border-blue-300 text-blue-600"
+              : "bg-gray-50 border-gray-200 text-gray-400"
+            }`}
+          >
+            {i + 11}
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center gap-2 text-[9px] text-gray-400">
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-red-300" /> Caries</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-blue-300" /> Restauración</span>
+        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded bg-gray-200" /> Sano</span>
+      </div>
+    </div>
+  );
+}
 
 function AgendaMockup() {
   return (
     <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-semibold text-gray-700">Marzo 2026</span>
-        <span className="text-xs text-primary-600 font-medium">Semana</span>
+        <span className="text-xs font-semibold text-gray-700">Marzo 2026 — Semana</span>
+        <div className="flex items-center gap-1.5 text-[10px] text-gray-500">
+          <Calendar className="h-3 w-3 text-primary-500" />
+          <span>Google Calendar sync</span>
+        </div>
       </div>
       <div className="grid grid-cols-5 gap-1 text-center mb-2">
         {["Lun 16", "Mar 17", "Mié 18", "Jue 19", "Vie 20"].map((d) => (
@@ -312,12 +395,12 @@ function AgendaMockup() {
       </div>
       <div className="grid grid-cols-5 gap-1">
         {[
-          { col: 0, label: "09:00 M. López", color: "#3b82f6" },
-          { col: 1, label: "10:00 C. Ruiz", color: "#10b981" },
-          { col: 0, label: "11:00 A. García", color: "#8b5cf6" },
-          { col: 2, label: "09:30 P. Díaz", color: "#f59e0b" },
-          { col: 3, label: "14:00 L. Torres", color: "#3b82f6" },
-          { col: 4, label: "10:00 R. Silva", color: "#10b981" },
+          { col: 0, label: "09:00 Limpieza", color: "#3b82f6" },
+          { col: 1, label: "10:00 Ortodoncia", color: "#10b981" },
+          { col: 0, label: "11:00 Control", color: "#8b5cf6" },
+          { col: 2, label: "09:30 Extracción", color: "#f59e0b" },
+          { col: 3, label: "14:00 Implante", color: "#3b82f6" },
+          { col: 4, label: "10:00 Blanqueo", color: "#10b981" },
         ].map((a, i) => (
           <div
             key={i}
@@ -337,17 +420,17 @@ function PipelineMockup() {
     <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
       <div className="flex gap-2 overflow-hidden">
         {[
-          { name: "Nuevo Contacto", color: "#3b82f6", patients: ["María L.", "Pedro G."] },
-          { name: "Interesado", color: "#f59e0b", patients: ["Carlos R.", "Ana M.", "Luis T."] },
-          { name: "Agendado", color: "#10b981", patients: ["Roberto S."] },
+          { name: "Nuevo Contacto", color: "#6b7280", patients: ["María L.", "Pedro G."], value: "$0" },
+          { name: "Interesado", color: "#f59e0b", patients: ["Carlos R.", "Ana M.", "Luis T."], value: "$285.000" },
+          { name: "Cita Agendada", color: "#3b82f6", patients: ["Roberto S.", "Laura D."], value: "$140.000" },
         ].map((col) => (
           <div key={col.name} className="flex-1 min-w-0">
-            <div className="flex items-center gap-1.5 mb-2">
+            <div className="flex items-center gap-1 mb-1">
               <div className="w-2 h-2 rounded-full" style={{ backgroundColor: col.color }} />
-              <span className="text-[10px] font-semibold text-gray-700 truncate">{col.name}</span>
-              <span className="text-[9px] text-gray-400 ml-auto">{col.patients.length}</span>
+              <span className="text-[9px] font-semibold text-gray-700 truncate">{col.name}</span>
             </div>
-            <div className="space-y-1.5">
+            <p className="text-[8px] text-gray-400 mb-1.5">{col.value}</p>
+            <div className="space-y-1">
               {col.patients.map((p) => (
                 <div key={p} className="bg-gray-50 rounded-md p-1.5 border border-gray-100">
                   <span className="text-[10px] font-medium text-gray-700">{p}</span>
@@ -361,67 +444,35 @@ function PipelineMockup() {
   );
 }
 
-function WhatsAppMockup() {
+function StatsMockup() {
   return (
-    <div className="bg-white rounded-xl shadow-lg border overflow-hidden w-full max-w-md">
-      <div className="bg-primary-600 px-4 py-2.5 flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-          <span className="text-xs font-bold text-white">ML</span>
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-white">María López</p>
-          <p className="text-[10px] text-primary-200">En línea</p>
-        </div>
+    <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-semibold text-gray-700">Estadísticas — 30 días</span>
+        <BarChart3 className="h-4 w-4 text-primary-500" />
       </div>
-      <div className="p-3 bg-[#f0f4f8] space-y-2">
-        <div className="flex justify-start">
-          <div className="bg-white rounded-xl rounded-tl-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
-            Hola, quisiera agendar un turno para limpieza dental
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        {[
+          { label: "Citas completadas", value: "156", change: "+12%" },
+          { label: "Pacientes nuevos", value: "34", change: "+8%" },
+          { label: "Ingresos", value: "$4.2M", change: "+15%" },
+          { label: "Tasa asistencia", value: "89%", change: "+3%" },
+        ].map((s) => (
+          <div key={s.label} className="bg-gray-50 rounded-lg p-2">
+            <p className="text-[10px] text-gray-400">{s.label}</p>
+            <p className="text-sm font-bold text-gray-900">{s.value}</p>
+            <p className="text-[10px] text-emerald-600">{s.change}</p>
           </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="bg-primary-600 rounded-xl rounded-tr-sm px-3 py-2 text-xs text-white max-w-[75%] shadow-sm">
-            ¡Hola María! Con gusto te agendo. Tenemos turnos disponibles el martes 17 a las 10:00 o el miércoles 18 a las 14:00. ¿Cuál te queda mejor?
-          </div>
-        </div>
-        <div className="flex justify-start">
-          <div className="bg-white rounded-xl rounded-tl-sm px-3 py-2 text-xs text-gray-800 max-w-[75%] shadow-sm">
-            El martes a las 10 me viene perfecto!
-          </div>
-        </div>
+        ))}
       </div>
-    </div>
-  );
-}
-
-function ChatbotMockup() {
-  return (
-    <div className="bg-white rounded-xl shadow-lg border overflow-hidden w-full max-w-md">
-      <div className="bg-gray-50 border-b px-4 py-2.5 flex items-center gap-2">
-        <Bot className="h-4 w-4 text-primary-600" />
-        <span className="text-xs font-semibold text-gray-700">Chatbot IA — DentalFlow</span>
+      <div className="flex items-end gap-1 h-16">
+        {[40, 55, 35, 70, 60, 80, 65, 90, 75, 85, 70, 95].map((h, i) => (
+          <div key={i} className="flex-1 bg-primary-200 rounded-t" style={{ height: `${h}%` }} />
+        ))}
       </div>
-      <div className="p-3 space-y-2">
-        <div className="flex justify-start">
-          <div className="bg-gray-100 rounded-xl rounded-tl-sm px-3 py-2 text-xs text-gray-800 max-w-[80%]">
-            Quiero saber cuánto sale un blanqueamiento
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="bg-primary-600 rounded-xl rounded-tr-sm px-3 py-2 text-xs text-white max-w-[80%]">
-            <div className="flex items-center gap-1 mb-1 text-primary-200">
-              <Bot className="h-3 w-3" />
-              <span className="text-[10px] font-medium">IA</span>
-            </div>
-            ¡Hola! El blanqueamiento dental tiene un costo de $45.000. Incluye evaluación previa + 2 sesiones. ¿Te gustaría agendar una consulta?
-          </div>
-        </div>
-        <div className="flex justify-end">
-          <div className="flex gap-1.5">
-            <span className="bg-primary-50 text-primary-700 text-[10px] font-medium px-2.5 py-1 rounded-full border border-primary-200">Sí, agendar</span>
-            <span className="bg-gray-100 text-gray-600 text-[10px] font-medium px-2.5 py-1 rounded-full border border-gray-200">Más info</span>
-          </div>
-        </div>
+      <div className="flex justify-between mt-1">
+        <span className="text-[8px] text-gray-400">Ene</span>
+        <span className="text-[8px] text-gray-400">Dic</span>
       </div>
     </div>
   );
@@ -432,102 +483,68 @@ function CampaignsMockup() {
     <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
       <p className="text-xs font-semibold text-gray-700 mb-3">Campañas activas</p>
       {[
-        { name: "Recordatorio 24hs", type: "Automática", status: "Activa", statusColor: "bg-emerald-100 text-emerald-700" },
-        { name: "Feliz Cumpleaños", type: "Automática", status: "Activa", statusColor: "bg-emerald-100 text-emerald-700" },
-        { name: "Reactivación 6 meses", type: "Programada", status: "Borrador", statusColor: "bg-gray-100 text-gray-600" },
+        { name: "Recordatorio 24hs", type: "Automática", sent: "234", statusColor: "bg-emerald-100 text-emerald-700" },
+        { name: "Feliz Cumpleaños", type: "Automática", sent: "45", statusColor: "bg-emerald-100 text-emerald-700" },
+        { name: "Reactivación 6 meses", type: "Programada", sent: "128", statusColor: "bg-blue-100 text-blue-700" },
+        { name: "Post-procedimiento", type: "Automática", sent: "67", statusColor: "bg-emerald-100 text-emerald-700" },
       ].map((c) => (
-        <div key={c.name} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+        <div key={c.name} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
           <Megaphone className="h-4 w-4 text-gray-400 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-gray-800 truncate">{c.name}</p>
-            <p className="text-[10px] text-gray-400">{c.type}</p>
+            <p className="text-[10px] text-gray-400">{c.type} · {c.sent} enviados</p>
           </div>
-          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${c.statusColor}`}>
-            {c.status}
-          </span>
+          <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${c.statusColor}`}>Activa</span>
         </div>
       ))}
     </div>
   );
 }
 
-function FichaMockup() {
-  return (
-    <div className="bg-white rounded-xl shadow-lg border p-4 w-full max-w-md">
-      <div className="flex items-center gap-3 mb-3 pb-3 border-b">
-        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-          <span className="text-sm font-bold text-primary-700">ML</span>
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-gray-900">María López</p>
-          <p className="text-xs text-gray-400">+54 9 11 5555-1234 · 32 años</p>
-        </div>
-      </div>
-      <div className="flex gap-1.5 mb-3">
-        {["Odontograma", "Historia", "Tratamiento", "Notas"].map((tab, i) => (
-          <span
-            key={tab}
-            className={`text-[10px] font-medium px-2.5 py-1 rounded-full ${
-              i === 0 ? "bg-primary-50 text-primary-700" : "text-gray-500 hover:bg-gray-100"
-            }`}
-          >
-            {tab}
-          </span>
-        ))}
-      </div>
-      {/* Simple tooth grid */}
-      <div className="grid grid-cols-8 gap-1">
-        {Array.from({ length: 16 }).map((_, i) => (
-          <div
-            key={i}
-            className={`w-full aspect-square rounded border text-center flex items-center justify-center text-[8px] font-mono ${
-              [2, 5, 11].includes(i) ? "bg-red-100 border-red-300 text-red-600" : "bg-gray-50 border-gray-200 text-gray-400"
-            }`}
-          >
-            {i + 11}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+/* ─── Features ────────────────────────────────────────────────────────────── */
 
 const FEATURES = [
   {
+    icon: <Bot className="h-5 w-5 text-primary-600" />,
+    title: "Chatbot IA por WhatsApp",
+    subtitle: "Tu recepcionista virtual que nunca duerme",
+    desc: "Atiende consultas, agenda citas, registra pacientes nuevos, envía recordatorios — todo por WhatsApp Business. 3 capas de IA: respuestas automáticas → conversación inteligente → escalación a humano.",
+    mockup: <WhatsAppChatMockup />,
+  },
+  {
+    icon: <ClipboardList className="h-5 w-5 text-primary-600" />,
+    title: "Historial Clínico Profesional",
+    subtitle: "8 tabs completas por paciente",
+    desc: "Odontograma con versionado (permanente + temporal), periodontograma con métricas BOP/NIC, plan de tratamiento con presupuesto, evoluciones con firma digital, recetas, consentimientos, galería de imágenes y más.",
+    mockup: <HistorialMockup />,
+  },
+  {
     icon: <Calendar className="h-5 w-5 text-primary-600" />,
     title: "Agenda Inteligente",
-    desc: "Calendario multi-dentista sincronizado con Google Calendar. Tus pacientes nunca más pierden un turno. Validación de conflictos, horarios laborales y drag-and-drop.",
+    subtitle: "Multi-dentista con Google Calendar",
+    desc: "Vista semanal/diaria, drag-and-drop, validaciones de horario, conflictos con GCal, recordatorios automáticos 24h antes vía WhatsApp. Sincronización bidireccional con Google Calendar.",
     mockup: <AgendaMockup />,
   },
   {
     icon: <Users className="h-5 w-5 text-primary-600" />,
-    title: "CRM Pipeline",
-    desc: "Seguí a cada paciente desde el primer contacto hasta la fidelización. Visualizá en qué etapa está cada uno con un tablero Kanban de 8 etapas automatizadas.",
+    title: "Pipeline CRM",
+    subtitle: "Convertí cada contacto en un paciente fidelizado",
+    desc: "8 etapas configurables con automatizaciones: auto-mensaje WhatsApp, auto-mover, descuentos automáticos. Valor monetario por etapa, drag-and-drop, todo conectado con la agenda.",
     mockup: <PipelineMockup />,
   },
   {
-    icon: <MessageSquare className="h-5 w-5 text-primary-600" />,
-    title: "WhatsApp Integrado",
-    desc: "Conectá el WhatsApp de tu clínica con la API oficial de Meta. Respondé desde DentalFlow, sin cambiar de app. Delivery status, burbujas, todo el estilo.",
-    mockup: <WhatsAppMockup />,
-  },
-  {
-    icon: <Bot className="h-5 w-5 text-primary-600" />,
-    title: "Chatbot IA",
-    desc: "Un asistente que agenda citas, responde preguntas frecuentes y atiende pacientes 24/7. Powered by Claude de Anthropic. Vos descansás, la IA trabaja.",
-    mockup: <ChatbotMockup />,
+    icon: <BarChart3 className="h-5 w-5 text-primary-600" />,
+    title: "Estadísticas y Analytics",
+    subtitle: "Sabé exactamente cómo va tu clínica",
+    desc: "Gráficos de citas, ingresos, top tratamientos, rendimiento por dentista, mapa de calor de horarios. Filtrable por período. Métricas con comparación vs período anterior.",
+    mockup: <StatsMockup />,
   },
   {
     icon: <Megaphone className="h-5 w-5 text-primary-600" />,
     title: "Campañas de Marketing",
-    desc: "Recordatorios de citas, reactivación de inactivos, cumpleaños con descuentos. Todo automático por WhatsApp. 15 templates listos para usar.",
+    subtitle: "Mantené a tus pacientes activos",
+    desc: "Templates prediseñados, segmentación, métricas de envío. Campañas de cumpleaños, reactivación, seguimiento post-tratamiento — TODO automático por WhatsApp.",
     mockup: <CampaignsMockup />,
-  },
-  {
-    icon: <ClipboardList className="h-5 w-5 text-primary-600" />,
-    title: "Ficha del Paciente",
-    desc: "Odontograma SVG interactivo, historia médica, plan de tratamiento, notas clínicas y periodontograma. Todo digitalizado en la ficha del paciente.",
-    mockup: <FichaMockup />,
   },
 ];
 
@@ -543,7 +560,7 @@ function Features() {
             Todo lo que tu clínica necesita
           </h2>
           <p className="text-gray-500 mt-4">
-            6 herramientas integradas que trabajan juntas. Sin apps externas, sin copiar datos, sin perder tiempo.
+            6 módulos principales que trabajan juntos. Sin apps externas, sin copiar datos, sin perder tiempo.
           </p>
         </ScrollAnimate>
 
@@ -560,7 +577,8 @@ function Features() {
                     <div className="w-10 h-10 bg-primary-50 rounded-xl flex items-center justify-center mb-4">
                       {feat.icon}
                     </div>
-                    <h3 className="text-2xl font-bold text-gray-900 mb-3">{feat.title}</h3>
+                    <h3 className="text-2xl font-bold text-gray-900 mb-1">{feat.title}</h3>
+                    <p className="text-sm font-medium text-primary-600 mb-3">{feat.subtitle}</p>
                     <p className="text-gray-600 leading-relaxed">{feat.desc}</p>
                   </div>
                 </ScrollAnimate>
@@ -576,68 +594,109 @@ function Features() {
   );
 }
 
+/* ─── Additional Features Grid ────────────────────────────────────────────── */
+
+const EXTRA_FEATURES = [
+  { icon: <PenTool className="h-5 w-5" />, title: "Firma digital", desc: "En evoluciones y recetas" },
+  { icon: <FileText className="h-5 w-5" />, title: "Consentimientos", desc: "Plantillas + firma paciente" },
+  { icon: <BarChart3 className="h-5 w-5" />, title: "Periodontograma", desc: "Métricas BOP, NIC, placa" },
+  { icon: <ClipboardList className="h-5 w-5" />, title: "Odontograma", desc: "Versionado + pediátrico" },
+  { icon: <Image className="h-5 w-5" />, title: "Galería de imágenes", desc: "Radiografías + intraorales" },
+  { icon: <Pill className="h-5 w-5" />, title: "Recetas médicas", desc: "Con plantillas pre-armadas" },
+  { icon: <Bell className="h-5 w-5" />, title: "Notificaciones", desc: "4 categorías inteligentes" },
+  { icon: <UserCheck className="h-5 w-5" />, title: "Multi-usuario", desc: "Dueño, Admin, Dentista, Recep." },
+  { icon: <Building2 className="h-5 w-5" />, title: "Multi-clínica", desc: "Próximamente" },
+  { icon: <Shield className="h-5 w-5" />, title: "Seguridad", desc: "AES-256 + audit logs" },
+  { icon: <Smartphone className="h-5 w-5" />, title: "100% responsive", desc: "Celular, tablet, PC" },
+  { icon: <Bot className="h-5 w-5" />, title: "IA personalizable", desc: "Tono y reglas por clínica" },
+];
+
+function ExtraFeatures() {
+  return (
+    <section className="py-20 sm:py-28">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <ScrollAnimate className="text-center max-w-2xl mx-auto mb-12">
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
+            Y mucho más...
+          </h2>
+          <p className="text-gray-500 mt-3">+50 funcionalidades diseñadas para clínicas dentales</p>
+        </ScrollAnimate>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          {EXTRA_FEATURES.map((f, i) => (
+            <ScrollAnimate key={f.title} delay={i * 50}>
+              <div className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow h-full">
+                <div className="w-9 h-9 bg-primary-50 rounded-lg flex items-center justify-center text-primary-600 mb-3">
+                  {f.icon}
+                </div>
+                <h4 className="text-sm font-semibold text-gray-900">{f.title}</h4>
+                <p className="text-xs text-gray-500 mt-0.5">{f.desc}</p>
+              </div>
+            </ScrollAnimate>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ─── Comparison ──────────────────────────────────────────────────────────── */
 
 function Comparison() {
   const rows = [
-    { feature: "Agenda", separate: "Google Calendar (gratis)", df: "Integrada" },
-    { feature: "CRM", separate: "Kommo ($30-150/mes)", df: "Integrado" },
-    { feature: "Ficha clínica", separate: "Dentalink ($50-100/mes)", df: "Integrada" },
-    { feature: "WhatsApp", separate: "WhatsApp Business (manual)", df: "Automatizado + IA" },
-    { feature: "Chatbot", separate: "ManyChat ($15-50/mes)", df: "IA incluida" },
-    { feature: "Campañas", separate: "Mailchimp ($20-50/mes)", df: "Incluidas" },
+    { feature: "Chatbot IA WhatsApp", df: true, dentalink: false, kommo: false, excel: false },
+    { feature: "Odontograma digital", df: true, dentalink: true, kommo: false, excel: false },
+    { feature: "Periodontograma", df: true, dentalink: true, kommo: false, excel: false },
+    { feature: "Pipeline CRM", df: true, dentalink: false, kommo: true, excel: false },
+    { feature: "Firma digital", df: true, dentalink: true, kommo: false, excel: false },
+    { feature: "Recordatorios automáticos", df: true, dentalink: true, kommo: true, excel: false },
+    { feature: "Estadísticas avanzadas", df: true, dentalink: true, kommo: true, excel: false },
+    { feature: "Campañas WhatsApp", df: true, dentalink: false, kommo: true, excel: false },
+    { feature: "Google Calendar sync", df: true, dentalink: false, kommo: false, excel: false },
+    { feature: "IA conversacional", df: true, dentalink: false, kommo: false, excel: false },
   ];
 
+  const Tick = () => <Check className="h-4 w-4 text-emerald-500 mx-auto" />;
+  const Cross = () => <X className="h-4 w-4 text-gray-300 mx-auto" />;
+
   return (
-    <section className="py-20 sm:py-28">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-20 sm:py-28 bg-gray-50/50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center mb-12">
-          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">
-            Comparación
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            ¿Por qué DentalFlow?
-          </h2>
+          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Comparación</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">¿Por qué elegir DentalFlow?</h2>
         </ScrollAnimate>
 
         <ScrollAnimate>
-          <div className="bg-white rounded-2xl shadow-lg border overflow-hidden">
-            <div className="grid grid-cols-3 bg-gray-50 border-b">
-              <div className="px-4 sm:px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                Funcionalidad
-              </div>
-              <div className="px-4 sm:px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-center">
-                Herramientas separadas
-              </div>
-              <div className="px-4 sm:px-6 py-4 text-xs font-semibold text-primary-600 uppercase tracking-wider text-center bg-primary-50/50">
-                DentalFlow
-              </div>
-            </div>
-            {rows.map((row) => (
-              <div key={row.feature} className="grid grid-cols-3 border-b border-gray-100 last:border-0">
-                <div className="px-4 sm:px-6 py-4 text-sm font-medium text-gray-900">
-                  {row.feature}
-                </div>
-                <div className="px-4 sm:px-6 py-4 text-sm text-gray-500 text-center flex items-center justify-center gap-1.5">
-                  <X className="h-3.5 w-3.5 text-red-400 flex-shrink-0 hidden sm:inline" />
-                  <span className="text-xs sm:text-sm">{row.separate}</span>
-                </div>
-                <div className="px-4 sm:px-6 py-4 text-sm text-primary-700 font-medium text-center bg-primary-50/30 flex items-center justify-center gap-1.5">
-                  <Check className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-                  <span className="text-xs sm:text-sm">{row.df}</span>
-                </div>
-              </div>
-            ))}
-            {/* Total row */}
-            <div className="grid grid-cols-3 bg-gray-50 border-t-2 border-gray-200">
-              <div className="px-4 sm:px-6 py-4 text-sm font-bold text-gray-900">Total</div>
-              <div className="px-4 sm:px-6 py-4 text-sm font-bold text-red-600 text-center">
-                $115-350/mes + tiempo
-              </div>
-              <div className="px-4 sm:px-6 py-4 text-sm font-bold text-primary-700 text-center bg-primary-50/50">
-                Desde $150/mes todo incluido
-              </div>
-            </div>
+          <div className="bg-white rounded-2xl shadow-lg border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 border-b">
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Funcionalidad</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-primary-600 bg-primary-50/50">DentalFlow</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-500">Dentalink</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-500">Kommo CRM</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Excel+WA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.feature} className="border-b border-gray-100">
+                    <td className="px-4 py-3 font-medium text-gray-900 text-xs">{r.feature}</td>
+                    <td className="px-3 py-3 bg-primary-50/20">{r.df ? <Tick /> : <Cross />}</td>
+                    <td className="px-3 py-3">{r.dentalink ? <Tick /> : <Cross />}</td>
+                    <td className="px-3 py-3">{r.kommo ? <Tick /> : <Cross />}</td>
+                    <td className="px-3 py-3 hidden sm:table-cell">{r.excel ? <Tick /> : <Cross />}</td>
+                  </tr>
+                ))}
+                <tr className="bg-gray-50 border-t-2 border-gray-200">
+                  <td className="px-4 py-3 font-bold text-gray-900 text-xs">Precio</td>
+                  <td className="px-3 py-3 font-bold text-primary-700 text-xs text-center bg-primary-50/50">Desde $139.000/mes</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~$200.000/mes</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~$150.000/mes</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs text-center hidden sm:table-cell">&quot;Gratis&quot;</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </ScrollAnimate>
       </div>
@@ -651,63 +710,61 @@ function Pricing() {
   const plans = [
     {
       name: "Starter",
-      price: "150",
+      price: "139.000",
+      ideal: "Odontólogo independiente",
       popular: false,
       features: [
-        "1 dentista",
-        "500 mensajes WhatsApp/mes",
-        "250 interacciones IA/mes",
-        "CRM básico",
-        "Ficha del paciente",
-        "Soporte por WhatsApp",
+        "2 dentistas",
+        "2,000 mensajes WhatsApp/mes",
+        "2,000 interacciones IA/mes",
+        "Odontograma + Periodontograma",
+        "Historial clínico completo",
+        "Pipeline CRM",
+        "Estadísticas básicas",
       ],
-      cta: "Empezar con Starter",
     },
     {
-      name: "Pro",
-      price: "300",
+      name: "Professional",
+      price: "279.000",
+      ideal: "Clínica mediana (<5 sillones)",
       popular: true,
       features: [
         "Dentistas ilimitados",
-        "Agenda + Google Calendar",
-        "2.000 mensajes WhatsApp/mes",
-        "1.000 interacciones IA/mes",
-        "CRM completo + Pipeline",
+        "5,000 mensajes WhatsApp/mes",
+        "5,000 interacciones IA/mes",
+        "Todo lo de Starter +",
+        "Google Calendar sync",
         "Campañas de marketing",
+        "Estadísticas avanzadas",
+        "Firma digital",
         "Soporte prioritario",
       ],
-      cta: "Empezar con Pro",
     },
     {
       name: "Enterprise",
-      price: "500",
+      price: "419.000",
+      ideal: "Clínica grande (5+ sillones)",
       popular: false,
       features: [
-        "Todo ilimitado",
-        "Analytics avanzados",
-        "API personalizada",
-        "Soporte dedicado",
+        "Dentistas ilimitados",
+        "10,000 mensajes WhatsApp/mes",
+        "10,000 interacciones IA/mes",
+        "Todo lo de Professional +",
+        "Multi-clínica (próximamente)",
+        "API acceso",
         "Onboarding personalizado",
-        "Múltiples sucursales",
-        "SLA garantizado",
+        "Soporte dedicado",
       ],
-      cta: "Contactar ventas",
     },
   ];
 
   return (
-    <section id="precios" className="py-20 sm:py-28 bg-gray-50/50">
+    <section id="precios" className="py-20 sm:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">
-            Precios
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            Simple, transparente, sin sorpresas
-          </h2>
-          <p className="text-gray-500 mt-4">
-            Elegí el plan que se adapte a tu clínica. Actualizá o cancelá en cualquier momento.
-          </p>
+          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Precios</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Simple, transparente, sin sorpresas</h2>
+          <p className="text-gray-500 mt-4">Todos los planes incluyen 14 días gratis. Sin tarjeta de crédito. Cancelá cuando quieras.</p>
         </ScrollAnimate>
 
         <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
@@ -727,9 +784,10 @@ function Pricing() {
                 )}
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">{plan.ideal}</p>
                   <div className="mt-3 flex items-baseline gap-1">
-                    <span className="text-4xl font-extrabold text-gray-900">${plan.price}</span>
-                    <span className="text-sm text-gray-500">/mes</span>
+                    <span className="text-3xl font-extrabold text-gray-900">${plan.price}</span>
+                    <span className="text-sm text-gray-500">ARS/mes</span>
                   </div>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
@@ -741,25 +799,65 @@ function Pricing() {
                   ))}
                 </ul>
                 <a
-                  href="http://localhost:3000/login"
+                  href={APP_URL}
                   className={`block text-center text-sm font-semibold py-3 rounded-lg transition-all ${
                     plan.popular
                       ? "bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/25"
                       : "border border-gray-300 hover:border-gray-400 text-gray-700 hover:bg-gray-50"
                   }`}
                 >
-                  {plan.cta}
+                  Empezar prueba gratis
                 </a>
               </div>
             </ScrollAnimate>
           ))}
         </div>
 
-        <ScrollAnimate className="text-center mt-10">
+        <ScrollAnimate className="text-center mt-10 space-y-3">
           <p className="text-sm text-gray-500 max-w-2xl mx-auto">
-            Todos los planes incluyen: encriptación AES-256, soporte por WhatsApp, actualizaciones gratis, sin contratos de permanencia.
+            Precios en ARS (pesos argentinos). Pagá con Mercado Pago. Encriptación AES-256, sin contratos de permanencia.
+          </p>
+          <p className="text-sm text-gray-500">
+            ¿Necesitás un plan personalizado?{" "}
+            <a href={WA_URL} target="_blank" rel="noopener noreferrer" className="text-primary-600 font-medium hover:underline">
+              Contactanos por WhatsApp
+            </a>
           </p>
         </ScrollAnimate>
+      </div>
+    </section>
+  );
+}
+
+/* ─── How it works ────────────────────────────────────────────────────────── */
+
+function HowItWorks() {
+  const steps = [
+    { num: "1", title: "Registrate", desc: "Creá tu cuenta en 2 minutos. Sin tarjeta de crédito." },
+    { num: "2", title: "Conectá tu WhatsApp", desc: "Vinculá tu número de WhatsApp Business con un click. Tu chatbot IA empieza a trabajar inmediatamente." },
+    { num: "3", title: "Gestioná tu clínica", desc: "Agenda, historial clínico, pipeline, estadísticas — todo desde un solo lugar." },
+  ];
+
+  return (
+    <section className="py-20 sm:py-28 bg-gray-50/50">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        <ScrollAnimate className="text-center mb-12">
+          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Cómo funciona</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Empezá en 3 pasos</h2>
+        </ScrollAnimate>
+        <div className="grid md:grid-cols-3 gap-8">
+          {steps.map((s, i) => (
+            <ScrollAnimate key={s.num} delay={i * 100}>
+              <div className="text-center">
+                <div className="w-14 h-14 bg-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-600/25">
+                  <span className="text-xl font-bold text-white">{s.num}</span>
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 mb-2">{s.title}</h3>
+                <p className="text-sm text-gray-600">{s.desc}</p>
+              </div>
+            </ScrollAnimate>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -770,38 +868,34 @@ function Pricing() {
 function Testimonials() {
   const testimonials = [
     {
-      name: "Dr. Carlos Fernández",
-      clinic: "Clínica Dental Sonrisa, Buenos Aires",
-      quote: "Antes perdía 2 horas por día agendando turnos y mandando recordatorios. Con DentalFlow, todo es automático. Recuperé mi tiempo para atender pacientes.",
-      initials: "CF",
+      name: "Dra. Martina López",
+      clinic: "Buenos Aires",
+      quote: "Desde que implementamos DentalFlow, redujimos un 40% los turnos perdidos gracias al chatbot que confirma citas automáticamente.",
+      initials: "ML",
       color: "bg-blue-500",
     },
     {
-      name: "Dra. María González",
-      clinic: "Centro Odontológico Mendoza",
-      quote: "El chatbot IA es increíble. Atiende consultas a las 2 AM, agenda turnos solo, y los pacientes ni se dan cuenta que es un bot. Imprescindible.",
-      initials: "MG",
+      name: "Dr. Sebastián Ruiz",
+      clinic: "Mendoza",
+      quote: "El historial clínico digital me ahorra 30 minutos por paciente. El odontograma con versionado es increíble.",
+      initials: "SR",
       color: "bg-purple-500",
     },
     {
-      name: "Dr. Roberto Silva",
-      clinic: "Dental Care, Santiago de Chile",
-      quote: "El pipeline CRM cambió todo. Ahora sé exactamente quién está interesado, quién agendó y quién necesita seguimiento. Aumenté mi tasa de conversión un 40%.",
-      initials: "RS",
+      name: "Dra. Camila Herrera",
+      clinic: "Santiago de Chile",
+      quote: "Mis pacientes agendan solos por WhatsApp a las 11pm. Antes perdía esos turnos. Ahora la IA trabaja mientras yo duermo.",
+      initials: "CH",
       color: "bg-emerald-500",
     },
   ];
 
   return (
-    <section className="py-20 sm:py-28">
+    <section id="testimonios" className="py-20 sm:py-28">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center max-w-2xl mx-auto mb-16">
-          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">
-            Testimonios
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            Lo que dicen nuestros clientes
-          </h2>
+          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Testimonios</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Lo que dicen nuestros clientes</h2>
         </ScrollAnimate>
 
         <div className="grid md:grid-cols-3 gap-6">
@@ -817,9 +911,7 @@ function Testimonials() {
                   &ldquo;{t.quote}&rdquo;
                 </blockquote>
                 <div className="flex items-center gap-3">
-                  <div
-                    className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center flex-shrink-0`}
-                  >
+                  <div className={`w-10 h-10 rounded-full ${t.color} flex items-center justify-center flex-shrink-0`}>
                     <span className="text-xs font-bold text-white">{t.initials}</span>
                   </div>
                   <div>
@@ -843,12 +935,8 @@ function Faq() {
     <section id="faq" className="py-20 sm:py-28 bg-gray-50/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center max-w-2xl mx-auto mb-12">
-          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">
-            FAQ
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            Preguntas frecuentes
-          </h2>
+          <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">FAQ</p>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Preguntas frecuentes</h2>
         </ScrollAnimate>
         <ScrollAnimate>
           <FaqAccordion />
@@ -862,30 +950,38 @@ function Faq() {
 
 function FinalCta() {
   return (
-    <section className="py-20 sm:py-28 bg-gradient-to-br from-primary-600 to-primary-800 relative overflow-hidden">
-      {/* Decorative circles */}
+    <section className="py-20 sm:py-28 bg-gradient-to-br from-primary-600 via-primary-700 to-purple-700 relative overflow-hidden">
       <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-64 h-64 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
         <h2 className="text-3xl sm:text-4xl font-bold text-white">
-          Llevá tu clínica al siguiente nivel
+          Tu clínica merece un software del siglo XXI
         </h2>
         <p className="mt-4 text-lg text-primary-100 max-w-xl mx-auto">
-          Empezá hoy y descubrí por qué cientos de clínicas ya confían en DentalFlow para gestionar su día a día.
+          Empezá hoy con 14 días gratis. Sin tarjeta de crédito.
         </p>
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
           <a
-            href="http://localhost:3000/login"
-            className="inline-flex items-center gap-2 bg-white text-primary-700 hover:bg-primary-50 font-semibold px-8 py-3.5 rounded-lg transition-colors shadow-lg text-sm"
+            href={APP_URL}
+            className="inline-flex items-center justify-center gap-2 bg-white text-primary-700 hover:bg-primary-50 font-semibold px-8 py-3.5 rounded-lg transition-colors shadow-lg text-sm"
           >
-            Empezar gratis
+            Crear mi cuenta gratis
             <ArrowRight className="h-4 w-4" />
           </a>
-          <p className="mt-4 text-xs text-primary-200">
-            Sin tarjeta de crédito · Setup en 5 minutos · Cancelá cuando quieras
-          </p>
+          <a
+            href={WA_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center gap-2 border border-white/30 text-white hover:bg-white/10 font-semibold px-8 py-3.5 rounded-lg transition-colors text-sm"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Hablar con un asesor
+          </a>
         </div>
+        <p className="mt-4 text-xs text-primary-200">
+          Sin tarjeta de crédito · Setup en 5 minutos · Cancelá cuando quieras
+        </p>
       </div>
     </section>
   );
@@ -898,19 +994,19 @@ function Footer() {
     <footer className="bg-gray-900 text-gray-400 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
-          {/* Brand */}
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
                 <span className="text-white text-sm font-bold">DF</span>
               </div>
-              <span className="text-lg font-bold text-white tracking-tight">
-                Dental<span className="text-primary-400">Flow</span>
-              </span>
+              <div>
+                <span className="text-lg font-bold text-white tracking-tight block leading-none">
+                  Dental<span className="text-primary-400">Flow</span>
+                </span>
+                <span className="text-[10px] text-gray-500">by Violet Wave IA</span>
+              </div>
             </div>
-            <p className="text-sm leading-relaxed">
-              La plataforma todo-en-uno para clínicas dentales en Latinoamérica.
-            </p>
+            <p className="text-sm leading-relaxed">La plataforma todo-en-uno para clínicas dentales en Latinoamérica.</p>
             <div className="flex gap-3 mt-4">
               <a href="#" className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
                 <Instagram className="h-4 w-4" />
@@ -918,13 +1014,11 @@ function Footer() {
               <a href="#" className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
                 <Linkedin className="h-4 w-4" />
               </a>
-              <a href="#" className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
+              <a href={WA_URL} target="_blank" rel="noopener noreferrer" className="w-8 h-8 rounded-lg bg-gray-800 hover:bg-gray-700 flex items-center justify-center transition-colors">
                 <Phone className="h-4 w-4" />
               </a>
             </div>
           </div>
-
-          {/* Producto */}
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Producto</h4>
             <ul className="space-y-2.5">
@@ -933,18 +1027,14 @@ function Footer() {
               <li><a href="#faq" className="text-sm hover:text-white transition-colors">FAQ</a></li>
             </ul>
           </div>
-
-          {/* Empresa */}
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Empresa</h4>
             <ul className="space-y-2.5">
               <li><a href="#" className="text-sm hover:text-white transition-colors">Sobre nosotros</a></li>
-              <li><a href="#" className="text-sm hover:text-white transition-colors">Blog</a></li>
-              <li><a href="#" className="text-sm hover:text-white transition-colors">Contacto</a></li>
+              <li><a href="#" className="text-sm hover:text-white transition-colors">Blog (próximamente)</a></li>
+              <li><a href={WA_URL} target="_blank" rel="noopener noreferrer" className="text-sm hover:text-white transition-colors">Contacto</a></li>
             </ul>
           </div>
-
-          {/* Legal */}
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-2.5">
@@ -954,13 +1044,35 @@ function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-gray-800 pt-8 text-center">
+        <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-gray-500">
             &copy; 2026 DentalFlow by Violet Wave IA. Todos los derechos reservados.
+          </p>
+          <p className="text-xs text-gray-600">
+            Hecho con 💙 en Argentina para toda Latinoamérica
           </p>
         </div>
       </div>
     </footer>
+  );
+}
+
+/* ─── WhatsApp Float ──────────────────────────────────────────────────────── */
+
+function WhatsAppFloat() {
+  return (
+    <a
+      href={WA_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30 transition-all hover:scale-110 group"
+      title="¿Tenés dudas? Escribinos"
+    >
+      <MessageCircle className="h-6 w-6 text-white" />
+      <span className="absolute right-full mr-3 bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+        ¿Tenés dudas? Escribinos
+      </span>
+    </a>
   );
 }
 
@@ -975,13 +1087,16 @@ export default function LandingPage() {
         <SocialProof />
         <ProblemSolution />
         <Features />
+        <ExtraFeatures />
         <Comparison />
         <Pricing />
+        <HowItWorks />
         <Testimonials />
         <Faq />
         <FinalCta />
       </main>
       <Footer />
+      <WhatsAppFloat />
     </>
   );
 }
