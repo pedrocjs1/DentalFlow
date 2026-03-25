@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -name *whatsapp* -o -name *embedded*)",
+      "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow\\\\apps\\\\web\\\\src\\\\app\\\\\\(dashboard\\)\\\\configuracion' -name *.tsx)",
+      "Bash(xargs grep:*)",
+      "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -name .env* -o -name *.env*)",
+      "Bash(npm install:*)",
+      "Bash(npm search:*)",
+      "Bash(npm view:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx prisma:*)",
+      "Bash(echo \"SELECT d.name, dwh.\"\"dayOfWeek\"\", dwh.\"\"startTime\"\", dwh.\"\"endTime\"\" FROM \"\"DentistWorkingHours\"\" dwh JOIN \"\"Dentist\"\" d ON d.id = dwh.\"\"dentistId\"\" WHERE dwh.\"\"isActive\"\" = true;\")",
+      "Bash(echo \"SELECT \"\"dayOfWeek\"\", \"\"startTime\"\", \"\"endTime\"\" FROM \"\"WorkingHours\"\" WHERE \"\"isActive\"\" = true;\")",
+      "Bash(echo \"SELECT ''''DWH'''' as tbl, COUNT\\(*\\) FROM \"\"DentistWorkingHours\"\" UNION ALL SELECT ''''WH'''', COUNT\\(*\\) FROM \"\"WorkingHours\"\";\")",
+      "Bash(echo \"SELECT id, name, \"\"isActive\"\" FROM \"\"Dentist\"\";\")",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d dentalflow -c \"SELECT 'DWH' as tbl, COUNT\\(*\\) FROM \\\\\"DentistWorkingHours\\\\\" UNION ALL SELECT 'WH', COUNT\\(*\\) FROM \\\\\"WorkingHours\\\\\";\" 2>&1)",
+      "Bash(node -e \":*)",
+      "Bash(npx tsx:*)",
+      "Bash(node:*)",
+      "Bash(find \"/c/Users/pedro/OneDrive/Desktop/Proyecto Agencia/DentalFlow/apps/web/src/app/\\(dashboard\\)/configuracion\" -type f)",
+      "Bash(ls -la 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow\\\\apps\\\\web\\\\src\\\\app/\\(dashboard\\)')",
+      "Bash(find '/c/Users/pedro/OneDrive/Desktop/Proyecto Agencia/DentalFlow/apps/web/src/app' -type f -name *config* -o -name *configuracion*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(find \"C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow\\\\apps\\\\web\\\\src\\\\app\\\\admin\\\\\\(panel\\)\" -type f -name \"*.tsx\")",
+      "WebFetch(domain:developers.facebook.com)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -U postgres -d dentalflow -c \"SELECT id, name, \"\"tenantId\"\", status, \"\"suggestedTrigger\"\" FROM \"\"WhatsAppTemplate\"\" LIMIT 12;\")",
+      "Bash(grep -E \"\\(server|main|index\\\\.ts$\\)\")",
+      "Bash(npm ls:*)",
+      "Bash(npm audit:*)",
+      "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -type f -name *sidebar*)",
+      "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -path *admin* -type f -name *.tsx -o -name *.ts)",
+      "Bash(timeout 15 npx next dev -p 3002)",
+      "Bash(npx next:*)"
+    ]
+  }
+}
