@@ -1,4 +1,4 @@
-# CLAUDE.md — DentalFlow SaaS Platform (v0.5.1)
+# CLAUDE.md — DentalFlow SaaS Platform (v0.6.0)
 
 ## IDENTIDAD DEL PROYECTO
 
@@ -89,6 +89,44 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 - SEO meta tags configurados
 - Todos los mockups construidos con código (no imágenes)
 - Texto completo en español orientado a clínicas dentales LATAM
+
+### ✅ Completado — Registro Self-service + Precios USD + Trial Lockout + Setup Fee (v0.6.0)
+
+**Registro Self-service — IMPLEMENTADO:**
+- Página /registro con wizard 3 pasos: clínica → cuenta → confirmación
+- POST /api/v1/auth/register: crea Tenant + User(OWNER) + Subscription(TRIALING 14d) + WorkingHours + 8 PipelineStages + 5 TreatmentTypes
+- Auto-login con JWT después del registro
+- Selector de 10 países LATAM con timezone automático
+- Validación: email único, password 8+ chars con mayúscula y número
+- Modal de bienvenida post-registro con 3 pasos sugeridos
+
+**Precios USD + Conversión por País — IMPLEMENTADO:**
+- Precios oficiales en USD: Starter $99, Professional $199, Enterprise $299
+- Servicio exchange-rates.ts: API open.er-api.com con cache 6h + fallback hardcodeado
+- roundToNice(): redondeo a números "lindos" por rango
+- GET /api/v1/pricing?country=XX: precios USD + conversión local formateada
+- 10 monedas: ARS, CLP, COP, MXN, UYU, BRL, USD, PYG, BOB, PEN
+- Landing actualizada: precios USD principales + "≈ $ X ARS/mes" debajo
+- Tab Facturación: precios en USD
+- MP cobra en ARS usando conversión dinámica
+
+**Setup Fee — IMPLEMENTADO:**
+- Setup de implementación: USD 499 (pago único)
+- Campos en Subscription: setupFeeAmount, setupFeePaid, setupFeePaymentId, setupFeePaidAt, setupFeeWaived
+- Super Admin puede eximir (waive) del setup fee
+- Landing muestra: "+ Setup de implementación: USD 499 (pago único)"
+
+**Trial Lockout — IMPLEMENTADO:**
+- Nuevo status: TRIAL_EXPIRED en enum SubscriptionStatus
+- Middleware subscription-check.ts: bloquea POST/PUT/PATCH/DELETE si trial vencido
+- Endpoints GET siempre permitidos (read-only)
+- Billing/auth/webhook/admin endpoints exentos
+- Error 402 con { error: "subscription_required", trialExpired: true }
+- TrialBanner component: banner azul (trial activo), naranja (vencido), rojo (past-due), gris (cancelado)
+- Cron job trial-expiration: verifica cada hora, actualiza status, crea notificación
+
+**Migración:**
+- 20260325015327_registro_trial_setup_fee
 
 ### ✅ Completado — Mercado Pago Real + Audit de Seguridad Total (v0.5.1)
 

@@ -9,6 +9,7 @@
 import { runPipelineAutomations } from "./pipeline-automations.js";
 import { runAppointmentReminders } from "./appointment-reminders.js";
 import { runTreatmentFollowup, runPostProcedureChecks } from "./treatment-followup.js";
+import { runTrialExpirationCheck } from "./trial-expiration.js";
 
 interface JobStatus {
   name: string;
@@ -162,6 +163,7 @@ export async function registerAllJobs(): Promise<void> {
     createPair("appointment-reminders", "30 min", 30 * 60 * 1000, runAppointmentReminders);
     createPair("treatment-followup", "1 hour", 60 * 60 * 1000, runTreatmentFollowup);
     createPair("post-procedure-check", "1 hour", 60 * 60 * 1000, runPostProcedureChecks);
+    createPair("trial-expiration", "1 hour", 60 * 60 * 1000, runTrialExpirationCheck);
 
     console.log("[scheduler] BullMQ jobs registrados:");
     console.log("  - pipeline-automations: cada 15 min");

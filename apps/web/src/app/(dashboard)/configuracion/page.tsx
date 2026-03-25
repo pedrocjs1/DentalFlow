@@ -2395,34 +2395,28 @@ interface BillingInfo {
   planCurrency?: string;
 }
 
-const PLAN_INFO: Record<string, { name: string; price: number; currency: string; features: string[] }> = {
+const PLAN_INFO: Record<string, { name: string; usd: number; features: string[] }> = {
   STARTER: {
     name: "Starter",
-    price: 139000,
-    currency: "ARS",
+    usd: 99,
     features: ["2 dentistas", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
   },
   PROFESSIONAL: {
     name: "Professional",
-    price: 279000,
-    currency: "ARS",
+    usd: 199,
     features: ["Dentistas ilimitados", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
   },
   ENTERPRISE: {
     name: "Enterprise",
-    price: 419000,
-    currency: "ARS",
+    usd: 299,
     features: ["Dentistas ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
   },
 };
 
-function formatPrice(amount: number): string {
-  return new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(amount);
-}
-
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   TRIALING: { label: "Período de prueba", color: "bg-blue-100 text-blue-700" },
   ACTIVE: { label: "Activo", color: "bg-green-100 text-green-700" },
+  TRIAL_EXPIRED: { label: "Trial vencido", color: "bg-orange-100 text-orange-700" },
   PAST_DUE: { label: "Pago pendiente", color: "bg-yellow-100 text-yellow-700" },
   CANCELLED: { label: "Cancelado", color: "bg-red-100 text-red-700" },
   PAUSED: { label: "Pausado", color: "bg-gray-100 text-gray-700" },
@@ -2553,7 +2547,7 @@ function TabFacturacion() {
             </span>
           </div>
           <div className="text-right">
-            <p className="text-3xl font-bold text-gray-900">{formatPrice(planInfo.price)}</p>
+            <p className="text-3xl font-bold text-gray-900">USD {planInfo.usd}</p>
             <p className="text-sm text-gray-500">/mes</p>
           </div>
         </div>
@@ -2624,7 +2618,7 @@ function TabFacturacion() {
                   }`}
                 >
                   <h4 className="font-semibold text-gray-900">{info.name}</h4>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">{formatPrice(info.price)}<span className="text-sm font-normal text-gray-500">/mes</span></p>
+                  <p className="text-2xl font-bold text-gray-900 mt-2">USD {info.usd}<span className="text-sm font-normal text-gray-500">/mes</span></p>
                   <ul className="mt-3 space-y-1">
                     {info.features.map((f) => (
                       <li key={f} className="text-xs text-gray-600 flex items-center gap-1">

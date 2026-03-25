@@ -3,8 +3,11 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@dentalflow/db";
 import { AppError } from "../../errors/app-error.js";
 import { logSecurityEvent, isLoginLocked } from "../../services/security-logger.js";
+import { registerRoutes } from "./register.js";
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
+  // Register endpoint (public)
+  await app.register(registerRoutes);
   app.post("/api/v1/auth/login", {
     schema: {
       body: {

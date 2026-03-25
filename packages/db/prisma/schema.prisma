@@ -110,6 +110,7 @@ enum Plan {
 
 enum SubscriptionStatus {
   TRIALING
+  TRIAL_EXPIRED
   ACTIVE
   PAST_DUE
   CANCELLED
@@ -993,6 +994,13 @@ model Subscription {
   // Stripe (future)
   stripeCustomerId     String?
   stripeSubscriptionId String?
+
+  // Setup fee (one-time implementation payment)
+  setupFeeAmount    Float     @default(499)   // USD
+  setupFeePaid      Boolean   @default(false)
+  setupFeePaymentId String?
+  setupFeePaidAt    DateTime?
+  setupFeeWaived    Boolean   @default(false) // Admin can waive it
 
   // Control
   billingNotes    String?

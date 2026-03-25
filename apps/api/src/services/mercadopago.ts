@@ -12,19 +12,29 @@ export function isMercadoPagoConfigured(): boolean {
   return !!(MP_ACCESS_TOKEN && !MP_ACCESS_TOKEN.startsWith("APP_USR-..."));
 }
 
-// Plans in ARS (Argentine Pesos) for sandbox/production
-const PLANS_ARS: Record<
-  string,
-  { reason: string; amount: number; currency: string }
-> = {
-  STARTER: { reason: "DentalFlow Starter", amount: 139000, currency: "ARS" },
-  PROFESSIONAL: { reason: "DentalFlow Professional", amount: 279000, currency: "ARS" },
-  ENTERPRISE: { reason: "DentalFlow Enterprise", amount: 419000, currency: "ARS" },
+// Prices in USD — source of truth. Converted to ARS at checkout time.
+import { PLAN_PRICES_USD, SETUP_FEE_USD, usdToArs } from "./exchange-rates.js";
+
+const PLAN_NAMES: Record<string, string> = {
+  STARTER: "DentalFlow Starter",
+  PROFESSIONAL: "DentalFlow Professional",
+  ENTERPRISE: "DentalFlow Enterprise",
 };
 
 export function getPlanDetails(plan: string) {
-  const p = PLANS_ARS[plan] ?? PLANS_ARS.PROFESSIONAL;
-  return { title: p.reason, price: p.amount, currency: p.currency };
+  const usd = PLAN_PRICES_USD[plan] ?? PLAN_PRICES_USD.PROFESSIONAL;
+  return { title: PLAN_NAMES[plan] ?? "DentalFlow", price: usd, currency: "USD" };
+}
+
+/** Get the ARS amount for a plan (for MP checkout) */
+export async function getPlanAmountArs(plan: string): Promise<number> {
+  const usd = PLAN_PRICES_USD[plan] ?? PLAN_PRICES_USD.PROFESSIONAL;
+  return usdToArs(usd);
+}
+
+/** Get the ARS amount for setup fee */
+export async function getSetupFeeAmountArs(): Promise<number> {
+  return usdToArs(SETUP_FEE_USD);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,15 +74,16 @@ export async function createSubscription(params: {
   plan: string;
   backUrl: string;
 }): Promise<{ checkoutUrl: string; mpSubscriptionId: string }> {
-  const planConfig = PLANS_ARS[params.plan] ?? PLANS_ARS.PROFESSIONAL;
+  const planName = PLAN_NAMES[params.plan] ?? "DentalFlow Professional";
+  const arsAmount = await getPlanAmountArs(params.plan);
 
   const body = {
-    reason: planConfig.reason,
+    reason: planName,
     auto_recurring: {
       frequency: 1,
       frequency_type: "months",
-      transaction_amount: planConfig.amount,
-      currency_id: planConfig.currency,
+      transaction_amount: arsAmount,
+      currency_id: "ARS",
     },
     payer_email: params.payerEmail,
     back_url: params.backUrl,

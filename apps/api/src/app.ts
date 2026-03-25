@@ -49,6 +49,10 @@ export async function buildApp() {
   // Rate limiting
   await app.register(rateLimitPlugin);
 
+  // Subscription check — blocks writes for expired trials/cancelled subs
+  const { subscriptionCheckMiddleware } = await import("./middleware/subscription-check.js");
+  app.addHook("preHandler", subscriptionCheckMiddleware);
+
   // Routes
   await registerRoutes(app);
 

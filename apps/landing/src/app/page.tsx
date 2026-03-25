@@ -690,9 +690,9 @@ function Comparison() {
                 ))}
                 <tr className="bg-gray-50 border-t-2 border-gray-200">
                   <td className="px-4 py-3 font-bold text-gray-900 text-xs">Precio</td>
-                  <td className="px-3 py-3 font-bold text-primary-700 text-xs text-center bg-primary-50/50">Desde $139.000/mes</td>
-                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~$200.000/mes</td>
-                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~$150.000/mes</td>
+                  <td className="px-3 py-3 font-bold text-primary-700 text-xs text-center bg-primary-50/50">Desde USD 99/mes</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~USD 150/mes</td>
+                  <td className="px-3 py-3 text-gray-500 text-xs text-center">~USD 100/mes</td>
                   <td className="px-3 py-3 text-gray-500 text-xs text-center hidden sm:table-cell">&quot;Gratis&quot;</td>
                 </tr>
               </tbody>
@@ -710,7 +710,8 @@ function Pricing() {
   const plans = [
     {
       name: "Starter",
-      price: "139.000",
+      usd: 99,
+      localApprox: "140.000",
       ideal: "Odontólogo independiente",
       popular: false,
       features: [
@@ -725,7 +726,8 @@ function Pricing() {
     },
     {
       name: "Professional",
-      price: "279.000",
+      usd: 199,
+      localApprox: "280.000",
       ideal: "Clínica mediana (<5 sillones)",
       popular: true,
       features: [
@@ -742,7 +744,8 @@ function Pricing() {
     },
     {
       name: "Enterprise",
-      price: "419.000",
+      usd: 299,
+      localApprox: "420.000",
       ideal: "Clínica grande (5+ sillones)",
       popular: false,
       features: [
@@ -785,9 +788,12 @@ function Pricing() {
                 <div className="mb-6">
                   <h3 className="text-lg font-bold text-gray-900">{plan.name}</h3>
                   <p className="text-xs text-gray-500 mt-0.5">{plan.ideal}</p>
-                  <div className="mt-3 flex items-baseline gap-1">
-                    <span className="text-3xl font-extrabold text-gray-900">${plan.price}</span>
-                    <span className="text-sm text-gray-500">ARS/mes</span>
+                  <div className="mt-3">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-gray-900">USD {plan.usd}</span>
+                      <span className="text-sm text-gray-500">/mes</span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5">≈ $ {plan.localApprox} ARS/mes 🇦🇷</p>
                   </div>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
@@ -814,8 +820,12 @@ function Pricing() {
         </div>
 
         <ScrollAnimate className="text-center mt-10 space-y-3">
+          <div className="inline-block bg-gray-50 rounded-xl border border-gray-200 px-5 py-3 mb-3">
+            <p className="text-sm font-medium text-gray-700">+ Setup de implementación: <strong>USD 499</strong> (pago único)</p>
+            <p className="text-xs text-gray-500 mt-0.5">Incluye configuración, importación de datos y capacitación</p>
+          </div>
           <p className="text-sm text-gray-500 max-w-2xl mx-auto">
-            Precios en ARS (pesos argentinos). Pagá con Mercado Pago. Encriptación AES-256, sin contratos de permanencia.
+            14 días gratis. Sin tarjeta de crédito. Cancelá cuando quieras. Pagá con Mercado Pago.
           </p>
           <p className="text-sm text-gray-500">
             ¿Necesitás un plan personalizado?{" "}
