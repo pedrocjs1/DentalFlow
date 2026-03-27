@@ -100,7 +100,7 @@ export default function AdminPanelLayout({ children }: { children: React.ReactNo
         {/* Logo */}
         <div className="h-14 flex items-center gap-3 px-5 border-b border-gray-800">
           <div className="w-7 h-7 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">DF</span>
+            <span className="text-white text-xs font-bold">DQ</span>
           </div>
           <span className="font-semibold text-white text-sm">Admin Panel</span>
         </div>

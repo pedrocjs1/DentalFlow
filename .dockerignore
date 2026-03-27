@@ -1,0 +1,12 @@
+node_modules
+.next
+.env*
+.git
+*.md
+apps/web
+apps/landing
+packages/ui
+.turbo
+.vercel
+coverage
+.DS_Store

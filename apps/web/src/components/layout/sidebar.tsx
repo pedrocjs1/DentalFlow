@@ -40,10 +40,10 @@ export function Sidebar() {
       {/* Logo */}
       <div className="h-16 flex items-center gap-2.5 px-5 border-b border-gray-100 flex-shrink-0">
         <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-sm font-bold">DF</span>
+          <span className="text-white text-sm font-bold">DQ</span>
         </div>
         <span className="text-lg font-bold text-gray-900 tracking-tight">
-          Dental<span className="text-primary-600">Flow</span>
+          Denti<span className="text-primary-600">qa</span>
         </span>
       </div>
 

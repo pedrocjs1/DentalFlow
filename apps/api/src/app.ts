@@ -25,15 +25,21 @@ export async function buildApp() {
   });
 
   // CORS — strict origin
+  const corsOrigins = process.env.NODE_ENV === 'production'
+    ? [
+        'https://dentiqa.app',
+        'https://dashboard.dentiqa.app',
+        'https://admin.dentiqa.app',
+      ]
+    : [
+        'http://localhost:3000',
+        'http://localhost:3002',
+      ];
+  // Always include APP_URL if set (covers ngrok in dev, custom domains in prod)
+  if (process.env.APP_URL) corsOrigins.push(process.env.APP_URL);
+
   await app.register(cors, {
-    origin: [
-      'https://dentiqa.app',
-      'https://dashboard.dentiqa.app',
-      'https://admin.dentiqa.app',
-      'http://localhost:3000',
-      'http://localhost:3002',
-      process.env.APP_URL,
-    ].filter(Boolean) as string[],
+    origin: corsOrigins,
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -85,7 +91,6 @@ export async function buildApp() {
   app.get("/health", async () => {
     let db = false;
     let redis = false;
-    const whatsapp = !!process.env.WHATSAPP_ENABLED;
 
     // Check DB
     try {
@@ -94,16 +99,27 @@ export async function buildApp() {
       db = true;
     } catch { /* db down */ }
 
-    // Check Redis — if REDIS_URL is set, assume jobs are running
-    // (actual health is tracked by the scheduler)
-    redis = !!process.env.REDIS_URL;
+    // Check Redis with actual ping
+    if (process.env.REDIS_URL) {
+      try {
+        const ioredis = await import("ioredis");
+        const IORedis = ioredis.default ?? ioredis;
+        const client = new (IORedis as any)(process.env.REDIS_URL, {
+          connectTimeout: 2000,
+          maxRetriesPerRequest: 0,
+          lazyConnect: true,
+        });
+        await client.connect();
+        await client.ping();
+        redis = true;
+        await client.quit();
+      } catch { /* redis down */ }
+    }
 
     return {
       status: db ? "ok" : "degraded",
-      db,
-      redis,
-      whatsapp,
-      version: "0.5.0",
+      db: db ? "connected" : "disconnected",
+      redis: redis ? "connected" : "disconnected",
       timestamp: new Date().toISOString(),
     };
   });

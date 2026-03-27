@@ -1,0 +1,9 @@
+{
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "admin.dentiqa.app" }],
+      "destination": "/admin/:path*"
+    }
+  ]
+}

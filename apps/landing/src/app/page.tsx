@@ -34,9 +34,11 @@ import { ScrollAnimate } from "@/components/scroll-animate";
 import { MobileNav } from "@/components/mobile-nav";
 import { FaqAccordion } from "@/components/faq-accordion";
 
-const APP_URL = process.env.NODE_ENV === "production"
-  ? "https://dashboard.dentiqa.app/registro"
-  : "http://localhost:3000/registro";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL
+  ? `${process.env.NEXT_PUBLIC_APP_URL}/registro`
+  : process.env.NODE_ENV === "production"
+    ? "https://dashboard.dentiqa.app/registro"
+    : "http://localhost:3000/registro";
 const WA_URL = "https://wa.me/5492612312567?text=Hola%2C%20quiero%20info%20sobre%20Dentiqa";
 
 /* ─── Navbar ─────────────────────────────────────────────────────────────── */
