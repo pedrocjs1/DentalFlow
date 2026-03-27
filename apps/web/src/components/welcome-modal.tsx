@@ -33,7 +33,7 @@ export function WelcomeModal() {
           <div className="w-14 h-14 bg-primary-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
             <span className="text-2xl">🎉</span>
           </div>
-          <h2 className="text-xl font-bold text-gray-900">¡Bienvenido a DentalFlow!</h2>
+          <h2 className="text-xl font-bold text-gray-900">¡Bienvenido a Dentiqa!</h2>
           <p className="text-sm text-gray-500 mt-1">Tu prueba gratuita de 14 días está activa.</p>
         </div>
 
@@ -60,7 +60,7 @@ export function WelcomeModal() {
           onClick={() => setShow(false)}
           className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors"
         >
-          Empezar a usar DentalFlow
+          Empezar a usar Dentiqa
         </button>
       </div>
     </div>

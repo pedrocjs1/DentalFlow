@@ -1,8 +1,8 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
 import { getAllTenantsUsage, getMonthlyUsage } from "../../services/usage-tracker.js";
-import { PLAN_LIMITS } from "@dentalflow/shared";
+import { PLAN_LIMITS } from "@dentiqa/shared";
 
 export async function adminUsageRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [adminMiddleware];

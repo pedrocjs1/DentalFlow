@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { getMonthlyUsage, checkPlanLimit } from "../../services/usage-tracker.js";
-import { PLAN_LIMITS, AI_EXTRA_BLOCK_PRICE, AI_EXTRA_BLOCK_SIZE } from "@dentalflow/shared";
+import { PLAN_LIMITS, AI_EXTRA_BLOCK_PRICE, AI_EXTRA_BLOCK_SIZE } from "@dentiqa/shared";
 
 export async function dashboardRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/v1/dashboard/stats", {

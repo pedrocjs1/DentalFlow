@@ -5,9 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DentalFlow — Tu clínica dental, una sola plataforma",
+  title: "Dentiqa — El software dental con IA para tu clínica",
   description:
-    "Agenda, CRM, WhatsApp, chatbot IA y campañas de marketing para clínicas dentales en Latinoamérica. Reemplazá Kommo + Dentalink con DentalFlow.",
+    "Agenda, historial clínico, WhatsApp con chatbot IA, pipeline CRM, estadísticas y más. Todo en una sola plataforma. Probá gratis 14 días.",
   keywords: [
     "software dental",
     "gestión clínica dental",
@@ -16,14 +16,16 @@ export const metadata: Metadata = {
     "chatbot dental",
     "agenda dental",
     "SaaS dental",
+    "Dentiqa",
   ],
   openGraph: {
-    title: "DentalFlow — Tu clínica dental, una sola plataforma",
+    title: "Dentiqa — El software dental con IA para tu clínica",
     description:
-      "Agenda, CRM, WhatsApp, chatbot IA y campañas. Todo lo que necesitás para gestionar y hacer crecer tu clínica dental.",
+      "Agenda, historial clínico, WhatsApp con chatbot IA, pipeline CRM, estadísticas y más. Todo en una sola plataforma. Probá gratis 14 días.",
     type: "website",
     locale: "es_AR",
-    siteName: "DentalFlow",
+    url: "https://dentiqa.app",
+    siteName: "Dentiqa",
   },
   robots: { index: true, follow: true },
 };

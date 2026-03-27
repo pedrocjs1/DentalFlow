@@ -18,7 +18,7 @@ interface SendEmailParams {
 
 export async function sendEmail({ to, subject, html, from }: SendEmailParams) {
   const resend = getResendClient();
-  const fromEmail = from ?? process.env.FROM_EMAIL ?? "hola@dentalflow.app";
+  const fromEmail = from ?? process.env.FROM_EMAIL ?? "hola@dentiqa.app";
 
   const { data, error } = await resend.emails.send({
     from: fromEmail,

@@ -1,5 +1,5 @@
 {
-  "name": "@dentalflow/api",
+  "name": "@dentiqa/api",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -10,11 +10,11 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@dentalflow/ai": "*",
-    "@dentalflow/campaigns": "*",
-    "@dentalflow/db": "*",
-    "@dentalflow/messaging": "*",
-    "@dentalflow/shared": "*",
+    "@dentiqa/ai": "*",
+    "@dentiqa/campaigns": "*",
+    "@dentiqa/db": "*",
+    "@dentiqa/messaging": "*",
+    "@dentiqa/shared": "*",
     "@fastify/cors": "^10.0.2",
     "@fastify/formbody": "^8.0.1",
     "@fastify/helmet": "^13.0.2",

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Intent } from "@dentalflow/shared";
-import { ANTHROPIC_MODEL, CHATBOT_TEMPERATURE } from "@dentalflow/shared";
+import type { Intent } from "@dentiqa/shared";
+import { ANTHROPIC_MODEL, CHATBOT_TEMPERATURE } from "@dentiqa/shared";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

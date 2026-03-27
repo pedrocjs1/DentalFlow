@@ -78,10 +78,10 @@ export default function RegistroPage() {
         <div className="text-center mb-8">
           <a href="/" className="inline-flex items-center gap-2.5">
             <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-              <span className="text-white text-lg font-bold">DF</span>
+              <span className="text-white text-lg font-bold">DQ</span>
             </div>
             <span className="text-2xl font-bold text-gray-900">
-              Dental<span className="text-primary-600">Flow</span>
+              Denti<span className="text-primary-600">qa</span>
             </span>
           </a>
           <p className="text-sm text-gray-500 mt-2">Creá tu cuenta y empezá tu prueba gratis de 14 días</p>
@@ -253,7 +253,7 @@ export default function RegistroPage() {
                 <span className="text-xs text-gray-600">
                   Acepto los{" "}
                   <a href="#" className="text-primary-600 underline">Términos de Servicio</a> y la{" "}
-                  <a href="https://www.violetwaveai.com/dentalflow/politica-de-privacidad" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">Política de Privacidad</a>
+                  <a href="https://www.violetwaveai.com/dentiqa/politica-de-privacidad" target="_blank" rel="noopener noreferrer" className="text-primary-600 underline">Política de Privacidad</a>
                 </span>
               </label>
 

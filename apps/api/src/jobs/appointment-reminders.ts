@@ -6,8 +6,8 @@
  * Idempotent via reminderSent flag.
  */
 
-import { prisma } from "@dentalflow/db";
-import { sendWhatsAppTemplate } from "@dentalflow/messaging";
+import { prisma } from "@dentiqa/db";
+import { sendWhatsAppTemplate } from "@dentiqa/messaging";
 import { decryptToken } from "../services/encryption.js";
 import { createNotification } from "../services/notifications.js";
 

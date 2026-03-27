@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
 import { AppError } from "../../errors/app-error.js";
-import { PLAN_LIMITS } from "@dentalflow/shared";
+import { PLAN_LIMITS } from "@dentiqa/shared";
 import { getMonthlyUsage } from "../../services/usage-tracker.js";
 
 export async function adminTenantRoutes(app: FastifyInstance): Promise<void> {

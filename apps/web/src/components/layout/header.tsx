@@ -196,7 +196,7 @@ export function Header() {
     router.refresh();
   };
 
-  const title = PAGE_TITLES[pathname] ?? "DentalFlow";
+  const title = PAGE_TITLES[pathname] ?? "Dentiqa";
   const subtitle = PAGE_SUBTITLES[pathname];
   const initials = user?.name?.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase() || "U";
   const hasHumanNeeded = notifications.some((n) => n.type === "human_needed" && !n.isRead);

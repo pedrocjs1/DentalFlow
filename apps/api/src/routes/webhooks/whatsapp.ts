@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import {
   verifyWebhookSignature,
   parseWebhookPayload,
-} from "@dentalflow/messaging";
+} from "@dentiqa/messaging";
 import {
   processIncomingMessage,
   processStatusUpdate,

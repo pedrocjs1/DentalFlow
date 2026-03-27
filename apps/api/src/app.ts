@@ -26,7 +26,14 @@ export async function buildApp() {
 
   // CORS — strict origin
   await app.register(cors, {
-    origin: process.env.APP_URL ?? "http://localhost:3000",
+    origin: [
+      'https://dentiqa.app',
+      'https://dashboard.dentiqa.app',
+      'https://admin.dentiqa.app',
+      'http://localhost:3000',
+      'http://localhost:3002',
+      process.env.APP_URL,
+    ].filter(Boolean) as string[],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -82,7 +89,7 @@ export async function buildApp() {
 
     // Check DB
     try {
-      const { prisma } = await import("@dentalflow/db");
+      const { prisma } = await import("@dentiqa/db");
       await prisma.$queryRaw`SELECT 1`;
       db = true;
     } catch { /* db down */ }

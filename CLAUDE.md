@@ -1,8 +1,8 @@
-# CLAUDE.md — DentalFlow SaaS Platform (v0.6.0)
+# CLAUDE.md — Dentiqa SaaS Platform (v1.0.0)
 
 ## IDENTIDAD DEL PROYECTO
 
-Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-uno para clínicas dentales. Reemplaza Kommo CRM + Dentalink + herramientas de marketing en UNA SOLA plataforma propietaria con IA integrada.
+Sos el CTO y desarrollador principal de Dentiqa, una plataforma SaaS todo-en-uno para clínicas dentales. Reemplaza Kommo CRM + Dentalink + herramientas de marketing en UNA SOLA plataforma propietaria con IA integrada. Empresa: **Violet Wave IA**. Dominio: **dentiqa.app**.
 
 - **Modelo de negocio:** SaaS mensual (USD 99–299/mes) + Setup Fee (USD 499 pago único). Trial 14 días gratis.
 - **Mercado:** Clínicas dentales en Latinoamérica (español, WhatsApp como canal principal).
@@ -15,9 +15,9 @@ Sos el CTO y desarrollador principal de DentalFlow, una plataforma SaaS todo-en-
 
 ```
 MONOREPO
-├── apps/web (Next.js 15 + shadcn/ui)     → localhost:3000
-├── apps/api (Fastify + TypeScript)        → localhost:3001
-├── apps/landing (Next.js 15 + Tailwind)   → localhost:3002
+├── apps/web (Next.js 15 + shadcn/ui)     → localhost:3000  | dashboard.dentiqa.app
+├── apps/api (Fastify + TypeScript)        → localhost:3001  | api.dentiqa.app
+├── apps/landing (Next.js 15 + Tailwind)   → localhost:3002  | dentiqa.app
 ├── packages/db (Prisma), shared (Zod), ai (chatbot), messaging (WA+email), campaigns, connectors, ui
 └── CLAUDE.md, .env, env.production.example
 ```
@@ -31,6 +31,22 @@ WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 bidireccional
 Billing: Mercado Pago preapproval API (ARS) + exchange rates API
 Security: Helmet + CORS estricto + input sanitizer + file validation + SecurityLog + prompt injection protection
 DnD: @dnd-kit | Email: Resend | Tunnel: ngrok (dev)
+
+---
+
+## SUBDOMINIOS (producción)
+
+| Servicio | URL | Deploy |
+|----------|-----|--------|
+| Landing | https://dentiqa.app | Vercel (apps/landing) |
+| Dashboard | https://dashboard.dentiqa.app | Vercel (apps/web) |
+| Admin | https://admin.dentiqa.app | Vercel rewrite → apps/web /admin/* |
+| API | https://api.dentiqa.app | Railway (apps/api) |
+
+Webhooks producción:
+- WhatsApp: https://api.dentiqa.app/api/v1/webhooks/whatsapp
+- Mercado Pago: https://api.dentiqa.app/api/v1/webhooks/mercadopago
+- Google Calendar: https://api.dentiqa.app/api/v1/gcal/callback
 
 ---
 
@@ -132,7 +148,7 @@ DnD: @dnd-kit | Email: Resend | Tunnel: ngrok (dev)
 ### Seguridad
 
 - **@fastify/helmet**: X-Frame-Options, X-Content-Type-Options, HSTS, etc.
-- **CORS estricto**: origin=APP_URL, methods/headers explícitos
+- **CORS estricto**: origins explícitos (dashboard.dentiqa.app, admin.dentiqa.app, dentiqa.app)
 - **Rate limiting**: 200/min general, 100/min WA webhook, 50/min MP webhook, 10/min login
 - **Login lockout**: 5 intentos fallidos en 5 min → bloqueo por IP
 - **SecurityLog model**: tipo, IP, email, userId, tenantId, endpoint, severity, userAgent
@@ -157,7 +173,7 @@ Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + E
 
 ### WhatsApp Embedded Signup
 
-- App DentalFlow (ID: 1627937931777794) — Publicada (Live), Violet Wave IA verificada
+- App Dentiqa (ID: 1627937931777794) — Publicada (Live), Violet Wave IA verificada
 - Embedded Signup Config ID: 1419326039498188
 - WABA "Dental Link" (ID: 158155033313211)
 - Multi-WABA: identifica tenant por phone_number_id
@@ -201,7 +217,7 @@ GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
 WHATSAPP_APP_ID=1627937931777794, WHATSAPP_APP_SECRET, WHATSAPP_CONFIGURATION_ID=1419326039498188
 WHATSAPP_VERIFY_TOKEN, WHATSAPP_ENABLED=true
 MP_ACCESS_TOKEN, MP_PUBLIC_KEY
-APP_URL=(frontend URL, ngrok en dev), API_URL, NODE_ENV
+APP_URL=(frontend URL, ngrok en dev), API_URL, LANDING_URL, ADMIN_URL, NODE_ENV
 ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 ```
 
@@ -216,11 +232,10 @@ ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 
 ---
 
-## 📋 PENDIENTE
+## PENDIENTE
 
 - Deploy a producción (Vercel + Railway + Supabase)
 - Google Calendar credenciales (código 100% listo, falta configurar OAuth consent screen en Google Cloud)
-- Definición de nombre/marca final
 - Testing e2e automatizado
 
 ---

@@ -1,10 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { encryptToken, decryptToken } from "../../services/encryption.js";
-import { sendWhatsAppTextMessage } from "@dentalflow/messaging";
+import { sendWhatsAppTextMessage } from "@dentiqa/messaging";
 
 export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
@@ -294,7 +294,7 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         phoneNumberId: tenant.whatsappPhoneNumberId,
         accessToken,
         to: tenant.phone,
-        message: `Hola desde ${tenant.name}! Este es un mensaje de prueba de DentalFlow. Si recibiste esto, tu WhatsApp está configurado correctamente. ✅`,
+        message: `Hola desde ${tenant.name}! Este es un mensaje de prueba de Dentiqa. Si recibiste esto, tu WhatsApp está configurado correctamente. ✅`,
       });
 
       return { success: true, waMessageId };

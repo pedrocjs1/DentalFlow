@@ -58,7 +58,7 @@ export function TrialBanner() {
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <span className="text-orange-800">
-            <strong>Tu prueba gratuita ha vencido.</strong> Activá tu plan para seguir usando DentalFlow.
+            <strong>Tu prueba gratuita ha vencido.</strong> Activá tu plan para seguir usando Dentiqa.
           </span>
         </div>
         <a href="/configuracion?tab=facturacion" className="text-xs font-semibold text-white bg-orange-600 hover:bg-orange-700 px-4 py-1.5 rounded-lg">

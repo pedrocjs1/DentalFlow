@@ -46,13 +46,13 @@ export function MobileNav() {
               ))}
               <hr className="border-gray-200" />
               <a
-                href="https://app.dentalflow.app/registro"
+                href="https://dashboard.dentiqa.app/registro"
                 className="block text-sm font-medium text-gray-600 hover:text-gray-900"
               >
                 Iniciar sesión
               </a>
               <a
-                href="https://app.dentalflow.app/registro"
+                href="https://dashboard.dentiqa.app/registro"
                 className="block text-center bg-primary-600 hover:bg-primary-700 text-white text-sm font-semibold py-2.5 px-4 rounded-lg transition-colors"
               >
                 Empezar gratis

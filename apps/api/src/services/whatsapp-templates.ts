@@ -1,4 +1,4 @@
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 
 const META_GRAPH_URL = "https://graph.facebook.com/v21.0";
 

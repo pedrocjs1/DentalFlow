@@ -1,5 +1,5 @@
 {
-  "name": "@dentalflow/campaigns",
+  "name": "@dentiqa/campaigns",
   "version": "0.1.0",
   "private": true,
   "main": "./src/index.ts",
@@ -7,9 +7,9 @@
   "dependencies": {
     "bullmq": "^5.38.0",
     "ioredis": "^5.4.2",
-    "@dentalflow/db": "*",
-    "@dentalflow/messaging": "*",
-    "@dentalflow/shared": "*"
+    "@dentiqa/db": "*",
+    "@dentiqa/messaging": "*",
+    "@dentiqa/shared": "*"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

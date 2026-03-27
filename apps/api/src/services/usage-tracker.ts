@@ -4,8 +4,8 @@
  * Also enforces plan limits (soft block — logs overage but allows through).
  */
 
-import { prisma } from "@dentalflow/db";
-import { PLAN_LIMITS, USAGE_WARNING_THRESHOLD, USAGE_LIMIT_THRESHOLD, AI_EXTRA_BLOCK_SIZE, AI_EXTRA_BLOCK_PRICE } from "@dentalflow/shared";
+import { prisma } from "@dentiqa/db";
+import { PLAN_LIMITS, USAGE_WARNING_THRESHOLD, USAGE_LIMIT_THRESHOLD, AI_EXTRA_BLOCK_SIZE, AI_EXTRA_BLOCK_PRICE } from "@dentiqa/shared";
 import type { FastifyBaseLogger } from "fastify";
 
 type UsageType = "WHATSAPP_MESSAGE" | "AI_INTERACTION" | "AI_TOKENS" | "CAMPAIGN_SEND" | "EMAIL_SEND";

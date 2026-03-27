@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
     <div className="p-8 space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard Global</h1>
-        <p className="text-gray-400 text-sm mt-1">Métricas globales de la plataforma DentalFlow</p>
+        <p className="text-gray-400 text-sm mt-1">Métricas globales de la plataforma Dentiqa</p>
       </div>
 
       {/* MRR hero */}

@@ -10,14 +10,14 @@
  * 6. Pipeline integration (new patient, interest tracking)
  */
 
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import {
   sendWhatsAppTextMessage,
   sendWhatsAppInteractiveButtons,
   markWhatsAppMessageAsRead,
   type IncomingMessage,
   type StatusUpdate,
-} from "@dentalflow/messaging";
+} from "@dentiqa/messaging";
 import {
   generateChatbotResponse,
   routeIntent,
@@ -25,8 +25,8 @@ import {
   type ClinicContext,
   type PatientContext,
   type ConversationMessage,
-} from "@dentalflow/ai";
-import { SONNET_USAGE_MULTIPLIER } from "@dentalflow/shared";
+} from "@dentiqa/ai";
+import { SONNET_USAGE_MULTIPLIER } from "@dentiqa/shared";
 import { recordUsage, checkPlanLimit } from "./usage-tracker.js";
 import { createNotification } from "./notifications.js";
 import { decryptToken } from "./encryption.js";

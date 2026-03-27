@@ -5,7 +5,7 @@
  * and updates status to TRIAL_EXPIRED.
  */
 
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { createNotification } from "../services/notifications.js";
 
 export async function runTrialExpirationCheck(): Promise<void> {
@@ -39,7 +39,7 @@ export async function runTrialExpirationCheck(): Promise<void> {
       await createNotification(sub.tenantId, {
         type: "system",
         title: "Tu prueba gratuita ha vencido",
-        message: "Activá tu plan para seguir usando DentalFlow. Tus datos están seguros.",
+        message: "Activá tu plan para seguir usando Dentiqa. Tus datos están seguros.",
         link: "/configuracion?tab=facturacion",
       });
 

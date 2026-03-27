@@ -16,14 +16,14 @@ export function isMercadoPagoConfigured(): boolean {
 import { PLAN_PRICES_USD, SETUP_FEE_USD, usdToArs } from "./exchange-rates.js";
 
 const PLAN_NAMES: Record<string, string> = {
-  STARTER: "DentalFlow Starter",
-  PROFESSIONAL: "DentalFlow Professional",
-  ENTERPRISE: "DentalFlow Enterprise",
+  STARTER: "Dentiqa Starter",
+  PROFESSIONAL: "Dentiqa Professional",
+  ENTERPRISE: "Dentiqa Enterprise",
 };
 
 export function getPlanDetails(plan: string) {
   const usd = PLAN_PRICES_USD[plan] ?? PLAN_PRICES_USD.PROFESSIONAL;
-  return { title: PLAN_NAMES[plan] ?? "DentalFlow", price: usd, currency: "USD" };
+  return { title: PLAN_NAMES[plan] ?? "Dentiqa", price: usd, currency: "USD" };
 }
 
 /** Get the ARS amount for a plan (for MP checkout) */
@@ -74,7 +74,7 @@ export async function createSubscription(params: {
   plan: string;
   backUrl: string;
 }): Promise<{ checkoutUrl: string; mpSubscriptionId: string }> {
-  const planName = PLAN_NAMES[params.plan] ?? "DentalFlow Professional";
+  const planName = PLAN_NAMES[params.plan] ?? "Dentiqa Professional";
   const arsAmount = await getPlanAmountArs(params.plan);
 
   const body = {

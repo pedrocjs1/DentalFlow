@@ -6,8 +6,8 @@
  * Also handles post-procedure checks (e.g., "How are you feeling after your extraction?").
  */
 
-import { prisma } from "@dentalflow/db";
-import { sendWhatsAppTemplate, sendWhatsAppTextMessage } from "@dentalflow/messaging";
+import { prisma } from "@dentiqa/db";
+import { sendWhatsAppTemplate, sendWhatsAppTextMessage } from "@dentiqa/messaging";
 import { decryptToken } from "../services/encryption.js";
 import { createNotification } from "../services/notifications.js";
 

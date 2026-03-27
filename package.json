@@ -1,5 +1,5 @@
 {
-  "name": "dentalflow",
+  "name": "dentiqa",
   "private": true,
   "workspaces": ["apps/*", "packages/*"],
   "scripts": {

@@ -1,5 +1,5 @@
 import { createHmac } from "crypto";
-import { WHATSAPP_API_VERSION } from "@dentalflow/shared";
+import { WHATSAPP_API_VERSION } from "@dentiqa/shared";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

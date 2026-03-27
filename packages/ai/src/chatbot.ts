@@ -4,7 +4,7 @@ import {
   CHATBOT_MAX_TOKENS,
   CHATBOT_TEMPERATURE,
   SONNET_MODEL,
-} from "@dentalflow/shared";
+} from "@dentiqa/shared";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 

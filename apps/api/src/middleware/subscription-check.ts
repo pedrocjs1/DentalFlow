@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 
 /**
  * Subscription Check Middleware
@@ -64,7 +64,7 @@ export async function subscriptionCheckMiddleware(
       });
       return reply.status(402).send({
         error: "subscription_required",
-        message: "Tu prueba gratuita ha vencido. Activá tu plan para seguir usando DentalFlow.",
+        message: "Tu prueba gratuita ha vencido. Activá tu plan para seguir usando Dentiqa.",
         trialExpired: true,
       });
     }
@@ -82,8 +82,8 @@ export async function subscriptionCheckMiddleware(
     return reply.status(402).send({
       error: "subscription_required",
       message: status === "TRIAL_EXPIRED"
-        ? "Tu prueba gratuita ha vencido. Activá tu plan para seguir usando DentalFlow."
-        : "Tu suscripción está cancelada. Reactivá tu plan para seguir usando DentalFlow.",
+        ? "Tu prueba gratuita ha vencido. Activá tu plan para seguir usando Dentiqa."
+        : "Tu suscripción está cancelada. Reactivá tu plan para seguir usando Dentiqa.",
       trialExpired: status === "TRIAL_EXPIRED",
     });
   }

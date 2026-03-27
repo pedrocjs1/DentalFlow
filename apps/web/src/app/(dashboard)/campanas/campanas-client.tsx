@@ -862,7 +862,7 @@ export function CampanasClient() {
               </p>
               <p className="text-gray-500 text-sm mb-6">
                 Creá tu primera campaña o cargá las 8 campañas default que
-                incluye DentalFlow.
+                incluye Dentiqa.
               </p>
               <div className="flex gap-3 justify-center">
                 <button

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { createNotification } from "../../services/notifications.js";

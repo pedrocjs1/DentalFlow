@@ -1,6 +1,6 @@
 import { Queue, Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 
 const connection = new IORedis(process.env.REDIS_URL ?? "redis://localhost:6379", {
   maxRetriesPerRequest: null,

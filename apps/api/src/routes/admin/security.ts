@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
 
 export async function adminSecurityRoutes(app: FastifyInstance): Promise<void> {

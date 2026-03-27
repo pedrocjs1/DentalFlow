@@ -5,8 +5,9 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "DentalFlow — Plataforma para Clínicas Dentales",
+  title: "Dentiqa — Dashboard",
   description: "Gestión completa para tu clínica dental: agenda, pacientes, CRM, campañas y chatbot IA.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({

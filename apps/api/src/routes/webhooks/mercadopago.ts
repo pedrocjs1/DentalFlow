@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { createNotification } from "../../services/notifications.js";
 import { isMercadoPagoConfigured, getSubscriptionStatus, getPaymentById } from "../../services/mercadopago.js";
 import { logSecurityEvent } from "../../services/security-logger.js";

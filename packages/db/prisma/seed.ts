@@ -15,7 +15,7 @@ async function main() {
       slug: "clinica-demo",
       plan: "PROFESSIONAL",
       phone: "+5491100000000",
-      email: "demo@dentalflow.app",
+      email: "demo@dentiqa.app",
       address: "Av. Corrientes 1234, Piso 3",
       city: "Buenos Aires",
       country: "AR",
@@ -541,17 +541,17 @@ async function main() {
   console.log("Subscription seeded (PROFESSIONAL, TRIALING, 14 days)");
 
   // ─── Super Admin ────────────────────────────────────────────────────────────
-  const adminPassword = await bcrypt.hash("DentalFlow2026!", 10);
+  const adminPassword = await bcrypt.hash("Dentiqa2026!", 10);
   await prisma.adminUser.upsert({
-    where: { email: "admin@dentalflow.app" },
+    where: { email: "admin@dentiqa.app" },
     update: {},
     create: {
-      email: "admin@dentalflow.app",
+      email: "admin@dentiqa.app",
       passwordHash: adminPassword,
       name: "Super Admin",
     },
   });
-  console.log("Super admin seeded: admin@dentalflow.app");
+  console.log("Super admin seeded: admin@dentiqa.app");
 
   // ─── Evolution Templates (6 plantillas) ────────────────────
   const evolutionTemplates = [
@@ -603,8 +603,8 @@ async function main() {
   console.log("  Email: admin@clinica-demo.com");
   console.log("  Password: password123");
   console.log("\nSuper Admin credentials:");
-  console.log("  Email: admin@dentalflow.app");
-  console.log("  Password: DentalFlow2026!");
+  console.log("  Email: admin@dentiqa.app");
+  console.log("  Password: Dentiqa2026!");
 }
 
 main()

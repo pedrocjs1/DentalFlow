@@ -3,7 +3,7 @@
  * Never blocks the calling flow. Errors are logged and swallowed.
  */
 
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 
 // Auto-map notification type to category
 const TYPE_TO_CATEGORY: Record<string, string> = {

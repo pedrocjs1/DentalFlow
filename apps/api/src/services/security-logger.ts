@@ -3,7 +3,7 @@
  * Never blocks calling flow. Errors are swallowed.
  */
 
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 
 interface SecurityEvent {
   type: string; // LOGIN_ATTEMPT, LOGIN_FAILED, UNAUTHORIZED_ACCESS, RATE_LIMITED,

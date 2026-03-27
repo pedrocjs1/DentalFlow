@@ -10,7 +10,7 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // DentalFlow brand — professional medical blue
+        // Dentiqa brand — professional medical blue
         primary: {
           DEFAULT: "#2563eb",
           50: "#eff6ff",

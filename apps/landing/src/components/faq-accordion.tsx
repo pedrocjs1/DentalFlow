@@ -6,11 +6,11 @@ import { ChevronDown } from "lucide-react";
 const FAQS = [
   {
     q: "¿Qué necesito para empezar?",
-    a: "Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar DentalFlow. Sin instalaciones, sin hardware especial.",
+    a: "Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar Dentiqa. Sin instalaciones, sin hardware especial.",
   },
   {
     q: "¿Funciona en mi país?",
-    a: "Sí, DentalFlow funciona en toda Latinoamérica. Los precios están en ARS pero aceptamos pagos de cualquier país vía Mercado Pago. Soportamos múltiples zonas horarias y formatos locales.",
+    a: "Sí, Dentiqa funciona en toda Latinoamérica. Los precios están en ARS pero aceptamos pagos de cualquier país vía Mercado Pago. Soportamos múltiples zonas horarias y formatos locales.",
   },
   {
     q: "¿Puedo migrar mis datos desde otro software?",
@@ -26,10 +26,10 @@ const FAQS = [
   },
   {
     q: "¿Necesito instalar algo?",
-    a: "No. DentalFlow funciona 100% en el navegador, en cualquier dispositivo — computadora, tablet o celular. No hay apps que instalar ni software que actualizar.",
+    a: "No. Dentiqa funciona 100% en el navegador, en cualquier dispositivo — computadora, tablet o celular. No hay apps que instalar ni software que actualizar.",
   },
   {
-    q: "¿Puedo usar DentalFlow sin el chatbot de WhatsApp?",
+    q: "¿Puedo usar Dentiqa sin el chatbot de WhatsApp?",
     a: "Sí. El chatbot es una funcionalidad que podés activar o desactivar desde la configuración. El resto del sistema (agenda, historial clínico, pipeline, estadísticas) funciona independientemente.",
   },
   {

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
-import { PLAN_PRICES } from "@dentalflow/shared";
+import { PLAN_PRICES } from "@dentiqa/shared";
 
 export async function adminDashboardRoutes(app: FastifyInstance): Promise<void> {
   // GET /api/v1/admin/dashboard/stats

@@ -34,8 +34,10 @@ import { ScrollAnimate } from "@/components/scroll-animate";
 import { MobileNav } from "@/components/mobile-nav";
 import { FaqAccordion } from "@/components/faq-accordion";
 
-const APP_URL = "https://app.dentalflow.app/registro";
-const WA_URL = "https://wa.me/5492612312567?text=Hola%2C%20quiero%20info%20sobre%20DentalFlow";
+const APP_URL = process.env.NODE_ENV === "production"
+  ? "https://dashboard.dentiqa.app/registro"
+  : "http://localhost:3000/registro";
+const WA_URL = "https://wa.me/5492612312567?text=Hola%2C%20quiero%20info%20sobre%20Dentiqa";
 
 /* ─── Navbar ─────────────────────────────────────────────────────────────── */
 
@@ -45,11 +47,11 @@ function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <a href="#" className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-sm font-bold">DF</span>
+            <span className="text-white text-sm font-bold">DQ</span>
           </div>
           <div className="flex flex-col">
             <span className="text-lg font-bold text-gray-900 tracking-tight leading-none">
-              Dental<span className="text-primary-600">Flow</span>
+              Denti<span className="text-primary-600">qa</span>
             </span>
             <span className="text-[9px] text-gray-400 leading-none">by Violet Wave IA</span>
           </div>
@@ -85,7 +87,7 @@ function DashboardMockup() {
           <div className="w-3 h-3 rounded-full bg-yellow-400" />
           <div className="w-3 h-3 rounded-full bg-green-400" />
         </div>
-        <span className="text-xs text-gray-400 ml-2">app.dentalflow.app</span>
+        <span className="text-xs text-gray-400 ml-2">dashboard.dentiqa.app</span>
       </div>
       <div className="p-4 space-y-3">
         <div className="grid grid-cols-3 gap-2">
@@ -269,7 +271,7 @@ function ProblemSolution() {
             La solución
           </div>
           <h3 className="text-2xl sm:text-3xl font-bold text-gray-900">
-            DentalFlow centraliza TODO en una plataforma
+            Dentiqa centraliza TODO en una plataforma
           </h3>
           <p className="text-gray-500 mt-3 max-w-lg mx-auto">
             Un chatbot con IA atiende por WhatsApp 24/7, agenda citas automáticamente, envía recordatorios, y vos te concentrás en atender pacientes.
@@ -663,7 +665,7 @@ function Comparison() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center mb-12">
           <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Comparación</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">¿Por qué elegir DentalFlow?</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">¿Por qué elegir Dentiqa?</h2>
         </ScrollAnimate>
 
         <ScrollAnimate>
@@ -672,7 +674,7 @@ function Comparison() {
               <thead>
                 <tr className="bg-gray-50 border-b">
                   <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500">Funcionalidad</th>
-                  <th className="px-3 py-3 text-xs font-semibold text-primary-600 bg-primary-50/50">DentalFlow</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-primary-600 bg-primary-50/50">Dentiqa</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-500">Dentalink</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-500">Kommo CRM</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Excel+WA</th>
@@ -880,7 +882,7 @@ function Testimonials() {
     {
       name: "Dra. Martina López",
       clinic: "Buenos Aires",
-      quote: "Desde que implementamos DentalFlow, redujimos un 40% los turnos perdidos gracias al chatbot que confirma citas automáticamente.",
+      quote: "Desde que implementamos Dentiqa, redujimos un 40% los turnos perdidos gracias al chatbot que confirma citas automáticamente.",
       initials: "ML",
       color: "bg-blue-500",
     },
@@ -1007,11 +1009,11 @@ function Footer() {
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
-                <span className="text-white text-sm font-bold">DF</span>
+                <span className="text-white text-sm font-bold">DQ</span>
               </div>
               <div>
                 <span className="text-lg font-bold text-white tracking-tight block leading-none">
-                  Dental<span className="text-primary-400">Flow</span>
+                  Denti<span className="text-primary-400">qa</span>
                 </span>
                 <span className="text-[10px] text-gray-500">by Violet Wave IA</span>
               </div>
@@ -1048,7 +1050,7 @@ function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-2.5">
-              <li><a href="https://www.violetwaveai.com/dentalflow/politica-de-privacidad" className="text-sm hover:text-white transition-colors">Política de privacidad</a></li>
+              <li><a href="https://www.violetwaveai.com/dentiqa/politica-de-privacidad" className="text-sm hover:text-white transition-colors">Política de privacidad</a></li>
               <li><a href="#" className="text-sm hover:text-white transition-colors">Términos de servicio</a></li>
             </ul>
           </div>
@@ -1056,7 +1058,7 @@ function Footer() {
 
         <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-gray-500">
-            &copy; 2026 DentalFlow by Violet Wave IA. Todos los derechos reservados.
+            &copy; 2026 Dentiqa by Violet Wave IA. Todos los derechos reservados.
           </p>
           <p className="text-xs text-gray-600">
             Hecho con 💙 en Argentina para toda Latinoamérica

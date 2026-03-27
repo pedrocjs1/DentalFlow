@@ -32,7 +32,8 @@
       "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -type f -name *sidebar*)",
       "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -path *admin* -type f -name *.tsx -o -name *.ts)",
       "Bash(timeout 15 npx next dev -p 3002)",
-      "Bash(npx next:*)"
+      "Bash(npx next:*)",
+      "Bash(xargs sed:*)"
     ]
   }
 }

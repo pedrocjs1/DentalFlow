@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
-import { prisma } from "@dentalflow/db";
+import { prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 
