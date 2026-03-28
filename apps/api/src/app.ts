@@ -80,11 +80,15 @@ export async function buildApp() {
       });
     }
 
+    // Fastify validation / content-type errors have statusCode set
+    const err = error as Error & { statusCode?: number; code?: string };
+    const statusCode = err.statusCode ?? 500;
     app.log.error(error);
-    return reply.status(500).send({
-      statusCode: 500,
-      code: "INTERNAL_ERROR",
-      message: "An internal error occurred",
+
+    return reply.status(statusCode).send({
+      statusCode,
+      code: statusCode === 500 ? "INTERNAL_ERROR" : err.code ?? "BAD_REQUEST",
+      message: statusCode === 500 ? "An internal error occurred" : err.message,
     });
   });
 
