@@ -4,8 +4,7 @@
  * All requests go to /api/v1/admin/*
  */
 
-// Client-side uses relative paths so Next.js rewrites proxy to backend (avoids CORS)
-const API_BASE = "";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export class AdminApiError extends Error {
   constructor(
