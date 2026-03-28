@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentiqa/db";
+import { prisma, Prisma } from "@dentiqa/db";
 import { adminMiddleware } from "../../middleware/admin-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { decryptToken } from "../../services/encryption.js";
@@ -144,8 +144,8 @@ export async function adminTemplateRoutes(app: FastifyInstance): Promise<void> {
           headerText: body.headerText ?? null,
           bodyText: body.bodyText,
           footerText: body.footerText ?? null,
-          buttonsJson: body.buttonsJson ?? undefined,
-          variablesJson: body.variablesJson ?? undefined,
+          buttonsJson: (body.buttonsJson ?? undefined) as Prisma.InputJsonValue | undefined,
+          variablesJson: (body.variablesJson ?? undefined) as Prisma.InputJsonValue | undefined,
           suggestedTrigger: body.suggestedTrigger ?? null,
           status: "DRAFT",
           isSystemTemplate: true,
@@ -224,8 +224,8 @@ export async function adminTemplateRoutes(app: FastifyInstance): Promise<void> {
           ...(body.headerText !== undefined && { headerText: body.headerText }),
           ...(body.bodyText && { bodyText: body.bodyText }),
           ...(body.footerText !== undefined && { footerText: body.footerText }),
-          ...(body.buttonsJson !== undefined && { buttonsJson: body.buttonsJson ?? undefined }),
-          ...(body.variablesJson !== undefined && { variablesJson: body.variablesJson ?? undefined }),
+          ...(body.buttonsJson !== undefined && { buttonsJson: (body.buttonsJson ?? undefined) as Prisma.InputJsonValue | undefined }),
+          ...(body.variablesJson !== undefined && { variablesJson: (body.variablesJson ?? undefined) as Prisma.InputJsonValue | undefined }),
           ...(body.suggestedTrigger !== undefined && { suggestedTrigger: body.suggestedTrigger }),
           status: "DRAFT", // Reset to draft on edit
         },

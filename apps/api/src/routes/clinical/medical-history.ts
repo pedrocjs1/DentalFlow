@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { prisma } from "@dentiqa/db";
+import { prisma, Prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
@@ -79,7 +79,6 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
       const existing = await prisma.medicalHistory.findUnique({ where: { patientId } });
 
       const data = {
-        tenantId: user.tenantId,
         bloodType: body.bloodType ?? null,
         rhFactor: body.rhFactor ?? null,
         allergies: body.allergies ?? [],
@@ -119,7 +118,7 @@ export async function medicalHistoryRoutes(app: FastifyInstance): Promise<void> 
 
       const history = await prisma.medicalHistory.upsert({
         where: { patientId },
-        create: { patientId, ...data },
+        create: { patientId, tenantId: user.tenantId, ...data } as Prisma.MedicalHistoryUncheckedCreateInput,
         update: data,
       });
 
