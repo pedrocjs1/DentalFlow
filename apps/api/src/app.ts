@@ -6,6 +6,7 @@ import rawBody from "fastify-raw-body";
 import { rateLimitPlugin } from "./plugins/rate-limit.js";
 import { registerRoutes } from "./routes/index.js";
 import { AppError } from "./errors/app-error.js";
+import { prisma } from "@dentiqa/db";
 
 export async function buildApp() {
   const app = Fastify({
@@ -92,9 +93,8 @@ export async function buildApp() {
     let db = false;
     let redis = false;
 
-    // Check DB
+    // Check DB (uses the singleton PrismaClient)
     try {
-      const { prisma } = await import("@dentiqa/db");
       await prisma.$queryRaw`SELECT 1`;
       db = true;
     } catch (err) {
