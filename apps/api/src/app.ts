@@ -97,7 +97,9 @@ export async function buildApp() {
       const { prisma } = await import("@dentiqa/db");
       await prisma.$queryRaw`SELECT 1`;
       db = true;
-    } catch { /* db down */ }
+    } catch (err) {
+      app.log.error(`Health check DB error: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     // Check Redis with actual ping
     if (process.env.REDIS_URL) {
