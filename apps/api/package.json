@@ -20,7 +20,7 @@
     "@fastify/helmet": "^13.0.2",
     "@fastify/jwt": "^9.0.3",
     "@fastify/rate-limit": "^10.2.2",
-    "bcryptjs": "^2.4.3",
+    "bcryptjs": "^3.0.3",
     "bullmq": "^5.71.0",
     "fastify": "^5.2.1",
     "fastify-raw-body": "^5.0.0",
