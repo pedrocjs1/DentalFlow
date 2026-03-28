@@ -18,7 +18,7 @@ COPY packages/connectors/ packages/connectors/
 # Install dependencies (all workspaces)
 RUN npm ci --ignore-scripts
 
-# Generate Prisma client
+# Generate Prisma client (needs explicit generate after --ignore-scripts)
 RUN cd packages/db && npx prisma generate
 
 # Build the API
@@ -35,11 +35,11 @@ ENV NODE_ENV=production
 COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/node_modules/ ./node_modules/
 
-# Copy built API
+# Copy built API (compiled JS)
 COPY --from=builder /app/apps/api/dist/ ./apps/api/dist/
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 
-# Copy packages (runtime needs them)
+# Copy packages — source .ts files (resolved at runtime via tsx)
 COPY --from=builder /app/packages/db/ ./packages/db/
 COPY --from=builder /app/packages/shared/ ./packages/shared/
 COPY --from=builder /app/packages/ai/ ./packages/ai/
@@ -47,6 +47,13 @@ COPY --from=builder /app/packages/messaging/ ./packages/messaging/
 COPY --from=builder /app/packages/campaigns/ ./packages/campaigns/
 COPY --from=builder /app/packages/connectors/ ./packages/connectors/
 
+# Copy root tsconfig (needed by tsx to resolve paths)
+COPY --from=builder /app/tsconfig.json ./
+
+# Install tsx for runtime TS resolution of workspace packages
+RUN npm install --no-save tsx
+
 EXPOSE ${PORT:-3001}
 
-CMD ["node", "apps/api/dist/server.js"]
+# Use tsx as loader so Node can import .ts files from packages/*
+CMD ["node", "--import", "tsx", "apps/api/dist/server.js"]
