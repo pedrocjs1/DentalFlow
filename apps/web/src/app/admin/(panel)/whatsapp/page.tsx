@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 interface TenantWhatsApp {
   id: string;
@@ -32,7 +33,7 @@ export default function AdminWhatsAppPage() {
     setLoading(true);
     try {
       const res = await fetch(
-        `/api/v1/admin/whatsapp-numbers`,
+        `${ADMIN_API_BASE}/api/v1/admin/whatsapp-numbers`,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       const data = await res.json();
@@ -60,7 +61,7 @@ export default function AdminWhatsAppPage() {
     setDisconnecting(tenantId);
     try {
       await fetch(
-        `/api/v1/admin/whatsapp-numbers/${tenantId}/force-disconnect`,
+        `${ADMIN_API_BASE}/api/v1/admin/whatsapp-numbers/${tenantId}/force-disconnect`,
         { method: "POST", headers: { Authorization: `Bearer ${getToken()}` } }
       );
       loadData();

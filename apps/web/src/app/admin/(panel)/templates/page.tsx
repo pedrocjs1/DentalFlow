@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ interface ConnectedWaba {
 
 function adminFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("df_admin_token") : null;
-  return fetch(url, {
+  return fetch(`${ADMIN_API_BASE}${url}`, {
     ...opts,
     headers: {
       "Content-Type": "application/json",

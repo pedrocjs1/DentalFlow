@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -476,7 +477,7 @@ function TabPacientes({ tenantId }: { tenantId: string }) {
     setImporting(true);
     setImportStep("importing");
     try {
-      const res = await fetch(`/api/v1/admin/clinicas/${tenantId}/import-patients`, {
+      const res = await fetch(`${ADMIN_API_BASE}/api/v1/admin/clinicas/${tenantId}/import-patients`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${getToken()}`,
@@ -758,7 +759,7 @@ function TabConfiguracion({
     setSaving(true);
     setSaved(false);
     try {
-      const res = await fetch(`/api/v1/admin/clinicas/${tenant.id}/subscription`, {
+      const res = await fetch(`${ADMIN_API_BASE}/api/v1/admin/clinicas/${tenant.id}/subscription`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${getToken()}`,
@@ -774,7 +775,7 @@ function TabConfiguracion({
 
       if (!res.ok) {
         // Fallback: try the existing endpoint
-        const res2 = await fetch(`/api/v1/admin/tenants/${tenant.id}`, {
+        const res2 = await fetch(`${ADMIN_API_BASE}/api/v1/admin/tenants/${tenant.id}`, {
           method: "PATCH",
           headers: {
             Authorization: `Bearer ${getToken()}`,
@@ -884,7 +885,7 @@ function TabConfiguracion({
           className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-sm font-medium px-4 py-2 rounded-lg transition-colors"
           onClick={() => {
             if (confirm("¿Seguro que querés desactivar esta clínica?")) {
-              fetch(`/api/v1/admin/tenants/${tenant.id}`, {
+              fetch(`${ADMIN_API_BASE}/api/v1/admin/tenants/${tenant.id}`, {
                 method: "PATCH",
                 headers: {
                   Authorization: `Bearer ${getToken()}`,
@@ -918,7 +919,7 @@ export default function AdminTenantDetailPage() {
   const [impersonating, setImpersonating] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/v1/admin/tenants/${tenantId}`, {
+    fetch(`${ADMIN_API_BASE}/api/v1/admin/tenants/${tenantId}`, {
       headers: { Authorization: `Bearer ${getToken()}` },
     })
       .then((r) => r.json())
@@ -930,7 +931,7 @@ export default function AdminTenantDetailPage() {
   async function handleImpersonate() {
     setImpersonating(true);
     try {
-      const res = await fetch(`/api/v1/admin/tenants/${tenantId}/impersonate`, {
+      const res = await fetch(`${ADMIN_API_BASE}/api/v1/admin/tenants/${tenantId}/impersonate`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${getToken()}`,

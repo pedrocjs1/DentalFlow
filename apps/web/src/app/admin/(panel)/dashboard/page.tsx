@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 interface DashboardStats {
   totalTenants: number;
@@ -44,7 +45,7 @@ export default function AdminDashboardPage() {
     if (!token) return;
 
     fetch(
-      `/api/v1/admin/dashboard/stats`,
+      `${ADMIN_API_BASE}/api/v1/admin/dashboard/stats`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
       .then((r) => r.json())

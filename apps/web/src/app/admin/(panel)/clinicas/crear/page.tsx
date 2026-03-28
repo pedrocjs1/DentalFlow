@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 /* ───────── types ───────── */
 
@@ -330,7 +331,7 @@ export default function CrearClinicaPage() {
         isActive: wh.enabled,
       }));
 
-      const res = await fetch("/api/v1/admin/clinicas/crear", {
+      const res = await fetch(`${ADMIN_API_BASE}/api/v1/admin/clinicas/crear`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -382,7 +383,7 @@ export default function CrearClinicaPage() {
           .filter((p) => p.firstName || p.phone);
 
         if (patients.length > 0) {
-          const importRes = await fetch(`/api/v1/admin/clinicas/${tenantId}/import-patients`, {
+          const importRes = await fetch(`${ADMIN_API_BASE}/api/v1/admin/clinicas/${tenantId}/import-patients`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

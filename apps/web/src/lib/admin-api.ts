@@ -4,7 +4,7 @@
  * All requests go to /api/v1/admin/*
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
+export const ADMIN_API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export class AdminApiError extends Error {
   constructor(
@@ -31,7 +31,7 @@ export async function adminFetch<T = unknown>(
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(`${ADMIN_API_BASE}${path}`, {
     ...rest,
     headers,
     credentials: "include",

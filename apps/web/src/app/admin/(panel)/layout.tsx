@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 const NAV_ITEMS = [
   {
@@ -74,7 +75,7 @@ export default function AdminPanelLayout({ children }: { children: React.ReactNo
     }
 
     // Verify token
-    fetch(`/api/v1/admin/auth/me`, {
+    fetch(`${ADMIN_API_BASE}/api/v1/admin/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => {

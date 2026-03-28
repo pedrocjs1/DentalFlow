@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 interface Tenant {
   id: string;
@@ -66,7 +67,7 @@ export default function AdminClinicasPage() {
 
     try {
       const res = await fetch(
-        `/api/v1/admin/tenants?${params}`,
+        `${ADMIN_API_BASE}/api/v1/admin/tenants?${params}`,
         { headers: { Authorization: `Bearer ${getToken()}` } }
       );
       const data = await res.json();
@@ -93,7 +94,7 @@ export default function AdminClinicasPage() {
     setImpersonating(tenantId);
     try {
       const res = await fetch(
-        `/api/v1/admin/tenants/${tenantId}/impersonate`,
+        `${ADMIN_API_BASE}/api/v1/admin/tenants/${tenantId}/impersonate`,
         { method: "POST", headers: { Authorization: `Bearer ${getToken()}` } }
       );
       const data = await res.json();

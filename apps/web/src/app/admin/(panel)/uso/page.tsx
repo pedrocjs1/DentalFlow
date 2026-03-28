@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ADMIN_API_BASE } from "@/lib/admin-api";
 
 interface UsageRow {
   tenantId: string;
@@ -55,7 +56,7 @@ export default function AdminUsoPage() {
   useEffect(() => {
     setLoading(true);
     fetch(
-      `/api/v1/admin/usage?period=${period}`,
+      `${ADMIN_API_BASE}/api/v1/admin/usage?period=${period}`,
       { headers: { Authorization: `Bearer ${getToken()}` } }
     )
       .then((r) => r.json())
