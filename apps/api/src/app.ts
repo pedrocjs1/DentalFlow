@@ -25,18 +25,14 @@ export async function buildApp() {
     crossOriginEmbedderPolicy: false, // Can break loading external resources
   });
 
-  // CORS — strict origin
-  const corsOrigins = process.env.NODE_ENV === 'production'
-    ? [
-        'https://dentiqa.app',
-        'https://dashboard.dentiqa.app',
-        'https://admin.dentiqa.app',
-      ]
-    : [
-        'http://localhost:3000',
-        'http://localhost:3002',
-      ];
-  // Always include APP_URL if set (covers ngrok in dev, custom domains in prod)
+  // CORS — always include production domains + localhost for dev
+  const corsOrigins = [
+    'https://dentiqa.app',
+    'https://dashboard.dentiqa.app',
+    'https://admin.dentiqa.app',
+    'http://localhost:3000',
+    'http://localhost:3002',
+  ];
   if (process.env.APP_URL) corsOrigins.push(process.env.APP_URL);
 
   await app.register(cors, {
