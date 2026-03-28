@@ -1242,7 +1242,7 @@ function WhatsAppConfig() {
 
   async function handleEmbeddedSignup() {
     const appId = process.env.NEXT_PUBLIC_WHATSAPP_APP_ID;
-    const configId = process.env.NEXT_PUBLIC_WHATSAPP_CONFIG_ID;
+    const configId = process.env.NEXT_PUBLIC_WHATSAPP_CONFIGURATION_ID;
 
     if (!appId || !configId) {
       showToast({ type: "error", message: "WhatsApp Embedded Signup no está configurado. Contactá al soporte." });
