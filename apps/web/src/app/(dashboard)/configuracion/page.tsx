@@ -1259,6 +1259,7 @@ function WhatsAppConfig() {
       const result = await new Promise<{ authResponse?: { code?: string; accessToken?: string } }>((resolve, reject) => {
         window.FB.login(
           (response: { authResponse?: { code?: string; accessToken?: string } }) => {
+            console.log("[EmbeddedSignup] FB.login response:", JSON.stringify(response));
             if (response.authResponse?.code) {
               resolve(response);
             } else {
@@ -1272,7 +1273,7 @@ function WhatsAppConfig() {
             extras: {
               setup: {},
               featureType: "",
-              sessionInfoVersion: "3",
+              sessionInfoVersion: "2",
             },
           }
         );

@@ -77,6 +77,10 @@ export async function createSubscription(params: {
   const planName = PLAN_NAMES[params.plan] ?? "Dentiqa Professional";
   const arsAmount = await getPlanAmountArs(params.plan);
 
+  const notificationUrl = process.env.API_URL
+    ? `${process.env.API_URL}/api/v1/webhooks/mercadopago`
+    : undefined;
+
   const body = {
     reason: planName,
     auto_recurring: {
@@ -88,6 +92,7 @@ export async function createSubscription(params: {
     payer_email: params.payerEmail,
     back_url: params.backUrl,
     external_reference: params.tenantId,
+    ...(notificationUrl ? { notification_url: notificationUrl } : {}),
     status: "pending", // pending until user pays
   };
 

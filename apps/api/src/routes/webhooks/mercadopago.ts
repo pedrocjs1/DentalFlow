@@ -1,8 +1,45 @@
 import type { FastifyInstance } from "fastify";
+import { createHmac, timingSafeEqual } from "crypto";
 import { prisma } from "@dentiqa/db";
 import { createNotification } from "../../services/notifications.js";
 import { isMercadoPagoConfigured, getSubscriptionStatus, getPaymentById } from "../../services/mercadopago.js";
 import { logSecurityEvent } from "../../services/security-logger.js";
+
+/**
+ * Verify Mercado Pago webhook signature (x-signature header).
+ * See: https://www.mercadopago.com.ar/developers/es/docs/your-integrations/notifications/webhooks
+ */
+function verifyMpSignature(
+  xSignature: string | undefined,
+  xRequestId: string | undefined,
+  dataId: string,
+  secret: string
+): boolean {
+  if (!xSignature || !secret) return false;
+
+  // Parse ts and v1 from "ts=...,v1=..." header
+  const parts: Record<string, string> = {};
+  for (const part of xSignature.split(",")) {
+    const [key, ...valueParts] = part.split("=");
+    if (key && valueParts.length) {
+      parts[key.trim()] = valueParts.join("=").trim();
+    }
+  }
+
+  const ts = parts["ts"];
+  const v1 = parts["v1"];
+  if (!ts || !v1) return false;
+
+  // Build the manifest string as MP docs specify
+  const manifest = `id:${dataId};request-id:${xRequestId ?? ""};ts:${ts};`;
+  const hmac = createHmac("sha256", secret).update(manifest).digest("hex");
+
+  try {
+    return timingSafeEqual(Buffer.from(hmac), Buffer.from(v1));
+  } catch {
+    return false;
+  }
+}
 
 export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/v1/webhooks/mercadopago", {
@@ -16,6 +53,26 @@ export async function mercadoPagoWebhookRoutes(app: FastifyInstance): Promise<vo
         action?: string;
         data?: { id?: string };
       };
+
+      // Validate x-signature if MP_WEBHOOK_SECRET is configured
+      const mpSecret = process.env.MP_WEBHOOK_SECRET;
+      if (mpSecret) {
+        const xSignature = request.headers["x-signature"] as string | undefined;
+        const xRequestId = request.headers["x-request-id"] as string | undefined;
+        const dataId = body?.data?.id ?? "";
+
+        if (!verifyMpSignature(xSignature, xRequestId, dataId, mpSecret)) {
+          app.log.warn(`[mp-webhook] Invalid signature`);
+          await logSecurityEvent({
+            type: "WEBHOOK_INVALID_SIGNATURE",
+            endpoint: "/api/v1/webhooks/mercadopago",
+            details: "x-signature validation failed",
+            ip: request.ip,
+            severity: "HIGH",
+          });
+          return reply.status(401).send({ error: "Invalid signature" });
+        }
+      }
 
       if (!body?.type || !body?.data?.id) {
         return reply.status(200).send({ received: true });

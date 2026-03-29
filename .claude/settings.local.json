@@ -33,7 +33,31 @@
       "Bash(find 'C:\\\\Users\\\\pedro\\\\OneDrive\\\\Desktop\\\\Proyecto Agencia\\\\DentalFlow' -path *admin* -type f -name *.tsx -o -name *.ts)",
       "Bash(timeout 15 npx next dev -p 3002)",
       "Bash(npx next:*)",
-      "Bash(xargs sed:*)"
+      "Bash(xargs sed:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:[.icq8?v2.WFGBekWeWyVGcZyGZUD0Es]@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:%5B.icq8%3Fv2.WFGBekWeWyVGcZyGZUD0Es%5D@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:%5B.icq8%3Fv2.WFGBekWeWyVGcZyGZUD0Es%5D@aws-0-us-west-2.pooler.supabase.com:6543/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:%5B.icq8%3Fv2.WFGBekWeWyVGcZyGZUD0Es%5D@db.rlkbseoxiarotzbjznqw.supabase.co:5432/postgres\" npx prisma db push)",
+      "Bash(npm run:*)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:h5vp8yKObRXn8Ok4@aws-0-us-west-2.pooler.supabase.com:5432/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:h5vp8yKObRXn8Ok4@aws-0-us-west-2.pooler.supabase.com:6543/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:h5vp8yKObRXn8Ok4@db.rlkbseoxiarotzbjznqw.supabase.co:5432/postgres\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:h5vp8yKObRXn8Ok4@aws-0-us-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true\" npx prisma db seed)",
+      "Bash(DATABASE_URL=\"postgresql://postgres.rlkbseoxiarotzbjznqw:h5vp8yKObRXn8Ok4@aws-0-us-west-2.pooler.supabase.com:6543/postgres?pgbouncer=true\" npx tsx prisma/seed.ts)",
+      "Bash(openssl rand:*)",
+      "Bash(for pkg:*)",
+      "Bash(do echo:*)",
+      "Read(//c/Users/pedro/OneDrive/Desktop/Proyecto Agencia/Dentiqa/$pkg/**)",
+      "Bash(done)",
+      "Bash(curl:*)",
+      "Bash(find 'C:/Users/pedro/OneDrive/Desktop/Proyecto Agencia/Dentiqa' -name .env* -o -name *.env)",
+      "Bash(find 'C:/Users/pedro/OneDrive/Desktop/Proyecto Agencia/Dentiqa' -name *.prisma -o -path *migrations* -type d)",
+      "WebSearch",
+      "WebFetch(domain:developers.chatwoot.com)",
+      "WebFetch(domain:www.twilio.com)",
+      "WebFetch(domain:engineering.teknasyon.com)",
+      "WebFetch(domain:helpdocs.ycloud.com)",
+      "WebFetch(domain:chakrahq.com)"
     ]
   }
 }

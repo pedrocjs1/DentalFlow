@@ -232,11 +232,89 @@ ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 
 ---
 
+## PRODUCCIÓN — DEPLOY COMPLETADO (27/03/2026)
+
+### Infraestructura
+
+| Servicio | Plataforma | URL/Detalle |
+|----------|-----------|-------------|
+| PostgreSQL | Supabase (sa-east-1, us-west-2 pooler) | Proyecto "Dentiqa", 30+ tablas migradas |
+| API (Fastify) | Railway | api.dentiqa.app (Dockerfile multi-stage, node:20-alpine + tsx) |
+| Redis + BullMQ | Railway (mismo proyecto) | Addon Redis, URL interna |
+| Dashboard | Vercel | dashboard.dentiqa.app (apps/web, root: apps/web) |
+| Admin | Vercel (mismo deploy que dashboard) | admin.dentiqa.app (rewrite → /admin/*) |
+| Landing | Vercel (proyecto separado) | dentiqa.app (apps/landing, root: apps/landing) |
+| Storage (S3) | Supabase Storage | Bucket: patient-images, protocolo S3, endpoint propio |
+| DNS | Cloudflare | dentiqa.app, 5 registros (A root + CNAME www/dashboard/admin/api) |
+
+### Credenciales de producción (Super Admin)
+- Email: admin@dentiqa.app
+- Password: Dentiqa2026! (CAMBIAR en producción)
+
+### Credenciales demo (Clínica)
+- Email: admin@clinica-demo.com
+- Password: password123
+
+### DNS en Cloudflare (todos DNS only, nube gris)
+
+| Tipo | Nombre | Target |
+|------|--------|--------|
+| A | @ | 216.198.79.1 (Vercel) |
+| CNAME | www | 599b43ea7f0f3dd3.vercel-dns-017.com |
+| CNAME | dashboard | faf12bed34ae2d69.vercel-dns-017.com |
+| CNAME | admin | faf12bed34ae2d69.vercel-dns-017.com |
+| CNAME | api | zhyeabzt.up.railway.app |
+| TXT | _railway-verify... | railway-verify=673635f... |
+
+### Variables de entorno — Railway (API)
+
+NODE_ENV, DATABASE_URL (pooled 6543), REDIS_URL (interno Railway), JWT_SECRET, JWT_EXPIRES_IN, ENCRYPTION_KEY, ANTHROPIC_API_KEY, WHATSAPP_APP_ID, WHATSAPP_APP_SECRET, WHATSAPP_CONFIGURATION_ID, WHATSAPP_VERIFY_TOKEN, WHATSAPP_ENABLED, MP_ACCESS_TOKEN (producción), MP_PUBLIC_KEY (producción), APP_URL, API_URL, LANDING_URL, ADMIN_URL, RESEND_API_KEY, FROM_EMAIL, S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY, S3_SECRET_KEY, S3_BUCKET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+
+### Variables de entorno — Vercel (Dashboard + Landing)
+
+NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboard.dentiqa.app, NEXT_PUBLIC_LANDING_URL=https://dentiqa.app, NEXT_PUBLIC_MP_PUBLIC_KEY, NEXT_PUBLIC_WHATSAPP_APP_ID, NEXT_PUBLIC_WHATSAPP_CONFIGURATION_ID
+
+### Webhook URLs (producción)
+- WhatsApp: https://api.dentiqa.app/api/v1/webhooks/whatsapp (configurado en Meta)
+- Mercado Pago: https://api.dentiqa.app/api/v1/webhooks/mercadopago (PENDIENTE configurar)
+- Google Calendar: https://api.dentiqa.app/api/v1/gcal/callback (PENDIENTE)
+
+### Docker (Railway)
+- Dockerfile: apps/api/Dockerfile (multi-stage: builder + runner)
+- Builder: node:20-alpine, npm ci, prisma generate, tsc build
+- Runner: node:20-alpine + tsx (para resolver imports .ts de workspace packages en runtime)
+- Watch paths: apps/api/**, packages/**
+- Railway detecta PORT automáticamente (no setear PORT manualmente)
+
+### Fixes aplicados durante deploy
+1. binaryTargets en schema.prisma: ["native", "linux-musl-openssl-3.0.x"] para Alpine
+2. skipLibCheck: true en apps/api/tsconfig.json para SDK de Anthropic
+3. tsconfig.json raíz copiado en Dockerfile para resolver extends
+4. Prisma JSON types casteados a InputJsonValue en templates.ts
+5. tenantId cast a UncheckedCreateInput en medical-history.ts
+6. tsx como loader en Docker runner (workspace packages exportan .ts, no .js)
+7. bcryptjs v3 unificado entre packages/db y apps/api
+8. CORS incluye los 3 dominios de producción siempre (no solo en NODE_ENV=production)
+9. Admin API calls usan NEXT_PUBLIC_API_URL (no URLs relativas)
+10. Vercel rewrite: /api/v1/* desde admin.dentiqa.app pasa directo (no prefija /admin/)
+11. Health check usa singleton PrismaClient
+
+### Errores conocidos producción
+- DATABASE_URL sin espacios ni caracteres raros (causó "Database post  gres does not exist")
+- PORT no setear manualmente en Railway (Railway lo inyecta, si lo ponés puede conflictear)
+- Supabase Free plan pausa proyectos inactivos — reactivar antes de usar
+
+---
+
 ## PENDIENTE
 
-- Deploy a producción (Vercel + Railway + Supabase)
-- Google Calendar credenciales (código 100% listo, falta configurar OAuth consent screen en Google Cloud)
+- Mercado Pago: configurar webhook de producción en panel de desarrolladores
+- Google Calendar: configurar OAuth consent screen en Google Cloud + credenciales
+- Resend: verificar dominio dentiqa.app para enviar emails desde @dentiqa.app
+- Cambiar password del Super Admin en producción
 - Testing e2e automatizado
+- Actualizar URIs de redirección de Facebook Login (quitar ngrok, poner dentiqa.app)
+- Monitoreo y alertas en producción
 
 ---
 

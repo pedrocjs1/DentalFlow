@@ -1052,8 +1052,9 @@ function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-2.5">
-              <li><a href="https://www.violetwaveai.com/dentiqa/politica-de-privacidad" className="text-sm hover:text-white transition-colors">Política de privacidad</a></li>
-              <li><a href="#" className="text-sm hover:text-white transition-colors">Términos de servicio</a></li>
+              <li><a href="/legal/politica-de-privacidad" className="text-sm hover:text-white transition-colors">Política de privacidad</a></li>
+              <li><a href="/legal/terminos-de-servicio" className="text-sm hover:text-white transition-colors">Términos de servicio</a></li>
+              <li><a href="/legal/eliminacion-de-datos" className="text-sm hover:text-white transition-colors">Eliminación de datos</a></li>
             </ul>
           </div>
         </div>
