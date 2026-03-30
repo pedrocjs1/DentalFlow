@@ -3,6 +3,7 @@ import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
+import { requireRole } from "../../middleware/role-middleware.js";
 
 type CampaignType =
   | "MANUAL"
@@ -214,7 +215,7 @@ function buildPatientWhere(tenantId: string, filter: SegmentFilter) {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 
 export async function campaignRoutes(app: FastifyInstance): Promise<void> {
-  const preHandler = [authMiddleware, tenantMiddleware];
+  const preHandler = [authMiddleware, tenantMiddleware, requireRole("OWNER", "ADMIN", "RECEPTIONIST")];
 
   // GET /api/v1/campaigns — list campaigns with optional filters
   app.get("/api/v1/campaigns", {

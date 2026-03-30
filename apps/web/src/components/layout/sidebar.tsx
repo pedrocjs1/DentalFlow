@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { getUserRole, filterNavItems, canAccessRoute, isManagerRole } from "@/lib/permissions";
 import {
   LayoutDashboard,
   Calendar,
@@ -33,7 +34,23 @@ const bottomNav = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [role, setRole] = useState<string>("OWNER");
+
+  useEffect(() => {
+    setRole(getUserRole());
+  }, []);
+
+  const visibleNav = useMemo(() => filterNavItems(navigation, role), [role]);
+  const visibleBottom = useMemo(() => filterNavItems(bottomNav, role), [role]);
+
+  // Redirect if current route is not allowed for this role
+  useEffect(() => {
+    if (pathname && !canAccessRoute(role, pathname) && pathname !== "/login") {
+      router.replace("/dashboard");
+    }
+  }, [pathname, role, router]);
 
   const sidebarContent = (
     <>
@@ -52,7 +69,7 @@ export function Sidebar() {
         <p className="px-3 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">
           Menu
         </p>
-        {navigation.map((item) => {
+        {visibleNav.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (
@@ -81,7 +98,7 @@ export function Sidebar() {
 
       {/* Bottom section */}
       <div className="px-3 pb-3 space-y-1 border-t border-gray-100 pt-3 flex-shrink-0">
-        {bottomNav.map((item) => {
+        {visibleBottom.map((item) => {
           const isActive =
             pathname === item.href || pathname.startsWith(item.href + "/");
           return (

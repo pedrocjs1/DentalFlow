@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Phone, Mail, Calendar, Tag, AlertTriangle, Shield,
   ClipboardList, Stethoscope, FileText, HeartPulse, Camera, FileCheck, BarChart3, Copy, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getUserRole, canSeePatientTab } from "@/lib/permissions";
 import { Odontogram } from "@/components/clinical/odontogram/odontogram";
 import { MedicalHistoryForm } from "@/components/clinical/medical-history/medical-history-form";
 import { TreatmentPlanView } from "@/components/clinical/treatment-plan/treatment-plan";
@@ -18,7 +19,7 @@ import { DocumentsTab } from "@/components/clinical/documents/documents-tab";
 
 type Tab = "resumen" | "odontograma" | "periodoncia" | "tratamiento" | "evoluciones" | "historia" | "imagenes" | "documentos";
 
-const TABS: { value: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const ALL_TABS: { value: Tab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { value: "resumen", label: "Resumen", icon: BarChart3 },
   { value: "odontograma", label: "Odontograma", icon: Stethoscope },
   { value: "periodoncia", label: "Periodontograma", icon: BarChart3 },
@@ -84,6 +85,9 @@ export function PatientDetailClient({
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("resumen");
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [role, setRole] = useState<string>("OWNER");
+  useEffect(() => { setRole(getUserRole()); }, []);
+  const TABS = useMemo(() => ALL_TABS.filter((t) => canSeePatientTab(role, t.value)), [role]);
 
   const fullName = patient.lastName ? `${patient.firstName} ${patient.lastName}` : patient.firstName;
   const initials = (`${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`).toUpperCase() || "?";

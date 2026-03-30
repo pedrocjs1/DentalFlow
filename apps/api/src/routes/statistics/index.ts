@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
+import { requireRole } from "../../middleware/role-middleware.js";
 
 type UserPayload = { tenantId: string; sub: string };
 
@@ -27,7 +28,7 @@ function getPreviousPeriodStart(period: string, periodStart: Date): Date {
 }
 
 export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
-  const preHandler = [authMiddleware, tenantMiddleware];
+  const preHandler = [authMiddleware, tenantMiddleware, requireRole("OWNER", "ADMIN")];
 
   // ─── Overview ─────────────────────────────────────────────────────────────
   app.get("/api/v1/statistics/overview", {

@@ -4,6 +4,7 @@ import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { createNotification } from "../../services/notifications.js";
+import { requireRole } from "../../middleware/role-middleware.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ function buildPatientCardSelect(now: Date) {
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
-  const preHandler = [authMiddleware, tenantMiddleware];
+  const preHandler = [authMiddleware, tenantMiddleware, requireRole("OWNER", "ADMIN", "RECEPTIONIST")];
 
   // GET full pipeline board: stages with their patients
   app.get("/api/v1/pipeline", {

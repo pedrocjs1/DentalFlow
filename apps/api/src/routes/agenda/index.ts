@@ -19,6 +19,8 @@ export async function agendaRoutes(app: FastifyInstance): Promise<void> {
           color: true,
           specialty: true,
           birthdate: true,
+          email: true,
+          userId: true,
           treatments: { select: { treatmentTypeId: true } },
         },
         orderBy: { name: "asc" },

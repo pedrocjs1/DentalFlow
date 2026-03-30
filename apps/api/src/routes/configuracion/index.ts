@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
+import { requireRole } from "../../middleware/role-middleware.js";
 
 // ─── User limit per plan ──────────────────────────────────────────────────────
 
@@ -59,6 +60,7 @@ const botConfigSchema = z
 
 export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
+  const managerOnly = [authMiddleware, tenantMiddleware, requireRole("OWNER", "ADMIN")];
 
   // ─── Bot config endpoints ─────────────────────────────────────────────────
 
@@ -101,7 +103,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // PUT bot config
   app.put("/api/v1/configuracion/bot", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request) => {
       const user = request.user as { tenantId: string };
       const parsed = botConfigSchema.safeParse(request.body);
@@ -204,7 +206,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // PUT clinic settings
   app.put("/api/v1/configuracion/clinica", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request) => {
       const user = request.user as { tenantId: string };
       const body = request.body as {
@@ -267,7 +269,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // PUT working hours (bulk upsert)
   app.put("/api/v1/configuracion/working-hours", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request, reply) => {
       const user = request.user as { tenantId: string };
       const body = request.body as Array<{
@@ -326,7 +328,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // POST invite team member
   app.post("/api/v1/configuracion/equipo", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request, reply) => {
       const user = request.user as { tenantId: string };
       const body = request.body as {
@@ -377,7 +379,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // PATCH team member
   app.patch("/api/v1/configuracion/equipo/:id", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request) => {
       const user = request.user as { tenantId: string };
       const { id } = request.params as { id: string };
@@ -413,7 +415,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
   // DELETE (deactivate) team member
   app.delete("/api/v1/configuracion/equipo/:id", {
-    preHandler,
+    preHandler: managerOnly,
     handler: async (request, reply) => {
       const user = request.user as { tenantId: string };
       const { id } = request.params as { id: string };

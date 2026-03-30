@@ -93,6 +93,8 @@ export interface AgendaDentist {
   color: string;
   specialty: string | null;
   birthdate?: string | null;
+  email?: string | null;
+  userId?: string | null;
   treatmentIds?: string[];
 }
 

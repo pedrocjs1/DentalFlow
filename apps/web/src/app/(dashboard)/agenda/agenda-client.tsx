@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ChevronLeft, ChevronRight, Calendar, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { getStoredUser } from "@/lib/permissions";
 import { CalendarGrid } from "@/components/agenda/calendar-grid";
 import { CreateAppointmentModal } from "@/components/agenda/create-appointment-modal";
 import { AppointmentDetailModal } from "@/components/agenda/appointment-detail-modal";
@@ -41,6 +42,21 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
   const [dentistHours, setDentistHours] = useState<Array<WorkingHoursEntry & { dentistId: string }>>([]);
   const [googleBlockedSlots, setGoogleBlockedSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Auto-lock to own dentist profile for DENTIST role
+  const [isDentistLocked, setIsDentistLocked] = useState(false);
+  useEffect(() => {
+    const user = getStoredUser();
+    if (user?.role === "DENTIST") {
+      const match = initialDentists.find(
+        (d) => d.userId === user.id || d.email === user.email
+      );
+      if (match) {
+        setSelectedDentistId(match.id);
+        setIsDentistLocked(true);
+      }
+    }
+  }, [initialDentists]);
 
   // Modals
   const [createOpen, setCreateOpen] = useState(false);
@@ -220,7 +236,7 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
         </div>
 
         {/* Dentist filter */}
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-2 ${isDentistLocked ? "opacity-60 pointer-events-none" : ""}`}>
           <button
             onClick={() => setSelectedDentistId(null)}
             className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
