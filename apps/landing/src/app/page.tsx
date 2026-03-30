@@ -647,7 +647,7 @@ function ExtraFeatures() {
 
 function Comparison() {
   const rows = [
-    { feature: "Chatbot IA WhatsApp", df: true, dentalink: false, kommo: false, excel: false },
+    { feature: "Chatbot IA por WhatsApp", df: true, dentalink: false, kommo: false, excel: false },
     { feature: "Odontograma digital", df: true, dentalink: true, kommo: false, excel: false },
     { feature: "Periodontograma", df: true, dentalink: true, kommo: false, excel: false },
     { feature: "Pipeline CRM", df: true, dentalink: false, kommo: true, excel: false },
@@ -656,7 +656,6 @@ function Comparison() {
     { feature: "Estadísticas avanzadas", df: true, dentalink: true, kommo: true, excel: false },
     { feature: "Campañas WhatsApp", df: true, dentalink: false, kommo: true, excel: false },
     { feature: "Google Calendar sync", df: true, dentalink: false, kommo: false, excel: false },
-    { feature: "IA conversacional", df: true, dentalink: false, kommo: false, excel: false },
   ];
 
   const Tick = () => <Check className="h-4 w-4 text-emerald-500 mx-auto" />;
@@ -679,7 +678,7 @@ function Comparison() {
                   <th className="px-3 py-3 text-xs font-semibold text-primary-600 bg-primary-50/50">Dentiqa</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-500">Dentalink</th>
                   <th className="px-3 py-3 text-xs font-semibold text-gray-500">Kommo CRM</th>
-                  <th className="px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Excel+WA</th>
+                  <th className="px-3 py-3 text-xs font-semibold text-gray-500 hidden sm:table-cell">Sin sistema</th>
                 </tr>
               </thead>
               <tbody>
@@ -694,7 +693,7 @@ function Comparison() {
                 ))}
                 <tr className="bg-gray-50 border-t-2 border-gray-200">
                   <td className="px-4 py-3 font-bold text-gray-900 text-xs">Precio</td>
-                  <td className="px-3 py-3 font-bold text-primary-700 text-xs text-center bg-primary-50/50">Desde USD 99/mes</td>
+                  <td className="px-3 py-3 font-bold text-primary-700 text-xs text-center bg-primary-50/50">Desde USD 89/mes</td>
                   <td className="px-3 py-3 text-gray-500 text-xs text-center">~USD 150/mes</td>
                   <td className="px-3 py-3 text-gray-500 text-xs text-center">~USD 100/mes</td>
                   <td className="px-3 py-3 text-gray-500 text-xs text-center hidden sm:table-cell">&quot;Gratis&quot;</td>
@@ -702,6 +701,9 @@ function Comparison() {
               </tbody>
             </table>
           </div>
+          <p className="text-[11px] text-gray-400 mt-3 text-center">
+            * Comparación basada en funcionalidades estándar. Los resultados pueden variar según la implementación.
+          </p>
         </ScrollAnimate>
       </div>
     </section>
@@ -714,12 +716,13 @@ function Pricing() {
   const plans = [
     {
       name: "Starter",
-      usd: 99,
-      localApprox: "140.000",
-      ideal: "Odontólogo independiente",
+      usd: 89,
+      localApprox: "125.000",
+      ideal: "Clínicas pequeñas",
       popular: false,
+      badges: [] as string[],
       features: [
-        "2 dentistas",
+        "5 usuarios",
         "2,000 mensajes WhatsApp/mes",
         "2,000 interacciones IA/mes",
         "Odontograma + Periodontograma",
@@ -730,15 +733,15 @@ function Pricing() {
     },
     {
       name: "Professional",
-      usd: 199,
-      localApprox: "280.000",
-      ideal: "Clínica mediana (<5 sillones)",
+      usd: 149,
+      localApprox: "210.000",
+      ideal: "Clínicas medianas",
       popular: true,
+      badges: ["Funcionalidades Starter +"],
       features: [
-        "Dentistas ilimitados",
+        "10 usuarios",
         "5,000 mensajes WhatsApp/mes",
         "5,000 interacciones IA/mes",
-        "Todo lo de Starter +",
         "Google Calendar sync",
         "Campañas de marketing",
         "Estadísticas avanzadas",
@@ -748,19 +751,17 @@ function Pricing() {
     },
     {
       name: "Enterprise",
-      usd: 299,
-      localApprox: "420.000",
-      ideal: "Clínica grande (5+ sillones)",
+      usd: 249,
+      localApprox: "350.000",
+      ideal: "Clínicas grandes",
       popular: false,
+      badges: ["Funcionalidades Starter +", "Funcionalidades Professional +"],
       features: [
-        "Dentistas ilimitados",
+        "Usuarios ilimitados",
         "10,000 mensajes WhatsApp/mes",
         "10,000 interacciones IA/mes",
-        "Todo lo de Professional +",
         "Multi-clínica (próximamente)",
-        "API acceso",
-        "Onboarding personalizado",
-        "Soporte dedicado",
+        "Acceso temprano a nuevas funcionalidades",
       ],
     },
   ];
@@ -800,14 +801,25 @@ function Pricing() {
                     <p className="text-xs text-gray-400 mt-0.5">≈ $ {plan.localApprox} ARS/mes 🇦🇷</p>
                   </div>
                 </div>
-                <ul className="space-y-3 mb-8 flex-1">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm text-gray-600">
-                      <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
-                      {f}
-                    </li>
-                  ))}
-                </ul>
+                <div className="mb-8 flex-1">
+                  {plan.badges.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {plan.badges.map((b) => (
+                        <span key={b} className="inline-flex items-center text-[11px] font-medium text-primary-700 bg-primary-50 border border-primary-100 px-2 py-0.5 rounded-full">
+                          {b}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <ul className="space-y-3">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5 text-sm text-gray-600">
+                        <Check className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
                 <a
                   href={APP_URL}
                   className={`block text-center text-sm font-semibold py-3 rounded-lg transition-all ${
@@ -823,11 +835,45 @@ function Pricing() {
           ))}
         </div>
 
-        <ScrollAnimate className="text-center mt-10 space-y-3">
-          <div className="inline-block bg-gray-50 rounded-xl border border-gray-200 px-5 py-3 mb-3">
-            <p className="text-sm font-medium text-gray-700">+ Setup de implementación: <strong>USD 499</strong> (pago único)</p>
-            <p className="text-xs text-gray-500 mt-0.5">Incluye configuración, importación de datos y capacitación</p>
+        <ScrollAnimate className="mt-12 max-w-3xl mx-auto">
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl border border-gray-200 p-6 sm:p-8">
+            <div className="text-center mb-5">
+              <h3 className="text-lg font-bold text-gray-900">Implementación integral</h3>
+              <p className="text-sm text-gray-500 mt-1">Te acompañamos en cada paso para que tu clínica funcione al 100% desde el día uno</p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-2.5 mb-6">
+              {[
+                "Configuración completa de la plataforma",
+                "Migración de datos desde tu sistema anterior",
+                "Configuración de usuarios y permisos",
+                "Configuración de WhatsApp Business con IA",
+                "Personalización del chatbot para tu clínica",
+                "Capacitación del equipo",
+                "Configuración de agenda y profesionales",
+                "Soporte prioritario durante el primer mes",
+                "Integración con Google Calendar",
+              ].map((item) => (
+                <div key={item} className="flex items-start gap-2 text-sm text-gray-600">
+                  <Check className="h-4 w-4 text-primary-500 flex-shrink-0 mt-0.5" />
+                  {item}
+                </div>
+              ))}
+            </div>
+            <div className="text-center">
+              <a
+                href={WA_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-primary-600 hover:text-primary-700 transition-colors"
+              >
+                Contactanos para más información
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 8l4 4m0 0l-4 4m4-4H3" /></svg>
+              </a>
+            </div>
           </div>
+        </ScrollAnimate>
+
+        <ScrollAnimate className="text-center mt-8 space-y-3">
           <p className="text-sm text-gray-500 max-w-2xl mx-auto">
             14 días gratis. Sin tarjeta de crédito. Cancelá cuando quieras. Pagá con Mercado Pago.
           </p>

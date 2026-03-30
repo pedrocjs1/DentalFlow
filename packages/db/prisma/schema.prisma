@@ -998,7 +998,7 @@ model Subscription {
   stripeSubscriptionId String?
 
   // Setup fee (one-time implementation payment)
-  setupFeeAmount    Float     @default(499)   // USD
+  setupFeeAmount    Float     @default(1000)  // USD
   setupFeePaid      Boolean   @default(false)
   setupFeePaymentId String?
   setupFeePaidAt    DateTime?

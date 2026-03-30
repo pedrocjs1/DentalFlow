@@ -61,12 +61,12 @@ export function roundToNice(amount: number): number {
 
 // USD prices — single source of truth
 export const PLAN_PRICES_USD: Record<string, number> = {
-  STARTER: 99,
-  PROFESSIONAL: 199,
-  ENTERPRISE: 299,
+  STARTER: 89,
+  PROFESSIONAL: 149,
+  ENTERPRISE: 249,
 };
 
-export const SETUP_FEE_USD = 499;
+export const SETUP_FEE_USD = 1000;
 
 export interface PricingResult {
   currency: { code: string; symbol: string; name: string; flag: string };

@@ -2399,18 +2399,18 @@ interface BillingInfo {
 const PLAN_INFO: Record<string, { name: string; usd: number; features: string[] }> = {
   STARTER: {
     name: "Starter",
-    usd: 99,
-    features: ["2 dentistas", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
+    usd: 89,
+    features: ["5 usuarios", "2,000 msgs WhatsApp/mes", "2,000 interacciones IA/mes"],
   },
   PROFESSIONAL: {
     name: "Professional",
-    usd: 199,
-    features: ["Dentistas ilimitados", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
+    usd: 149,
+    features: ["10 usuarios", "5,000 msgs WhatsApp/mes", "5,000 interacciones IA/mes"],
   },
   ENTERPRISE: {
     name: "Enterprise",
-    usd: 299,
-    features: ["Dentistas ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
+    usd: 249,
+    features: ["Usuarios ilimitados", "10,000 msgs WhatsApp/mes", "10,000 interacciones IA/mes"],
   },
 };
 
@@ -2630,7 +2630,7 @@ function TabFacturacion() {
                   <Button
                     onClick={() => {
                       if (billing?.mpConfigured) {
-                        if (status === "TRIALING" || status === "CANCELLED") {
+                        if (status === "TRIALING" || status === "TRIAL_EXPIRED" || status === "CANCELLED") {
                           handleCreateSubscription(key);
                         } else {
                           handleChangePlan(key);
@@ -2639,11 +2639,15 @@ function TabFacturacion() {
                         handleChangePlan(key);
                       }
                     }}
-                    disabled={key === plan || actionLoading}
+                    disabled={(key === plan && status === "ACTIVE") || actionLoading}
                     className="w-full mt-4 text-sm"
-                    variant={key === plan ? "outline" : "default"}
+                    variant={key === plan && status === "ACTIVE" ? "outline" : "default"}
                   >
-                    {key === plan ? "Plan actual" : "Seleccionar"}
+                    {key === plan && status === "ACTIVE"
+                      ? "Plan actual"
+                      : key === plan && (status === "TRIALING" || status === "TRIAL_EXPIRED")
+                        ? "Activar plan"
+                        : "Seleccionar"}
                   </Button>
                 </div>
               ))}

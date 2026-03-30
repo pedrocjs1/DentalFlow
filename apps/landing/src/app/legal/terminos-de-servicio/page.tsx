@@ -64,18 +64,18 @@ export default function TerminosDeServicio() {
       <h2>4. Planes y Precios</h2>
       <h3>4.1 Planes disponibles</h3>
       <ul>
-        <li><strong>Starter (USD 99/mes):</strong> hasta 2 dentistas, 2.000 mensajes WhatsApp/mes, 2.000 interacciones
-          IA/mes. Ideal para odontólogos independientes.</li>
-        <li><strong>Professional (USD 199/mes):</strong> dentistas ilimitados, 5.000 mensajes WhatsApp/mes, 5.000
+        <li><strong>Starter (USD 89/mes):</strong> hasta 5 usuarios, 2.000 mensajes WhatsApp/mes, 2.000 interacciones
+          IA/mes. Ideal para clínicas pequeñas.</li>
+        <li><strong>Professional (USD 149/mes):</strong> hasta 10 usuarios, 5.000 mensajes WhatsApp/mes, 5.000
           interacciones IA/mes. Ideal para clínicas medianas.</li>
-        <li><strong>Enterprise (USD 299/mes):</strong> dentistas ilimitados, 10.000 mensajes WhatsApp/mes, 10.000
+        <li><strong>Enterprise (USD 249/mes):</strong> usuarios ilimitados, 10.000 mensajes WhatsApp/mes, 10.000
           interacciones IA/mes. Ideal para clínicas grandes.</li>
       </ul>
 
       <h3>4.2 Fee de configuración</h3>
       <p>
-        Se aplica un fee de configuración único de USD 499 que incluye la puesta en marcha de la plataforma, migración
-        de datos y capacitación inicial. Este fee puede ser eximido a discreción de la empresa.
+        Se aplica un fee de configuración único que incluye la puesta en marcha de la plataforma, migración
+        de datos y capacitación inicial. El monto se informa durante el proceso de contratación. Este fee puede ser eximido a discreción de la empresa.
       </p>
 
       <h3>4.3 Facturación</h3>

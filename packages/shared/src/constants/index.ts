@@ -12,16 +12,16 @@ export const WHATSAPP_API_VERSION = "v21.0";
 
 // Plan pricing (USD/month)
 export const PLAN_PRICES: Record<string, number> = {
-  STARTER: 99,
-  PROFESSIONAL: 199,
-  ENTERPRISE: 299,
+  STARTER: 89,
+  PROFESSIONAL: 149,
+  ENTERPRISE: 249,
 };
 
 // -1 means unlimited
-export const PLAN_LIMITS: Record<string, { whatsappMessages: number; aiInteractions: number; dentists: number }> = {
-  STARTER:      { whatsappMessages: 2000,  aiInteractions: 2000,  dentists: 2  },
-  PROFESSIONAL: { whatsappMessages: 5000,  aiInteractions: 5000,  dentists: -1 },
-  ENTERPRISE:   { whatsappMessages: 10000, aiInteractions: 10000, dentists: -1 },
+export const PLAN_LIMITS: Record<string, { whatsappMessages: number; aiInteractions: number; users: number }> = {
+  STARTER:      { whatsappMessages: 2000,  aiInteractions: 2000,  users: 5   },
+  PROFESSIONAL: { whatsappMessages: 5000,  aiInteractions: 5000,  users: 10  },
+  ENTERPRISE:   { whatsappMessages: 10000, aiInteractions: 10000, users: -1  },
 };
 
 // Extra block pricing
