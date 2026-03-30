@@ -6,17 +6,22 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { PatientCard, type PipelinePatient } from "./patient-card";
 import { DollarSign } from "lucide-react";
 
+/** Number of cards shown in full size before switching to compact tabs */
+const FULL_CARD_COUNT = 3;
+
 const PatientCardWrapper = memo(function PatientCardWrapper({
   patient,
   stageId,
+  compact,
   onPatientClick,
 }: {
   patient: PipelinePatient;
   stageId: string;
+  compact: boolean;
   onPatientClick: (patient: PipelinePatient, stageId: string) => void;
 }) {
   const handleClick = useCallback(() => onPatientClick(patient, stageId), [patient, stageId, onPatientClick]);
-  return <PatientCard patient={patient} onClick={handleClick} />;
+  return <PatientCard patient={patient} onClick={handleClick} compact={compact} />;
 });
 
 interface PipelineStage {
@@ -38,6 +43,9 @@ interface Props {
 export function PipelineColumn({ stage, onPatientClick, isOver }: Props) {
   const { setNodeRef } = useDroppable({ id: stage.id });
   const sortableItems = useMemo(() => stage.patients.map((p) => p.pipelineId), [stage.patients]);
+
+  // Show compact tabs when there are enough cards to overflow
+  const useCompact = stage.patients.length > FULL_CARD_COUNT + 2;
 
   return (
     <div className="flex-shrink-0 w-[272px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-200/80 overflow-hidden">
@@ -76,11 +84,12 @@ export function PipelineColumn({ stage, onPatientClick, isOver }: Props) {
           items={sortableItems}
           strategy={verticalListSortingStrategy}
         >
-          {stage.patients.map((patient) => (
+          {stage.patients.map((patient, index) => (
             <PatientCardWrapper
               key={patient.pipelineId}
               patient={patient}
               stageId={stage.id}
+              compact={useCompact && index >= FULL_CARD_COUNT}
               onPatientClick={onPatientClick}
             />
           ))}
