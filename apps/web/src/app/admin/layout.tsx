@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Dentiqa Admin",
   robots: { index: false, follow: false },
+  icons: { icon: "/favicon-admin.svg" },
 };
 
 export default function AdminRootLayout({ children }: { children: React.ReactNode }) {
