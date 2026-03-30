@@ -1,7 +1,6 @@
 "use client";
 
 import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { Phone, Clock, Tag, GripVertical, Calendar, MessageCircle } from "lucide-react";
 
 export interface PipelinePatient {
@@ -62,22 +61,28 @@ export function PatientCard({ patient, onClick, isDragging }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
     useSortable({ id: patient.pipelineId });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
+  // Build transform string safely — only use translate, skip scaleX/scaleY
+  // CSS.Transform.toString can produce invalid values like "scaleX(undefined)"
+  const transformStr = transform
+    ? `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
+    : undefined;
+
+  const style: React.CSSProperties = {
+    transform: transformStr,
     transition,
     opacity: isSortableDragging ? 0.4 : 1,
   };
 
-  const nextAppt = patient.appointments[0] ?? null;
-  const dentistColor = nextAppt?.dentist.color ?? "#e5e7eb";
+  const nextAppt = patient.appointments?.[0] ?? null;
+  const dentistColor = nextAppt?.dentist?.color ?? "#e5e7eb";
   const initials = `${patient.firstName?.[0] ?? ""}${patient.lastName?.[0] ?? ""}`.toUpperCase() || "?";
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md hover:scale-[1.01] transition-all duration-200 cursor-pointer select-none overflow-hidden ${
-        isDragging ? "shadow-lg ring-2 ring-primary-400 scale-[1.02]" : ""
+      className={`bg-white rounded-lg border border-gray-200/80 shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer select-none overflow-hidden ${
+        isDragging ? "shadow-lg ring-2 ring-primary-400" : ""
       }`}
       onClick={onClick}
     >
@@ -148,7 +153,7 @@ export function PatientCard({ patient, onClick, isDragging }: Props) {
             </div>
 
             {/* Tags */}
-            {patient.tags.length > 0 && (
+            {patient.tags?.length > 0 && (
               <div className="flex items-center gap-1 mt-1.5 flex-wrap pl-9">
                 <Tag className="h-3 w-3 text-gray-400 flex-shrink-0" />
                 {patient.tags.slice(0, 2).map((tag) => (

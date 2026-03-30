@@ -320,6 +320,10 @@ export function parseWebhookPayload(body: Record<string, unknown>): ParsedWebhoo
 
       for (const msg of rawMessages) {
         const type = msg.type as string;
+
+        // Skip system messages (e.g., Meta setup notifications, account prompts)
+        if (type === "system") continue;
+
         const incoming: IncomingMessage = {
           waMessageId: msg.id as string,
           from: msg.from as string,

@@ -2,11 +2,47 @@ import type { FastifyInstance } from "fastify";
 import {
   verifyWebhookSignature,
   parseWebhookPayload,
+  type IncomingMessage,
 } from "@dentiqa/messaging";
 import {
   processIncomingMessage,
   processStatusUpdate,
 } from "../../services/whatsapp-processor.js";
+
+// ─── Meta system message filter ─────────────────────────────────────────────
+// Meta/WhatsApp sends internal messages during Embedded Signup and account setup
+// (e.g., "Continue setting up your account" from +16465894168). These are not
+// real patient messages and should be silently ignored.
+
+const META_SYSTEM_PHONE_NUMBERS = new Set([
+  "16465894168",  // Meta/WhatsApp setup assistant
+]);
+
+const META_SYSTEM_TEXT_PATTERNS = [
+  /continue setting up your account/i,
+  /complete your business verification/i,
+  /your whatsapp business account/i,
+];
+
+function isMetaSystemMessage(msg: IncomingMessage, phoneNumberId: string): boolean {
+  const from = msg.from.replace(/^\+/, "");
+
+  // Check if sender is a known Meta system number
+  if (META_SYSTEM_PHONE_NUMBERS.has(from)) return true;
+
+  // Check if sender phone matches the business's own phone_number_id
+  // (Meta sometimes echoes back from the business number itself)
+  if (from === phoneNumberId) return true;
+
+  // Check for known Meta setup message patterns
+  if (msg.text) {
+    for (const pattern of META_SYSTEM_TEXT_PATTERNS) {
+      if (pattern.test(msg.text)) return true;
+    }
+  }
+
+  return false;
+}
 
 export async function whatsappWebhookRoutes(app: FastifyInstance): Promise<void> {
   // ─── GET: Webhook verification (Meta handshake) ─────────────────────────────
@@ -57,6 +93,15 @@ export async function whatsappWebhookRoutes(app: FastifyInstance): Promise<void>
       for (const entry of parsed) {
         // Process incoming messages
         for (const message of entry.messages) {
+          // Skip Meta/WhatsApp system messages (setup prompts, account notifications)
+          if (isMetaSystemMessage(message, entry.phoneNumberId)) {
+            app.log.info(
+              { from: message.from, type: message.type },
+              "Ignoring system/setup message from Meta"
+            );
+            continue;
+          }
+
           app.log.info(
             { waMessageId: message.waMessageId, from: message.from, type: message.type },
             "Incoming WhatsApp message"

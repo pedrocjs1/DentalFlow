@@ -225,6 +225,7 @@ export async function adminClinicaRoutes(app: FastifyInstance): Promise<void> {
           address?: string;
           notes?: string;
         }>;
+        addToPipeline?: boolean;
       };
 
       // Verify tenant exists
@@ -235,11 +236,14 @@ export async function adminClinicaRoutes(app: FastifyInstance): Promise<void> {
         throw new AppError(400, "INVALID_INPUT", "No se recibieron pacientes para importar");
       }
 
-      // Get "Nuevo Contacto" stage for pipeline
-      const defaultStage = await prisma.pipelineStage.findFirst({
-        where: { tenantId, isDefault: true },
-        select: { id: true },
-      });
+      // Only fetch pipeline stage if explicitly requested
+      const addToPipeline = body.addToPipeline === true;
+      const defaultStage = addToPipeline
+        ? await prisma.pipelineStage.findFirst({
+            where: { tenantId, isDefault: true },
+            select: { id: true },
+          })
+        : null;
 
       let imported = 0;
       let skipped = 0;
@@ -304,8 +308,8 @@ export async function adminClinicaRoutes(app: FastifyInstance): Promise<void> {
             },
           });
 
-          // Add to pipeline "Nuevo Contacto"
-          if (defaultStage) {
+          // Add to pipeline only if explicitly requested (addToPipeline: true)
+          if (addToPipeline && defaultStage) {
             await prisma.patientPipeline.create({
               data: {
                 patientId: patient.id,
