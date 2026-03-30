@@ -1530,19 +1530,28 @@ const ROLE_LABELS: Record<string, string> = {
   RECEPTIONIST: "Recepcionista",
 };
 
+const PLAN_LABELS: Record<string, string> = {
+  STARTER: "Starter",
+  PROFESSIONAL: "Professional",
+  ENTERPRISE: "Enterprise",
+};
+
 function TabEquipo() {
   const { toast, showToast } = useToast();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const [form, setForm] = useState<{ name: string; email: string; role: string; phone: string; password: string }>({
-    name: "", email: "", role: "RECEPTIONIST", phone: "", password: "",
-  });
+  const emptyForm = { name: "", email: "", role: "RECEPTIONIST", phone: "", password: "" };
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [userLimit, setUserLimit] = useState(5);
+  const [tenantPlan, setTenantPlan] = useState("STARTER");
 
   async function load() {
-    const d = await apiFetch<{ users: TeamMember[] }>("/api/v1/configuracion/equipo");
+    const d = await apiFetch<{ users: TeamMember[]; plan: string; userLimit: number }>("/api/v1/configuracion/equipo");
     setMembers(d.users);
+    setUserLimit(d.userLimit);
+    setTenantPlan(d.plan);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -1567,7 +1576,12 @@ function TabEquipo() {
       setEditingId(null);
       load();
     } catch (err: any) {
-      showToast({ type: "error", message: err?.code === "EMAIL_TAKEN" ? "Ya existe un usuario con ese email." : "Error al guardar." });
+      const msg = err?.code === "EMAIL_TAKEN"
+        ? "Ya existe un usuario con ese email."
+        : err?.code === "USER_LIMIT_REACHED"
+          ? err.message
+          : "Error al guardar.";
+      showToast({ type: "error", message: msg });
     } finally {
       setSaving(false);
     }
@@ -1586,9 +1600,30 @@ function TabEquipo() {
   return (
     <>
       <Toast toast={toast} />
+
+      {/* Downgrade warning banner */}
+      {!loading && members.length > userLimit && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-xl">
+          <p className="text-sm font-semibold text-yellow-800">
+            Tu plan {PLAN_LABELS[tenantPlan] ?? tenantPlan} permite un máximo de {userLimit} usuarios.
+            Actualmente tenés {members.length} usuarios activos.
+          </p>
+          <p className="text-xs text-yellow-600 mt-1">
+            Desactivá usuarios para volver al límite o cambiá a un plan superior.
+          </p>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-4">
-        <p className="text-sm text-gray-500">{members.length} miembros del equipo</p>
-        <Button size="sm" onClick={() => { setForm({ name: "", email: "", role: "RECEPTIONIST", phone: "", password: "" }); setEditingId("new"); }}>
+        <p className="text-sm text-gray-500">
+          {members.length}/{userLimit === 999 ? "∞" : userLimit} usuarios
+        </p>
+        <Button
+          size="sm"
+          onClick={() => { setForm({ ...emptyForm }); setEditingId("new"); }}
+          disabled={members.length >= userLimit}
+          title={members.length >= userLimit ? "Límite de usuarios alcanzado. Actualizá tu plan." : undefined}
+        >
           + Agregar usuario
         </Button>
       </div>
@@ -1627,14 +1662,14 @@ function TabEquipo() {
             <h3 className="text-base font-bold text-gray-900 mb-4">
               {editingId === "new" ? "Nuevo usuario" : "Editar usuario"}
             </h3>
-            <div className="space-y-3">
+            <form autoComplete="off" className="space-y-3" onSubmit={(e) => e.preventDefault()}>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Nombre *</label>
-                <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                <input type="text" autoComplete="new-name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Email *{editingId !== "new" && " (no editable)"}</label>
-                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={editingId !== "new"} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50" />
+                <input type="email" autoComplete="new-email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} disabled={editingId !== "new"} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Rol *</label>
@@ -1646,15 +1681,15 @@ function TabEquipo() {
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Teléfono</label>
-                <input type="tel" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                <input type="tel" autoComplete="new-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+54 11 1234-5678" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">
                   {editingId === "new" ? "Contraseña *" : "Nueva contraseña (dejar en blanco para no cambiar)"}
                 </label>
-                <input type="password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                <input type="password" autoComplete="new-password" value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
-            </div>
+            </form>
             <div className="flex justify-end gap-2 mt-5">
               <Button variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button>
               <Button onClick={save} disabled={saving || !form.name.trim() || !form.email.trim()}>

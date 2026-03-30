@@ -5,6 +5,18 @@ import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 
+// ─── User limit per plan ──────────────────────────────────────────────────────
+
+const USER_LIMITS: Record<string, number> = {
+  STARTER: 5,
+  PROFESSIONAL: 10,
+  ENTERPRISE: 999,
+};
+
+function getUserLimit(plan: string): number {
+  return USER_LIMITS[plan] ?? USER_LIMITS.STARTER;
+}
+
 // ─── Bot config validation schema ─────────────────────────────────────────────
 
 const botConfigSchema = z
@@ -299,12 +311,16 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
     preHandler,
     handler: async (request) => {
       const user = request.user as { tenantId: string };
-      const users = await prisma.user.findMany({
-        where: { tenantId: user.tenantId, isActive: true },
-        select: { id: true, name: true, email: true, role: true, phone: true, avatarUrl: true, createdAt: true },
-        orderBy: { name: "asc" },
-      });
-      return { users };
+      const [users, tenant] = await Promise.all([
+        prisma.user.findMany({
+          where: { tenantId: user.tenantId, isActive: true },
+          select: { id: true, name: true, email: true, role: true, phone: true, avatarUrl: true, createdAt: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { plan: true } }),
+      ]);
+      const plan = tenant?.plan ?? "STARTER";
+      return { users, plan, userLimit: getUserLimit(plan) };
     },
   });
 
@@ -320,6 +336,20 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
         phone?: string;
         password: string;
       };
+
+      // Check user limit for tenant's plan
+      const [activeCount, tenant] = await Promise.all([
+        prisma.user.count({ where: { tenantId: user.tenantId, isActive: true } }),
+        prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { plan: true } }),
+      ]);
+      const limit = getUserLimit(tenant?.plan ?? "STARTER");
+      if (activeCount >= limit) {
+        throw new AppError(
+          403,
+          "USER_LIMIT_REACHED",
+          `Tu plan permite un máximo de ${limit} usuarios. Actualizá tu plan para agregar más miembros.`
+        );
+      }
 
       const existing = await prisma.user.findUnique({
         where: { tenantId_email: { tenantId: user.tenantId, email: body.email } },
