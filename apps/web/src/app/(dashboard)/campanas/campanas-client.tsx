@@ -503,11 +503,11 @@ export function CampanasClient() {
     loadCampaigns();
   }, [loadCampaigns]);
 
-  // Polling: refresh campaigns every 30s when tab is visible
+  // Polling: refresh campaigns every 60s when tab is visible
   useEffect(() => {
     const interval = setInterval(() => {
       if (!document.hidden) loadCampaigns();
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [loadCampaigns]);
 

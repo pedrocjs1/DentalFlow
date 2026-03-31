@@ -77,11 +77,11 @@ export function PipelineBoard() {
     fetchPipeline();
   }, [fetchPipeline]);
 
-  // Polling: refresh every 8s when tab is visible (silent — no loading spinner)
+  // Polling: refresh every 60s when tab is visible (silent — no loading spinner)
   useEffect(() => {
     const interval = setInterval(() => {
       if (!document.hidden) fetchPipeline(true);
-    }, 8000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [fetchPipeline]);
 

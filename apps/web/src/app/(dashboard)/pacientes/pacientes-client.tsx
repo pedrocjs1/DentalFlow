@@ -47,12 +47,11 @@ export function PacientesClient({ data, search: initialSearch }: Props) {
     });
   }
 
-  // Polling: refresh data every 15s when tab is visible
+  // Refresh on window focus instead of constant polling
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (!document.hidden) router.refresh();
-    }, 15000);
-    return () => clearInterval(interval);
+    const onFocus = () => router.refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [router]);
 
   const totalPages = Math.ceil(data.total / data.limit);

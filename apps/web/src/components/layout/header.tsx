@@ -122,10 +122,10 @@ export function Header() {
   // Polling: counts every 10s + check ended appointments every 60s
   useEffect(() => {
     fetchCounts();
-    const countInterval = setInterval(() => { if (!document.hidden) fetchCounts(); }, 10000);
+    const countInterval = setInterval(() => { if (!document.hidden) fetchCounts(); }, 30000);
     const checkInterval = setInterval(() => {
       if (!document.hidden) apiFetch("/api/v1/notifications/check-ended-appointments").catch(() => {});
-    }, 60000);
+    }, 120000);
     // Initial check
     apiFetch("/api/v1/notifications/check-ended-appointments").catch(() => {});
     return () => { clearInterval(countInterval); clearInterval(checkInterval); };

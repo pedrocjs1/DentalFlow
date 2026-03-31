@@ -405,9 +405,10 @@ export function ConversacionesClient() {
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 
-  // Poll conversation list every 5 seconds for real-time updates
+  // Poll conversation list every 10 seconds for real-time updates
   useEffect(() => {
     const interval = setInterval(async () => {
+      if (document.hidden) return;
       try {
         const qs = new URLSearchParams();
         if (statusFilter !== "ALL") qs.set("status", statusFilter);
@@ -415,11 +416,11 @@ export function ConversacionesClient() {
         const data = await apiFetch<Conversation[]>(`/api/v1/conversations?${qs.toString()}`);
         setConversations(data);
       } catch { /* ignore polling errors */ }
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [statusFilter, debouncedSearch]);
 
-  // Poll active conversation messages every 3 seconds
+  // Poll active conversation messages every 5 seconds
   const activeConvIdRef = useRef<string | null>(null);
   useEffect(() => {
     activeConvIdRef.current = activeConv?.id ?? null;
@@ -428,6 +429,7 @@ export function ConversacionesClient() {
   useEffect(() => {
     if (!activeConv) return;
     const interval = setInterval(async () => {
+      if (document.hidden) return;
       const convId = activeConvIdRef.current;
       if (!convId) return;
       try {
@@ -438,7 +440,7 @@ export function ConversacionesClient() {
         setTotalPages(data.totalPages);
         setCurrentPage(1);
       } catch { /* ignore */ }
-    }, 3000);
+    }, 5000);
     return () => clearInterval(interval);
   }, [activeConv?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 

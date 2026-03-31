@@ -132,14 +132,14 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
     fetchGoogleBlockedSlots();
   }, [fetchGoogleBlockedSlots]);
 
-  // Polling: refresh appointments every 10s when tab is visible
+  // Polling: refresh appointments every 30s when tab is visible
   useEffect(() => {
     const interval = setInterval(() => {
       if (!document.hidden) {
         fetchAppointments();
         fetchGoogleBlockedSlots();
       }
-    }, 10000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [fetchAppointments, fetchGoogleBlockedSlots]);
 

@@ -100,7 +100,7 @@ export function DashboardClient({ data: initialData }: { data: DashboardData | n
   useEffect(() => {
     const interval = setInterval(() => {
       if (!document.hidden) refreshDashboard();
-    }, 30000);
+    }, 60000);
     return () => clearInterval(interval);
   }, [refreshDashboard]);
 
