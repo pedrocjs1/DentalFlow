@@ -1,10 +1,10 @@
-# CLAUDE.md — Dentiqa SaaS Platform (v1.0.0)
+# CLAUDE.md — Dentiqa SaaS Platform (v1.1.0)
 
 ## IDENTIDAD DEL PROYECTO
 
 Sos el CTO y desarrollador principal de Dentiqa, una plataforma SaaS todo-en-uno para clínicas dentales. Reemplaza Kommo CRM + Dentalink + herramientas de marketing en UNA SOLA plataforma propietaria con IA integrada. Empresa: **Violet Wave IA**. Dominio: **dentiqa.app**.
 
-- **Modelo de negocio:** SaaS mensual (USD 99–299/mes) + Setup Fee (USD 499 pago único). Trial 14 días gratis.
+- **Modelo de negocio:** SaaS mensual (USD 89–249/mes) + Setup Fee (USD 1000 pago único, no visible en landing). Trial 14 días gratis.
 - **Mercado:** Clínicas dentales en Latinoamérica (español, WhatsApp como canal principal).
 - **Pricing:** Precios en USD, conversión automática a moneda local por país (10 monedas LATAM).
 - **Costos:** UNA API key Anthropic para todos. WhatsApp via Embedded Signup (cada clínica conecta su WABA). Usage tracking por clínica.
@@ -22,10 +22,10 @@ MONOREPO
 └── CLAUDE.md, .env, env.production.example
 ```
 
-Frontend: Next.js 15 + shadcn/ui + Tailwind + Recharts | State: Zustand + TanStack Query
+Frontend: Next.js 15 + shadcn/ui + Tailwind + Recharts (lazy loaded) | State: Zustand + TanStack Query
 Backend: Fastify + TS + @fastify/helmet + @fastify/rate-limit + @fastify/jwt + fastify-raw-body
 DB: PostgreSQL (Supabase) + Prisma (30+ modelos) | Cache: Redis + BullMQ (graceful degradation)
-Auth: JWT dos niveles (clínica OWNER/ADMIN/DENTIST/RECEPTIONIST + SUPER_ADMIN) + login lockout
+Auth: JWT dos niveles (clínica OWNER/ADMIN/DENTIST/RECEPTIONIST + SUPER_ADMIN) + login lockout + permisos por rol
 IA: Anthropic claude-haiku-4-5-20251001 (principal) + claude-sonnet-4-20250514 (escalación)
 WA: Meta Cloud API + Embedded Signup | GCal: OAuth2 bidireccional
 Billing: Mercado Pago preapproval API (ARS) + exchange rates API
@@ -57,18 +57,51 @@ Webhooks producción:
 | Página | Ruta | Descripción |
 |--------|------|-------------|
 | Inicio | /dashboard | Métricas + widget uso mensual + próximas citas |
-| Agenda | /agenda | Calendario semanal/diario, multi-dentista, GCal integrado, drag-and-drop |
+| Agenda | /agenda | Calendario semanal/diario, multi-dentista, GCal integrado, drag-and-drop. Dentistas solo ven sus citas. |
 | Pacientes | /pacientes | Tabla + ficha profesional con 8 tabs (ver abajo) |
-| Pipeline | /pipeline | Kanban 8 stages, drag-and-drop, valor monetario, auto-config |
+| Pipeline | /pipeline | Kanban 8 stages, drag-and-drop, valor monetario, auto-config. UX expedientes (compact mode + hover expand). |
 | Campañas | /campanas | Wizard 4 pasos, 8 campañas default, 15 templates, segmentación |
-| Estadísticas | /estadisticas | 7 endpoints analytics, 6 gráficos Recharts, heatmap, filtro período |
+| Estadísticas | /estadisticas | 7 endpoints analytics, 6 gráficos Recharts (lazy loaded), heatmap, filtro período |
 | Conversaciones | /conversaciones | Inbox WhatsApp Web, burbujas, delivery status, toggle IA |
 | Configuración | /configuracion | 9 tabs: Clínica, Chatbot IA (5 sub-tabs), Profesionales, Tratamientos, Sillones, Pipeline, Integraciones, Facturación, Equipo |
+
+### Permisos por Rol (implementado 30/03/2026)
+
+| Sección | OWNER | ADMIN | DENTIST | RECEPTIONIST |
+|---------|-------|-------|---------|--------------|
+| Inicio | ✅ | ✅ | ✅ | ✅ |
+| Agenda | ✅ todas | ✅ todas | ✅ solo suya | ✅ todas |
+| Pacientes | ✅ todo | ✅ todo | ✅ todas las tabs clínicas | ✅ solo Resumen |
+| Pipeline | ✅ | ✅ | ❌ | ✅ |
+| Campañas | ✅ | ✅ | ❌ | ✅ |
+| Estadísticas | ✅ | ✅ | ❌ | ❌ |
+| Conversaciones | ✅ | ✅ | ✅ | ✅ |
+| Configuración | ✅ | ✅ | ❌ | ❌ |
+
+Backend: middleware requireRole() en rutas críticas.
+Frontend: permissions.ts con canAccessRoute(), filterNavItems(), canSeePatientTab().
+Agenda: DENTIST filtrado por dentistId directo del JWT (vinculación User.dentistId → Dentist).
+
+### Vinculación User ↔ Dentist (implementado 30/03/2026)
+
+- Campo User.dentistId (FK unique a Dentist)
+- Al crear User con rol DENTIST, se requiere seleccionar un profesional vinculado
+- En el formulario de Nuevo Profesional, opción "Crear usuario de acceso" que crea Dentist + User vinculados
+- Login incluye dentistId en JWT y localStorage
+
+### Límite de Usuarios por Plan (implementado 30/03/2026)
+
+- STARTER: máximo 5 usuarios
+- PROFESSIONAL: máximo 10 usuarios
+- ENTERPRISE: ilimitados (999)
+- Backend: getUserLimit() valida antes de crear usuario, error 403 si excede
+- Frontend: contador "X/Y usuarios" en sección Equipo
+- Downgrade: banner warning si usuarios > límite, no se desactivan automáticamente
 
 ### Ficha del Paciente — 8 Tabs
 
 1. **Resumen**: alertas médicas, stats cards, plan activo, próximas citas, timeline
-2. **Odontograma**: versionado (snapshot/restaurar), permanente/temporal (32 vs 20), diagnóstico por hallazgo
+2. **Odontograma**: DUAL VIEW (frontal + oclusal), versionado (snapshot/restaurar), permanente/temporal (32 vs 20), 5 zonas clickeables por diente, 13 tipos de hallazgo con colores
 3. **Periodontograma**: métricas BOP/NIC/placa, versionado, furca/supuración por sitio
 4. **Plan de Tratamiento**: múltiples planes, secciones/fases, descuento por ítem, subtotales/totales, estado dropdown
 5. **Evoluciones**: plantillas pre-llenables, firma digital (canvas), vinculación dentista/plan, timeline filtrable
@@ -85,6 +118,7 @@ Webhooks producción:
 - **Capa 3 — Sonnet**: escalación si Haiku falla (3x usage)
 - **Seguridad**: sanitizeForLLM() + detectPromptInjection() + reglas anti-injection en system prompt
 - **Debounce**: 10-20s configurable, processing lock, FRUSTRATION/HUMAN bypass
+- **Filtro mensajes sistema Meta**: ignora mensajes de setup/sistema de Meta (isMetaSystemMessage filter)
 
 ### Cron Jobs — BullMQ (5 workers)
 
@@ -102,12 +136,12 @@ Webhooks producción:
 
 ### Integraciones
 
-- **WhatsApp Cloud API**: Embedded Signup, webhook HMAC-SHA256, multi-WABA, text/template/buttons/list
+- **WhatsApp Cloud API**: Embedded Signup ✅ FUNCIONANDO, webhook HMAC-SHA256, multi-WABA, text/template/buttons/list
 - **Google Calendar**: OAuth2 por dentista, bidireccional, slots bloqueados, graceful degradation
 - **Mercado Pago**: preapproval API (suscripciones recurrentes ARS), webhook con verificación, dunning 3 intentos
 - **Meta Templates**: submit/check/sync vía API Graph, timeline de eventos, panel Super Admin
 
-### Estadísticas (Recharts)
+### Estadísticas (Recharts — lazy loaded)
 
 7 endpoints: overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap. Filtro por período (7d/30d/90d/12m). Comparación vs período anterior.
 
@@ -118,23 +152,24 @@ Webhooks producción:
 - 10 países LATAM con timezone automático
 - Auto-login con JWT + modal de bienvenida
 
-### Precios y Billing
+### Precios y Billing (ACTUALIZADO 30/03/2026)
 
 **Precios USD (source of truth):**
 
 | | STARTER | PROFESSIONAL | ENTERPRISE |
 |---|---|---|---|
-| Precio | USD 99/mes | USD 199/mes | USD 299/mes |
-| Perfil | Odontólogo independiente | Clínica mediana (<5 sillones) | Clínica grande (5+) |
+| Precio | USD 89/mes | USD 149/mes | USD 249/mes |
+| Perfil | Clínicas pequeñas | Clínicas medianas | Clínicas grandes |
 | WhatsApp msgs/mes | 2,000 | 5,000 | 10,000 |
 | IA interactions/mes | 2,000 | 5,000 | 10,000 |
-| Dentistas | 2 | Ilimitados | Ilimitados |
+| Usuarios | 5 | 10 | Ilimitados |
 
-- **Setup Fee**: USD 499 (pago único, waivable por admin)
+- **Setup Fee**: USD 1,000 (pago único, NO visible en landing — "Implementación integral" con 9 items de valor)
 - **Conversión**: API open.er-api.com con cache 6h + fallback + roundToNice()
 - **10 monedas**: ARS, CLP, COP, MXN, UYU, BRL, USD (Ecuador), PYG, BOB, PEN
 - **MP cobra en ARS**: conversión dinámica USD→ARS al crear suscripción
 - **Overage**: $20/1000 interacciones extra, nunca se bloquea al paciente
+- **Billing bug fix**: botón "Activar plan" habilitado en TRIALING/TRIAL_EXPIRED (antes estaba grisado)
 
 ### Trial y Lockout
 
@@ -144,6 +179,15 @@ Webhooks producción:
 - GET siempre permitido (read-only). Billing/auth/webhook/admin exentos.
 - TrialBanner en dashboard: azul (trial activo), naranja (vencido), rojo (past-due)
 - Cron job trial-expiration: cada hora
+
+### Pipeline — UX Expedientes (implementado 30/03/2026)
+
+- Primeras 3 tarjetas expandidas (nombre, teléfono, tags, próxima cita)
+- Resto comprimidas como pestañas de expediente (solo nombre + indicador color)
+- Hover expande la tarjeta con z-index alto y sombra
+- Se activa cuando hay >5 pacientes en una columna
+- Drag-and-drop funciona en ambos modos
+- CSV import NO crea entradas en pipeline (solo Patient). Pipeline entry se crea por WhatsApp, creación manual, o cita.
 
 ### Seguridad
 
@@ -167,22 +211,46 @@ Webhooks producción:
 - Seguridad (stats + logs filtrables) — polling 10s
 - Jobs (estado de BullMQ workers)
 
-### Landing Page (apps/landing — 14 secciones)
+### Landing Page (apps/landing — 14 secciones + SEO)
 
-Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + Extra Features grid (12 cards) + Tabla Comparativa 4 columnas + Precios USD con conversión local + Cómo Funciona (3 pasos) + Testimonios + FAQ (8 preguntas) + CTA Final (gradiente azul→violeta) + Footer + WhatsApp flotante
+Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + Extra Features grid (12 cards) + Tabla Comparativa ("Dentiqa" vs "Sin sistema" vs "Herramientas separadas") + Precios USD con conversión local + Implementación Integral (9 items, sin precio visible) + Cómo Funciona (3 pasos) + Testimonios + FAQ (8 preguntas) + CTA Final (gradiente azul→violeta) + Footer con párrafo SEO + WhatsApp flotante
+
+**SEO (implementado 30/03/2026):**
+- Metadata completa con 20 keywords, OpenGraph, Twitter cards
+- JSON-LD: SoftwareApplication + FAQPage
+- sitemap.xml y robots.txt generados por Next.js
+- OG image dinámica (1200x630, gradiente azul/violeta)
+- H1/H2 con keywords, alt texts, footer descriptivo
+- PENDIENTE: registrar en Google Search Console + enviar sitemap
 
 ### WhatsApp Embedded Signup
 
 - App Dentiqa (ID: 1627937931777794) — Publicada (Live), Violet Wave IA verificada
 - Embedded Signup Config ID: 1419326039498188
-- WABA "Dental Link" (ID: 158155033313211)
+- ✅ FUNCIONANDO — Clínica Dentiqa conectada con +54 9 261 231-2567 (30/03/2026)
 - Multi-WABA: identifica tenant por phone_number_id
+- Webhook fields suscritos: messages ✅
+- App Violet Wave IA (vieja): webhook ELIMINADO, no interfiere
+
+### Performance (optimizado 30/03/2026)
+
+- Polling reducido ~70%: de 60 req/min a 25 req/min
+- Recharts: lazy loaded con next/dynamic (ssr: false) — ahorra ~126KB
+- TanStack Query: staleTime configurado por tipo de dato
+- Conversaciones: no pollea con tab oculto (document.hidden check)
+- Pacientes: refresh-on-focus en vez de polling timer
+
+### Favicons
+
+- Landing (dentiqa.app): DQ azul (#2563EB)
+- Dashboard (dashboard.dentiqa.app): DQ azul (#2563EB)
+- Admin (admin.dentiqa.app): DQ negro (#1a1a1a)
 
 ---
 
 ## SCHEMA (leer packages/db/prisma/schema.prisma para estado real)
 
-30+ modelos: Tenant, User, Dentist, DentistTreatment, DentistWorkingHours, GoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, OdontogramVersion, TreatmentPlan, TreatmentPlanItem, ClinicalVisitNote, PeriodontogramEntry, PeriodontogramVersion, ClinicalNote, PipelineStage, PatientPipeline, Conversation, Message, Campaign, CampaignSend, WhatsAppTemplate, TemplateEvent, Notification, Automation, FaqEntry, UsageRecord, Subscription, AdminUser, PatientImage, Prescription, ConsentTemplate, PatientConsent, EvolutionTemplate, PlaqueRecord, MedicalHistoryAudit, SecurityLog
+30+ modelos: Tenant, User (con dentistId FK → Dentist), Dentist (con linkedUser), DentistTreatment, DentistWorkingHours, GoogleCalendarToken, Chair, WorkingHours, TreatmentType, Appointment, Patient, MedicalHistory, OdontogramFinding, OdontogramVersion, TreatmentPlan, TreatmentPlanItem, ClinicalVisitNote, PeriodontogramEntry, PeriodontogramVersion, ClinicalNote, PipelineStage, PatientPipeline, Conversation, Message, Campaign, CampaignSend, WhatsAppTemplate, TemplateEvent, Notification, Automation, FaqEntry, UsageRecord, Subscription, AdminUser, PatientImage, Prescription, ConsentTemplate, PatientConsent, EvolutionTemplate, PlaqueRecord, MedicalHistoryAudit, SecurityLog
 
 ---
 
@@ -193,16 +261,16 @@ Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + E
 **Pacientes**: CRUD + historial clínico completo (9 sub-routes clínicas)
 **Citas**: CRUD con validación GCal+horario+conflictos
 **Agenda**: GET dentists, GET blocked-slots
-**Pipeline**: GET stages, GET patients, PATCH move
-**Campañas**: CRUD + segment-count + setup-defaults + duplicate + sends + retry-failed
+**Pipeline**: GET stages, GET patients, PATCH move (OWNER/ADMIN/RECEPTIONIST only)
+**Campañas**: CRUD + segment-count + setup-defaults + duplicate + sends + retry-failed (OWNER/ADMIN/RECEPTIONIST only)
 **Conversaciones**: CRUD + messages + toggle IA
-**Estadísticas**: GET overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap
-**Config**: clínica/working-hours/equipo/dentists/treatments/chairs/bot/pipeline
+**Estadísticas**: GET overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap (OWNER/ADMIN only)
+**Config**: clínica/working-hours/equipo/dentists/treatments/chairs/bot/pipeline (OWNER/ADMIN only)
 **Billing**: GET subscription, POST create-subscription, POST change-plan, POST cancel
 **Pricing**: GET pricing?country=XX, GET pricing/countries (públicos)
 **GCal**: auth-url/callback/status/disconnect/sync
 **WhatsApp**: embedded-signup-complete/disconnect/status/send-test + webhook
-**Webhooks**: POST whatsapp (HMAC-SHA256), POST mercadopago (verificación API)
+**Webhooks**: POST whatsapp (HMAC-SHA256 + filtro mensajes sistema Meta), POST mercadopago (verificación API)
 **Admin**: auth/dashboard/tenants/clinicas/templates/whatsapp/usage/jobs/security
 **Notificaciones**: GET list, GET unread-count, PATCH read, PATCH read-all
 
@@ -232,7 +300,7 @@ ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 
 ---
 
-## PRODUCCIÓN — DEPLOY COMPLETADO (27/03/2026)
+## PRODUCCIÓN — DEPLOY COMPLETADO (27/03/2026, actualizado 30/03/2026)
 
 ### Infraestructura
 
@@ -249,11 +317,11 @@ ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 
 ### Credenciales de producción (Super Admin)
 - Email: admin@dentiqa.app
-- Password: Dentiqa2026! (CAMBIAR en producción)
+- Password: Dentiqa2026!
 
-### Credenciales demo (Clínica)
-- Email: admin@clinica-demo.com
-- Password: password123
+### Credenciales clínica test (Propietario)
+- Email: pedrovega4680@gmail.com
+- Password: Dentiqa2026!
 
 ### DNS en Cloudflare (todos DNS only, nube gris)
 
@@ -275,9 +343,9 @@ NODE_ENV, DATABASE_URL (pooled 6543), REDIS_URL (interno Railway), JWT_SECRET, J
 NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboard.dentiqa.app, NEXT_PUBLIC_LANDING_URL=https://dentiqa.app, NEXT_PUBLIC_MP_PUBLIC_KEY, NEXT_PUBLIC_WHATSAPP_APP_ID, NEXT_PUBLIC_WHATSAPP_CONFIGURATION_ID
 
 ### Webhook URLs (producción)
-- WhatsApp: https://api.dentiqa.app/api/v1/webhooks/whatsapp (configurado en Meta)
-- Mercado Pago: https://api.dentiqa.app/api/v1/webhooks/mercadopago (PENDIENTE configurar)
-- Google Calendar: https://api.dentiqa.app/api/v1/gcal/callback (PENDIENTE)
+- WhatsApp: https://api.dentiqa.app/api/v1/webhooks/whatsapp ✅ (configurado en Meta, messages suscrito)
+- Mercado Pago: https://api.dentiqa.app/api/v1/webhooks/mercadopago ✅ (configurado)
+- Google Calendar: https://api.dentiqa.app/api/v1/gcal/callback ✅ (configurado)
 
 ### Docker (Railway)
 - Dockerfile: apps/api/Dockerfile (multi-stage: builder + runner)
@@ -303,17 +371,77 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 - DATABASE_URL sin espacios ni caracteres raros (causó "Database post  gres does not exist")
 - PORT no setear manualmente en Railway (Railway lo inyecta, si lo ponés puede conflictear)
 - Supabase Free plan pausa proyectos inactivos — reactivar antes de usar
+- next/dynamic con ssr: false requiere "use client" en Next.js 15
+
+---
+
+## META BUSINESS — Estado (actualizado 30/03/2026)
+
+### Business Manager: Violet Wave IA (ID: 4363335420552804)
+- ✅ Verificado como proveedor de tecnología
+- ✅ Verificación del negocio completada
+
+### Apps en Meta Developers:
+| App | ID | Estado | Uso |
+|-----|----|--------|-----|
+| **Dentiq** | 1627937931777794 | ✅ Publicada, Live, permisos aprobados | APP PRINCIPAL. Webhook OK, messages suscrito |
+| **Violet Wave IA** | 87768683264473 | Modo Desarrollo | App vieja. Webhook ELIMINADO. No interfiere |
+
+### WABAs en Business Manager:
+| WABA | Estado |
+|------|--------|
+| Violet Wave IA (835367735905460) | ✅ Activa, verificada, mantener |
+| Clínica Dentiqa | ✅ Activa, creada por Embedded Signup 30/03/2026 |
+| Test WhatsApp Business Account (1516056797191360) | ❌ Bloqueada, ticket Meta abierto para eliminar |
+| Dental Link / EPRE MDZ | Propiedad de EPRE MDZ, no se pueden eliminar, no afectan |
+
+### Portfolios comerciales:
+- **Violet Wave IA** — MANTENER (empresa principal verificada)
+- EPRE MDZ — no se puede eliminar (tiene píxeles), no afecta
+- Pedro Vega / EPRE Virtual / Gestor De Turnos — programados para eliminación
+
+---
+
+## COMPLETADO (actualizado 30/03/2026)
+
+1. ✅ Mercado Pago webhook configurado + validación x-signature + notification_url en preapprovals + MP_WEBHOOK_SECRET en Railway
+2. ✅ Facebook Login URIs actualizadas (ngrok → dashboard.dentiqa.app)
+3. ✅ WhatsApp Embedded Signup typo fix (CONFIG_ID → CONFIGURATION_ID)
+4. ✅ WhatsApp webhook configurado en app Dentiq (api.dentiqa.app)
+5. ✅ Password Super Admin cambiado en producción
+6. ✅ Páginas legales creadas (privacidad, términos, eliminación de datos)
+7. ✅ URLs legales actualizadas en Meta Developers
+8. ✅ Resend dominio dentiqa.app verificado — emails funcionando
+9. ✅ Cloudflare Email Routing — admin@dentiqa.app + hola@dentiqa.app → pedrodev468@gmail.com
+10. ✅ Google Calendar OAuth — redirect URI producción + app publicada
+11. ✅ WhatsApp WABA DESBLOQUEADA — Meta confirmó
+12. ✅ Embedded Signup FUNCIONANDO — clínica conectada con +54 9 261 231-2567
+13. ✅ Limpieza Meta: WABAs innecesarias eliminadas, webhook app vieja eliminado
+14. ✅ Filtro mensajes sistema Meta en webhook
+15. ✅ CSV import no crea pipeline entries
+16. ✅ Pipeline cards arregladas + UX expedientes (compact + hover)
+17. ✅ Precios actualizados (89/149/249 USD)
+18. ✅ Landing: tabla comparativa, sección implementación, badges funcionalidades
+19. ✅ Favicons DQ (azul dashboard, negro admin)
+20. ✅ Billing bug fix: botón activar plan habilitado en trial
+21. ✅ Bug form nuevo usuario: campos vacíos al abrir
+22. ✅ Límite usuarios por plan (5/10/ilimitados) + banner downgrade
+23. ✅ Vinculación User ↔ Dentist (dentistId FK)
+24. ✅ Permisos por rol (OWNER/ADMIN/DENTIST/RECEPTIONIST)
+25. ✅ Performance: polling 60→25 req/min, lazy load Recharts
+26. ✅ Odontograma dual view (frontal + oclusal) con dientes anatómicos SVG
+27. ✅ SEO: metadata, JSON-LD, sitemap, robots.txt, OG image, H1/H2 keywords
 
 ---
 
 ## PENDIENTE
 
-- Mercado Pago: configurar webhook de producción en panel de desarrolladores
-- Google Calendar: configurar OAuth consent screen en Google Cloud + credenciales
-- Resend: verificar dominio dentiqa.app para enviar emails desde @dentiqa.app
-- Cambiar password del Super Admin en producción
+- Registrar dentiqa.app en Google Search Console + enviar sitemap
+- Respuesta Meta sobre Test WABA (ticket abierto)
+- Google OAuth verificación (quitar cartel "no verificado")
+- Precio MP vs Landing consistencia (roundToNice)
+- Odontograma: refinar SVGs con ilustraciones más anatómicas (diseñador o IA de ilustración)
 - Testing e2e automatizado
-- Actualizar URIs de redirección de Facebook Login (quitar ngrok, poner dentiqa.app)
 - Monitoreo y alertas en producción
 
 ---
@@ -326,6 +454,8 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 **Bot 2 respuestas** → Processing lock por conversación. Follow-up batch con debounce 2s.
 **Timezone** → DB siempre UTC. Tabla 14 días en system prompt con timezone Argentina.
 **ECONNREFUSED Redis** → TCP probe antes de BullMQ. `.on("error")` swallows. Server continúa sin cron jobs.
+**next/dynamic ssr:false** → Requiere "use client" directive en Next.js 15.
+**Prisma migrate vs db push** → Producción usa db push, tabla _prisma_migrations puede no existir. Migraciones manuales ejecutar en Supabase SQL Editor.
 
 ---
 
@@ -348,3 +478,6 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 15. Precios en USD como source of truth
 16. NUNCA bloquear datos del paciente por falta de pago (solo bloquear escritura)
 17. Redis OPCIONAL — graceful degradation
+18. Permisos por rol — DENTIST ve clínico, RECEPTIONIST ve comercial
+19. User con rol DENTIST requiere dentistId vinculado
+20. CSV import NO crea pipeline entries
