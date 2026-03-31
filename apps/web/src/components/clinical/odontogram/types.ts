@@ -37,19 +37,19 @@ export interface OdontogramVersion {
 }
 
 export const CONDITION_COLORS: Record<ToothCondition, string> = {
-  HEALTHY: "#F9FAFB",
+  HEALTHY: "#FFFFFF",
   CARIES: "#EF4444",
-  RESTORATION_AMALGAM: "#6B7280",
+  RESTORATION_AMALGAM: "#374151",
   RESTORATION_RESIN: "#3B82F6",
   RESTORATION_IONOMER: "#06B6D4",
-  CROWN: "#EAB308",
+  CROWN: "#F59E0B",
   ENDODONTICS: "#DC2626",
-  EXTRACTION: "#1F2937",
+  EXTRACTION: "#000000",
   IMPLANT: "#8B5CF6",
-  PROSTHESIS: "#1D4ED8",
+  PROSTHESIS: "#4F46E5",
   FRACTURE: "#F97316",
-  SEALANT: "#86EFAC",
-  ABSENT: "#9CA3AF",
+  SEALANT: "#22C55E",
+  ABSENT: "#D1D5DB",
 };
 
 export const CONDITION_LABELS: Record<ToothCondition, string> = {
