@@ -149,8 +149,8 @@ function Hero() {
               Plataforma todo-en-uno con IA integrada
             </div>
             <h1 className="text-4xl sm:text-5xl lg:text-[3.5rem] font-extrabold text-gray-900 leading-[1.1] tracking-tight">
-              El software dental con IA{" "}
-              <span className="text-primary-600">que tu clínica necesita</span>
+              Software para Clínicas Dentales{" "}
+              <span className="text-primary-600">con IA y WhatsApp</span>
             </h1>
             <p className="mt-6 text-lg text-gray-600 leading-relaxed max-w-xl">
               Agenda, historial clínico, WhatsApp con chatbot IA, pipeline CRM, estadísticas y
@@ -561,7 +561,7 @@ function Features() {
             Funcionalidades
           </p>
           <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">
-            Todo lo que tu clínica necesita
+            Funcionalidades del Software Dental
           </h2>
           <p className="text-gray-500 mt-4">
             6 módulos principales que trabajan juntos. Sin apps externas, sin copiar datos, sin perder tiempo.
@@ -666,7 +666,7 @@ function Comparison() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center mb-12">
           <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Comparación</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">¿Por qué elegir Dentiqa?</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Comparativa: Dentiqa vs Otros Sistemas Dentales</h2>
         </ScrollAnimate>
 
         <ScrollAnimate>
@@ -771,7 +771,7 @@ function Pricing() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center max-w-2xl mx-auto mb-16">
           <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">Precios</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Simple, transparente, sin sorpresas</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Precios del Software Dental</h2>
           <p className="text-gray-500 mt-4">Todos los planes incluyen 14 días gratis. Sin tarjeta de crédito. Cancelá cuando quieras.</p>
         </ScrollAnimate>
 
@@ -996,7 +996,7 @@ function Faq() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <ScrollAnimate className="text-center max-w-2xl mx-auto mb-12">
           <p className="text-sm font-semibold text-primary-600 uppercase tracking-wider mb-3">FAQ</p>
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Preguntas frecuentes</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900">Preguntas Frecuentes sobre Dentiqa</h2>
         </ScrollAnimate>
         <ScrollAnimate>
           <FaqAccordion />
@@ -1104,6 +1104,14 @@ function Footer() {
             </ul>
           </div>
         </div>
+
+        {/* SEO descriptive text */}
+        <p className="text-xs text-gray-600 leading-relaxed mb-8 max-w-3xl">
+          Dentiqa es un software de gestión para clínicas dentales desarrollado en Argentina por Violet Wave IA.
+          Incluye agenda de turnos, historia clínica digital, odontograma, periodontograma, WhatsApp con inteligencia
+          artificial, pipeline comercial, campañas de marketing, estadísticas y más. Disponible para clínicas en
+          Argentina, Chile, Colombia, México, Perú, Uruguay, Brasil, Ecuador, Paraguay y Bolivia.
+        </p>
 
         <div className="border-t border-gray-800 pt-8 flex flex-col sm:flex-row justify-between items-center gap-3">
           <p className="text-xs text-gray-500">
