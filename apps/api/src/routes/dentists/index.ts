@@ -85,6 +85,9 @@ export async function dentistRoutes(app: FastifyInstance): Promise<void> {
         birthdate?: string;
         color?: string;
         treatmentIds?: string[];
+        createUser?: boolean;
+        userEmail?: string;
+        userPassword?: string;
       };
 
       const dentist = await prisma.dentist.create({
@@ -110,10 +113,40 @@ export async function dentistRoutes(app: FastifyInstance): Promise<void> {
         select: DENTIST_SELECT,
       });
 
+      // Optionally create a User linked to this Dentist
+      let linkedUserId: string | undefined;
+      if (body.createUser && body.userEmail && body.userPassword) {
+        const existingUser = await prisma.user.findUnique({
+          where: { tenantId_email: { tenantId: user.tenantId, email: body.userEmail } },
+        });
+        if (existingUser) throw new AppError(409, "EMAIL_TAKEN", "Ya existe un usuario con ese email.");
+
+        const bcrypt = await import("bcryptjs");
+        const passwordHash = await bcrypt.hash(body.userPassword, 10);
+
+        const newUser = await prisma.user.create({
+          data: {
+            tenantId: user.tenantId,
+            name: body.name,
+            email: body.userEmail,
+            role: "DENTIST",
+            phone: body.phone,
+            passwordHash,
+            dentistId: dentist.id,
+          },
+        });
+        linkedUserId = newUser.id;
+        await prisma.dentist.update({
+          where: { id: dentist.id },
+          data: { userId: newUser.id, email: body.userEmail },
+        });
+      }
+
       return reply.status(201).send({
         ...dentist,
         treatmentIds: dentist.treatments.map((t) => t.treatmentTypeId),
         treatments: undefined,
+        linkedUserId,
       });
     },
   });

@@ -48,9 +48,11 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
   useEffect(() => {
     const user = getStoredUser();
     if (user?.role === "DENTIST") {
-      const match = initialDentists.find(
-        (d) => d.userId === user.id || d.email === user.email
-      );
+      // Use the direct dentistId link from the user's JWT/stored data
+      const dentistIdFromUser = (user as any).dentistId as string | undefined;
+      const match = dentistIdFromUser
+        ? initialDentists.find((d) => d.id === dentistIdFromUser)
+        : initialDentists.find((d) => d.userId === user.id || d.email === user.email);
       if (match) {
         setSelectedDentistId(match.id);
         setIsDentistLocked(true);

@@ -137,6 +137,8 @@ model User {
   avatarUrl    String?
   isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
+  dentistId    String?   @unique
+  dentist      Dentist?  @relation("UserDentist", fields: [dentistId], references: [id])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -160,6 +162,7 @@ model Dentist {
   tenantId            String
   tenant              Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId              String?
+  linkedUser          User?                 @relation("UserDentist")
   name                String
   specialty           String?
   licenseNumber       String?

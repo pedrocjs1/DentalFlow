@@ -97,6 +97,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         role: user.role,
         email: user.email,
         name: user.name,
+        dentistId: user.dentistId ?? undefined,
       });
 
       return reply.send({
@@ -106,6 +107,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
           email: user.email,
           name: user.name,
           role: user.role,
+          dentistId: user.dentistId,
           tenant: user.tenant,
         },
       });

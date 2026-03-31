@@ -313,16 +313,26 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
     preHandler,
     handler: async (request) => {
       const user = request.user as { tenantId: string };
-      const [users, tenant] = await Promise.all([
+      const [users, tenant, availableDentists] = await Promise.all([
         prisma.user.findMany({
           where: { tenantId: user.tenantId, isActive: true },
-          select: { id: true, name: true, email: true, role: true, phone: true, avatarUrl: true, createdAt: true },
+          select: { id: true, name: true, email: true, role: true, phone: true, avatarUrl: true, dentistId: true, createdAt: true },
           orderBy: { name: "asc" },
         }),
         prisma.tenant.findUnique({ where: { id: user.tenantId }, select: { plan: true } }),
+        // Dentists not yet linked to any active user
+        prisma.dentist.findMany({
+          where: {
+            tenantId: user.tenantId,
+            isActive: true,
+            linkedUser: null,
+          },
+          select: { id: true, name: true },
+          orderBy: { name: "asc" },
+        }),
       ]);
       const plan = tenant?.plan ?? "STARTER";
-      return { users, plan, userLimit: getUserLimit(plan) };
+      return { users, plan, userLimit: getUserLimit(plan), availableDentists };
     },
   });
 
@@ -337,6 +347,7 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
         role: "ADMIN" | "DENTIST" | "RECEPTIONIST";
         phone?: string;
         password: string;
+        dentistId?: string;
       };
 
       // Check user limit for tenant's plan
@@ -351,6 +362,24 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           "USER_LIMIT_REACHED",
           `Tu plan permite un máximo de ${limit} usuarios. Actualizá tu plan para agregar más miembros.`
         );
+      }
+
+      // Validate dentistId when role is DENTIST
+      let dentistId: string | undefined;
+      if (body.role === "DENTIST") {
+        if (!body.dentistId) {
+          throw new AppError(400, "DENTIST_REQUIRED", "Seleccioná un profesional para vincular al usuario dentista.");
+        }
+        const dentist = await prisma.dentist.findFirst({
+          where: { id: body.dentistId, tenantId: user.tenantId, isActive: true },
+        });
+        if (!dentist) throw new AppError(404, "DENTIST_NOT_FOUND", "Profesional no encontrado.");
+        // Check not already linked
+        const linkedUser = await prisma.user.findFirst({
+          where: { dentistId: body.dentistId, isActive: true },
+        });
+        if (linkedUser) throw new AppError(409, "DENTIST_LINKED", "Ese profesional ya está vinculado a otro usuario.");
+        dentistId = body.dentistId;
       }
 
       const existing = await prisma.user.findUnique({
@@ -369,9 +398,18 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
           role: body.role,
           phone: body.phone,
           passwordHash,
+          ...(dentistId && { dentistId }),
         },
-        select: { id: true, name: true, email: true, role: true, phone: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, phone: true, dentistId: true, createdAt: true },
       });
+
+      // Also update the Dentist.userId for backward compatibility
+      if (dentistId) {
+        await prisma.dentist.update({
+          where: { id: dentistId },
+          data: { userId: newUser.id },
+        });
+      }
 
       return reply.status(201).send(newUser);
     },
@@ -422,9 +460,10 @@ export async function configuracionRoutes(app: FastifyInstance): Promise<void> {
 
       const existing = await prisma.user.findFirst({ where: { id, tenantId: user.tenantId } });
       if (!existing) throw new AppError(404, "USER_NOT_FOUND", "Usuario no encontrado");
+      if (existing.role === "OWNER") throw new AppError(403, "FORBIDDEN", "No se puede desactivar al propietario.");
 
       await prisma.user.update({ where: { id }, data: { isActive: false } });
-      return reply.status(204).send();
+      return reply.status(200).send({ success: true });
     },
   });
 

@@ -327,8 +327,15 @@ function TabProfesionales() {
   }
   useEffect(() => { load(); }, []);
 
+  const [createUser, setCreateUser] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userPassword, setUserPassword] = useState("");
+
   function openNew() {
     setForm({ name: "", specialty: "", licenseNumber: "", phone: "", email: "", color: "#3B82F6", birthdate: "", treatmentIds: [] });
+    setCreateUser(false);
+    setUserEmail("");
+    setUserPassword("");
     setEditingId("new");
   }
 
@@ -339,20 +346,29 @@ function TabProfesionales() {
 
   async function save() {
     if (!form.name?.trim()) return;
+    if (editingId === "new" && createUser && (!userEmail.trim() || !userPassword.trim())) {
+      showToast({ type: "error", message: "Completá email y contraseña para crear el usuario." });
+      return;
+    }
     setSaving(true);
     try {
-      const payload = { ...form, birthdate: form.birthdate || null };
+      const payload: any = { ...form, birthdate: form.birthdate || null };
+      if (editingId === "new" && createUser) {
+        payload.createUser = true;
+        payload.userEmail = userEmail;
+        payload.userPassword = userPassword;
+      }
       if (editingId === "new") {
         await apiFetch("/api/v1/dentists", { method: "POST", body: JSON.stringify(payload) });
-        showToast({ type: "success", message: "Profesional creado." });
+        showToast({ type: "success", message: createUser ? "Profesional y usuario creados." : "Profesional creado." });
       } else {
         await apiFetch(`/api/v1/dentists/${editingId}`, { method: "PATCH", body: JSON.stringify(payload) });
         showToast({ type: "success", message: "Cambios guardados." });
       }
       setEditingId(null);
       load();
-    } catch {
-      showToast({ type: "error", message: "Error al guardar." });
+    } catch (err: any) {
+      showToast({ type: "error", message: err?.code === "EMAIL_TAKEN" ? "Ya existe un usuario con ese email." : "Error al guardar." });
     } finally {
       setSaving(false);
     }
@@ -461,6 +477,46 @@ function TabProfesionales() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+
+              {/* Create user option — only for new professionals */}
+              {editingId === "new" && (
+                <div className="border-t border-gray-100 pt-3 mt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={createUser}
+                      onChange={(e) => setCreateUser(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Crear usuario de acceso al sistema</span>
+                  </label>
+                  {createUser && (
+                    <div className="mt-3 space-y-3 pl-6">
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Email de acceso *</label>
+                        <input
+                          type="email"
+                          autoComplete="new-email"
+                          value={userEmail}
+                          onChange={(e) => setUserEmail(e.target.value)}
+                          placeholder="dentista@clinica.com"
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500 mb-1 block">Contraseña *</label>
+                        <input
+                          type="password"
+                          autoComplete="new-password"
+                          value={userPassword}
+                          onChange={(e) => setUserPassword(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1541,17 +1597,19 @@ function TabEquipo() {
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
-  const emptyForm = { name: "", email: "", role: "RECEPTIONIST", phone: "", password: "" };
+  const emptyForm = { name: "", email: "", role: "RECEPTIONIST", phone: "", password: "", dentistId: "" };
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [userLimit, setUserLimit] = useState(5);
   const [tenantPlan, setTenantPlan] = useState("STARTER");
+  const [availableDentists, setAvailableDentists] = useState<{ id: string; name: string }[]>([]);
 
   async function load() {
-    const d = await apiFetch<{ users: TeamMember[]; plan: string; userLimit: number }>("/api/v1/configuracion/equipo");
+    const d = await apiFetch<{ users: TeamMember[]; plan: string; userLimit: number; availableDentists: { id: string; name: string }[] }>("/api/v1/configuracion/equipo");
     setMembers(d.users);
     setUserLimit(d.userLimit);
     setTenantPlan(d.plan);
+    setAvailableDentists(d.availableDentists ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -1642,7 +1700,7 @@ function TabEquipo() {
                 <p className="text-xs text-gray-400">{m.email} · {ROLE_LABELS[m.role] ?? m.role}</p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => { setForm({ name: m.name, email: m.email, role: m.role, phone: m.phone ?? "", password: "" }); setEditingId(m.id); }}>
+                <Button size="sm" variant="outline" onClick={() => { setForm({ name: m.name, email: m.email, role: m.role, phone: m.phone ?? "", password: "", dentistId: "" }); setEditingId(m.id); }}>
                   Editar
                 </Button>
                 {m.role !== "OWNER" && (
@@ -1679,6 +1737,28 @@ function TabEquipo() {
                   <option value="RECEPTIONIST">Recepcionista</option>
                 </select>
               </div>
+              {/* Dentist link dropdown — only for DENTIST role on new users */}
+              {editingId === "new" && form.role === "DENTIST" && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Profesional vinculado *</label>
+                  {availableDentists.length > 0 ? (
+                    <select
+                      value={form.dentistId}
+                      onChange={(e) => setForm((f) => ({ ...f, dentistId: e.target.value }))}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="">Seleccionar profesional...</option>
+                      {availableDentists.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      No hay profesionales disponibles. Creá un profesional primero en Configuración &gt; Profesionales.
+                    </p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Teléfono</label>
                 <input type="tel" autoComplete="new-phone" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+54 11 1234-5678" className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
@@ -1692,7 +1772,7 @@ function TabEquipo() {
             </form>
             <div className="flex justify-end gap-2 mt-5">
               <Button variant="outline" onClick={() => setEditingId(null)}>Cancelar</Button>
-              <Button onClick={save} disabled={saving || !form.name.trim() || !form.email.trim()}>
+              <Button onClick={save} disabled={saving || !form.name.trim() || !form.email.trim() || (editingId === "new" && form.role === "DENTIST" && !form.dentistId)}>
                 {saving ? "Guardando..." : "Guardar"}
               </Button>
             </div>
