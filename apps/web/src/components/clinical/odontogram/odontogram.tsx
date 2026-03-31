@@ -113,7 +113,7 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
     return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
   }
 
-  const toothSize = 42;
+  const toothSize = 44;
 
   return (
     <div className="bg-white rounded-xl border p-5">
@@ -223,7 +223,7 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
         </div>
 
         {/* Upper arch: quadrant separator line */}
-        <div className="flex items-end justify-center gap-0.5">
+        <div className="flex items-end justify-center gap-1">
           {/* Upper right (patient's right = viewer's left) */}
           <div className="flex items-end gap-0.5">
             {upperRight.map((fdi) => (
@@ -233,12 +233,13 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
                 findings={getFindingsForTooth(fdi)}
                 onClick={handleToothClick}
                 size={toothSize}
+                orientation="upper"
               />
             ))}
           </div>
 
           {/* Midline */}
-          <div className="flex flex-col items-center self-stretch px-1">
+          <div className="flex flex-col items-center self-stretch px-1.5">
             <div className="w-px bg-gray-300 flex-1" />
           </div>
 
@@ -251,20 +252,21 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
                 findings={getFindingsForTooth(fdi)}
                 onClick={handleToothClick}
                 size={toothSize}
+                orientation="upper"
               />
             ))}
           </div>
         </div>
 
         {/* Arch separator */}
-        <div className="relative flex items-center my-3">
-          <div className="flex-1 border-t border-dashed border-gray-200" />
-          <span className="mx-3 text-[10px] text-gray-300 font-medium tracking-widest">ARCADA</span>
-          <div className="flex-1 border-t border-dashed border-gray-200" />
+        <div className="relative flex items-center my-4">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="mx-4 text-[10px] text-gray-300 font-medium tracking-widest">ARCADA</span>
+          <div className="flex-1 border-t border-gray-200" />
         </div>
 
         {/* Lower arch */}
-        <div className="flex items-start justify-center gap-0.5">
+        <div className="flex items-start justify-center gap-1">
           {/* Lower right (patient's right = viewer's left) */}
           <div className="flex items-start gap-0.5">
             {lowerRight.map((fdi) => (
@@ -274,12 +276,13 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
                 findings={getFindingsForTooth(fdi)}
                 onClick={handleToothClick}
                 size={toothSize}
+                orientation="lower"
               />
             ))}
           </div>
 
           {/* Midline */}
-          <div className="flex flex-col items-center self-stretch px-1">
+          <div className="flex flex-col items-center self-stretch px-1.5">
             <div className="w-px bg-gray-300 flex-1" />
           </div>
 
@@ -292,6 +295,7 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
                 findings={getFindingsForTooth(fdi)}
                 onClick={handleToothClick}
                 size={toothSize}
+                orientation="lower"
               />
             ))}
           </div>
