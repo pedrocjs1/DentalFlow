@@ -114,69 +114,66 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
 
   // ─── Render helpers for tooth rows ───────────────────────────────────────────
 
+  // Frontal widths per tooth type (must match getDimensions in tooth-frontal.tsx)
+  function toothWidth(fdi: number): number {
+    const pos = fdi % 10;
+    if (pos >= 6) return 50; // molar
+    if (pos >= 4) return 42; // premolar
+    if (pos === 3) return 36; // canine
+    return 34; // incisor
+  }
+
   function renderNumberRow(teeth: number[]) {
     return (
-      <div className="flex items-center gap-[2px]">
-        {teeth.map((fdi) => {
-          const pos = fdi % 10;
-          const w = pos >= 6 ? 40 : pos >= 4 ? 34 : pos === 3 ? 30 : 28;
-          return (
-            <div key={fdi} className="flex-shrink-0 text-center" style={{ width: w }}>
-              <span className="text-[9px] font-bold text-gray-500 select-none">{fdi}</span>
-            </div>
-          );
-        })}
+      <div className="flex items-center gap-[3px]">
+        {teeth.map((fdi) => (
+          <div key={fdi} className="flex-shrink-0 text-center" style={{ width: toothWidth(fdi) }}>
+            <span className="text-[10px] font-bold text-gray-500 select-none">{fdi}</span>
+          </div>
+        ))}
       </div>
     );
   }
 
   function renderOcclusalRow(teeth: number[]) {
     return (
-      <div className="flex items-center gap-[2px]">
-        {teeth.map((fdi) => {
-          const pos = fdi % 10;
-          const w = pos >= 6 ? 40 : pos >= 4 ? 34 : pos === 3 ? 30 : 28;
-          return (
-            <div key={fdi} className="flex-shrink-0 flex justify-center" style={{ width: w }}>
-              <ToothOcclusalSVG
-                fdi={fdi}
-                findings={getFindingsForTooth(fdi)}
-                onZoneClick={handleZoneClick}
-              />
-            </div>
-          );
-        })}
+      <div className="flex items-center gap-[3px]">
+        {teeth.map((fdi) => (
+          <div key={fdi} className="flex-shrink-0 flex justify-center" style={{ width: toothWidth(fdi) }}>
+            <ToothOcclusalSVG
+              fdi={fdi}
+              findings={getFindingsForTooth(fdi)}
+              onZoneClick={handleZoneClick}
+            />
+          </div>
+        ))}
       </div>
     );
   }
 
   function renderFrontalRow(teeth: number[], orientation: "upper" | "lower") {
     return (
-      <div className="flex items-center gap-[2px]">
-        {teeth.map((fdi) => {
-          const pos = fdi % 10;
-          const w = pos >= 6 ? 40 : pos >= 4 ? 34 : pos === 3 ? 30 : 28;
-          return (
-            <div key={fdi} className="flex-shrink-0 flex justify-center" style={{ width: w }}>
-              <ToothFrontalSVG
-                fdi={fdi}
-                findings={getFindingsForTooth(fdi)}
-                onClick={handleFrontalClick}
-                orientation={orientation}
-              />
-            </div>
-          );
-        })}
+      <div className="flex items-center gap-[3px]">
+        {teeth.map((fdi) => (
+          <div key={fdi} className="flex-shrink-0 flex justify-center" style={{ width: toothWidth(fdi) }}>
+            <ToothFrontalSVG
+              fdi={fdi}
+              findings={getFindingsForTooth(fdi)}
+              onClick={handleFrontalClick}
+              orientation={orientation}
+            />
+          </div>
+        ))}
       </div>
     );
   }
 
-  // ─── Midline separator ──────────────────────────────────────────────────────
+  // ─── Midline separator (dashed vertical line) ──────────────────────────────
 
   function Midline({ height }: { height: string }) {
     return (
-      <div className="flex flex-col items-center self-stretch px-1" style={{ minHeight: height }}>
-        <div className="w-px bg-gray-300 flex-1" />
+      <div className="flex flex-col items-center self-stretch px-2" style={{ minHeight: height }}>
+        <div className="w-px flex-1" style={{ backgroundImage: "repeating-linear-gradient(to bottom, #CBD5E1 0px, #CBD5E1 4px, transparent 4px, transparent 8px)" }} />
       </div>
     );
   }
@@ -284,21 +281,21 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
           {/* Numbers */}
           <div className="flex items-center justify-center">
             {renderNumberRow(upperRight)}
-            <div className="px-1.5" />
+            <div className="px-2" />
             {renderNumberRow(upperLeft)}
           </div>
 
           {/* Occlusal views */}
           <div className="flex items-center justify-center mt-1">
             {renderOcclusalRow(upperRight)}
-            <Midline height="36px" />
+            <Midline height="46px" />
             {renderOcclusalRow(upperLeft)}
           </div>
 
           {/* Frontal views (roots up, crown down → toward midline) */}
           <div className="flex items-center justify-center mt-0.5">
             {renderFrontalRow(upperRight, "upper")}
-            <Midline height="54px" />
+            <Midline height="70px" />
             {renderFrontalRow(upperLeft, "upper")}
           </div>
 
@@ -312,21 +309,21 @@ export function Odontogram({ patientId, initialFindings }: OdontogramProps) {
           {/* Frontal views (roots down, crown up → toward midline) */}
           <div className="flex items-center justify-center">
             {renderFrontalRow(lowerRight, "lower")}
-            <Midline height="54px" />
+            <Midline height="70px" />
             {renderFrontalRow(lowerLeft, "lower")}
           </div>
 
           {/* Occlusal views */}
           <div className="flex items-center justify-center mt-0.5">
             {renderOcclusalRow(lowerRight)}
-            <Midline height="36px" />
+            <Midline height="46px" />
             {renderOcclusalRow(lowerLeft)}
           </div>
 
           {/* Numbers */}
           <div className="flex items-center justify-center mt-1">
             {renderNumberRow(lowerRight)}
-            <div className="px-1.5" />
+            <div className="px-2" />
             {renderNumberRow(lowerLeft)}
           </div>
 
