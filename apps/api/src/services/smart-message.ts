@@ -28,7 +28,8 @@ export type SmartMessageType =
   | "welcome"
   | "re_engagement"
   | "remarketing"
-  | "post_procedure";
+  | "post_procedure"
+  | "no_booking_followup";
 
 export interface SmartMessageParams {
   tenantId: string;

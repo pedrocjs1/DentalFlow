@@ -10,49 +10,17 @@
  */
 
 import { prisma } from "@dentiqa/db";
-import { sendWhatsAppTemplate } from "@dentiqa/messaging";
-import { decryptToken } from "../services/encryption.js";
+import { sendSmartMessage, type SmartMessageType } from "../services/smart-message.js";
 import { createNotification } from "../services/notifications.js";
 
-// ─── Variable substitution for template parameters ──────────────────────────
+// ─── Map stage name → messageType for sendSmartMessage ──────────────────────
 
-function substituteVariable(
-  field: string,
-  example: string,
-  context: {
-    firstName: string;
-    lastName: string;
-    interestTreatment: string | null;
-    tenantName: string;
-    discountPercent: number;
-    dentistName: string | null;
-  }
-): string {
-  const key = field.toLowerCase().replace(/[{}]/g, "").trim();
-  switch (key) {
-    case "firstname":
-    case "first_name":
-      return context.firstName;
-    case "nombre":
-      return `${context.firstName} ${context.lastName}`.trim() || context.firstName;
-    case "tratamiento_interes":
-    case "treatment_interest":
-    case "tratamiento":
-      return context.interestTreatment || "tu consulta";
-    case "clinica":
-    case "clinic":
-    case "clinic_name":
-      return context.tenantName;
-    case "descuento":
-    case "discount":
-      return context.discountPercent.toString();
-    case "dentista":
-    case "dentist":
-      return context.dentistName || "nuestro equipo";
-    default:
-      // If no mapping found, try firstName as default (most common), else use example
-      return example;
-  }
+function resolveMessageTypeForStage(stageName: string): SmartMessageType | null {
+  const lower = stageName.toLowerCase();
+  if (lower.includes("nuevo contacto") || lower.includes("nuevo")) return "no_booking_followup" as SmartMessageType;
+  if (lower.includes("no agendó") || lower.includes("interesado")) return "re_engagement" as SmartMessageType;
+  if (lower.includes("remarketing") || lower.includes("inactivo")) return "remarketing" as SmartMessageType;
+  return null;
 }
 
 export async function runPipelineAutomations(): Promise<void> {
@@ -116,7 +84,6 @@ export async function runPipelineAutomations(): Promise<void> {
       ) {
         // Check retry limit
         if (entry.autoMessageAttempts >= maxRetries) {
-          // Max retries exceeded — mark as sent to stop retrying
           console.warn(
             `[pipeline-automations] Max retries (${maxRetries}) exceeded for ${patient.firstName} (${patient.phone}) in stage "${stage.name}" — giving up`
           );
@@ -127,113 +94,54 @@ export async function runPipelineAutomations(): Promise<void> {
           continue;
         }
 
-        // Only send if tenant has WhatsApp connected
-        if (
-          tenant.whatsappPhoneNumberId &&
-          tenant.whatsappAccessToken &&
-          tenant.whatsappStatus === "CONNECTED"
-        ) {
-          let sendSuccess = false;
+        // Lazy-load dentist name for variables
+        if (dentistNameCache === undefined) {
+          const dentist = await prisma.dentist.findFirst({
+            where: { tenantId: tenant.id, isActive: true },
+            select: { name: true },
+            orderBy: { createdAt: "asc" },
+          });
+          dentistNameCache = dentist?.name ?? null;
+        }
 
-          try {
-            const accessToken = decryptToken(tenant.whatsappAccessToken);
+        // Resolve messageType from stage name (or fall back to generic)
+        const stageMessageType = resolveMessageTypeForStage(stage.name);
 
-            // Look up the template
-            const template = await prisma.whatsAppTemplate.findFirst({
-              where: {
-                id: stage.autoMessageTemplate,
-                status: "APPROVED",
-              },
-            });
+        const result = await sendSmartMessage({
+          tenantId: tenant.id,
+          patientPhone: patient.phone,
+          patientId: patient.id,
+          messageType: (stageMessageType ?? "re_engagement") as SmartMessageType,
+          variables: {
+            nombre: patient.firstName,
+            clinica: tenant.name,
+            tratamiento: entry.interestTreatment ?? undefined,
+            dentista: dentistNameCache ?? undefined,
+            descuento: stage.discountPercent?.toString(),
+          },
+          fallbackText: `Hola ${patient.firstName}, desde ${tenant.name} queremos ayudarte${entry.interestTreatment ? ` con ${entry.interestTreatment}` : ""}. ¿Querés agendar? Respondé a este mensaje.`,
+        });
 
-            if (template) {
-              // Lazy-load dentist name for variable substitution
-              if (dentistNameCache === undefined) {
-                const dentist = await prisma.dentist.findFirst({
-                  where: { tenantId: tenant.id, isActive: true },
-                  select: { name: true },
-                  orderBy: { createdAt: "asc" },
-                });
-                dentistNameCache = dentist?.name ?? null;
-              }
-
-              const varContext = {
-                firstName: patient.firstName,
-                lastName: patient.lastName,
-                interestTreatment: entry.interestTreatment,
-                tenantName: tenant.name,
-                discountPercent: stage.discountPercent,
-                dentistName: dentistNameCache,
-              };
-
-              await sendWhatsAppTemplate({
-                phoneNumberId: tenant.whatsappPhoneNumberId,
-                accessToken,
-                to: patient.phone,
-                templateName: template.name,
-                language: template.language.replace("_", "-"),
-                components: template.variablesJson
-                  ? [
-                      {
-                        type: "body",
-                        parameters: (
-                          template.variablesJson as Array<{
-                            position: number;
-                            field: string;
-                            example: string;
-                          }>
-                        ).map((v) => ({
-                          type: "text",
-                          text: substituteVariable(v.field, v.example, varContext),
-                        })),
-                      },
-                    ]
-                  : [],
-              });
-
-              sendSuccess = true;
-              console.log(
-                `[pipeline-automations] Sent template "${template.name}" to ${patient.firstName} (${patient.phone}) in stage "${stage.name}"`
-              );
-            } else {
-              // Template not found or not approved — mark as sent to avoid infinite loop
-              console.warn(
-                `[pipeline-automations] Template ${stage.autoMessageTemplate} not found/approved for stage "${stage.name}"`
-              );
-              sendSuccess = true; // Don't retry for missing template
-            }
-          } catch (err) {
-            console.error(
-              `[pipeline-automations] Failed to send auto-message to ${patient.phone} (attempt ${entry.autoMessageAttempts + 1}/${maxRetries}):`,
-              err
-            );
-          }
-
-          if (sendSuccess) {
-            // Mark as sent — successful
-            await prisma.patientPipeline.update({
-              where: { id: entry.id },
-              data: { lastAutoMessageSentAt: now, autoMessageAttempts: 0 },
-            });
-
-            await createNotification(tenant.id, {
-              type: "pipeline_move",
-              title: "Auto-mensaje enviado",
-              message: `Se envió mensaje automático a ${patient.firstName} en etapa "${stage.name}"`,
-              link: "/pipeline",
-            });
-          } else {
-            // Failed — increment attempt counter, will retry next cycle
-            await prisma.patientPipeline.update({
-              where: { id: entry.id },
-              data: { autoMessageAttempts: { increment: 1 } },
-            });
-          }
-        } else {
-          // WhatsApp not connected — mark as sent to avoid retrying forever
+        if (result.sent || result.method === "notification") {
           await prisma.patientPipeline.update({
             where: { id: entry.id },
-            data: { lastAutoMessageSentAt: now },
+            data: { lastAutoMessageSentAt: now, autoMessageAttempts: 0 },
+          });
+
+          await createNotification(tenant.id, {
+            type: "pipeline_move",
+            title: "Auto-mensaje enviado",
+            message: `Se envió mensaje automático a ${patient.firstName} en etapa "${stage.name}"`,
+            link: "/pipeline",
+          });
+
+          console.log(
+            `[pipeline-automations] Sent ${result.method} to ${patient.firstName} (${patient.phone}) in stage "${stage.name}"`
+          );
+        } else {
+          await prisma.patientPipeline.update({
+            where: { id: entry.id },
+            data: { autoMessageAttempts: { increment: 1 } },
           });
         }
       }

@@ -81,6 +81,45 @@ const DEFAULT_TEMPLATES: DefaultTemplate[] = [
       { position: 2, field: "clinica", example: "Dental Care" },
     ],
   },
+  {
+    name: "no_booking_followup",
+    displayName: "Seguimiento sin agendar",
+    messageType: "no_booking_followup",
+    suggestedTrigger: "no_booking_followup",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, desde {{2}} vimos que te interesó {{3}}. Todavía tenemos turnos disponibles esta semana. ¿Te agendamos?",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+      { position: 3, field: "tratamiento", example: "limpieza dental" },
+    ],
+  },
+  {
+    name: "re_engagement",
+    displayName: "Re-engagement",
+    messageType: "re_engagement",
+    suggestedTrigger: "re_engagement",
+    category: "MARKETING",
+    bodyText: "Hola {{1}}, en {{2}} queremos ayudarte con tu salud dental. Agendá tu primera consulta y recibí una evaluación completa.",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+    ],
+  },
+  {
+    name: "remarketing_discount",
+    displayName: "Remarketing con descuento",
+    messageType: "remarketing",
+    suggestedTrigger: "remarketing",
+    category: "MARKETING",
+    bodyText: "Hola {{1}}, en {{2}} tenemos un {{3}}% de descuento en {{4}} este mes. ¡Agendá tu turno!",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+      { position: 3, field: "descuento", example: "15" },
+      { position: 4, field: "tratamiento", example: "blanqueamiento" },
+    ],
+  },
 ];
 
 async function createDefaultTemplates(
