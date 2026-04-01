@@ -270,6 +270,7 @@ model Appointment {
   cancelReason    String?
   reminderSent    Boolean           @default(false)
   postCheckSent   Boolean           @default(false)
+  postVisitSent   Boolean           @default(false)  // Post-visit follow-up (2h after COMPLETED)
   googleEventId   String?
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
@@ -660,9 +661,11 @@ model Conversation {
   assignedToId       String?
   lastMessageAt      DateTime?
   lastMessagePreview String?
-  aiEnabled          Boolean            @default(true)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
+  aiEnabled             Boolean            @default(true)
+  lastPatientMessageAt  DateTime?          // Last INBOUND message timestamp (for 24h window)
+  aiPausedAt            DateTime?          // When AI was paused (null = active)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
 
   messages Message[]
 

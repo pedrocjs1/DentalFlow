@@ -7,23 +7,44 @@ import { prisma } from "@dentiqa/db";
 
 // Auto-map notification type to category
 const TYPE_TO_CATEGORY: Record<string, string> = {
+  // messages — WhatsApp, bot, human-needed
   new_patient: "messages",
   human_needed: "messages",
   new_message: "messages",
-  new_appointment: "system",
-  appointment_completed: "system",
-  appointment_no_show: "system",
-  cancelled_appointment: "system",
-  rescheduled_appointment: "system",
-  appointment_end_reminder: "system",
+  bot_paused_alert: "messages",
+  // appointment — citas, recordatorios, no-shows
+  new_appointment: "appointment",
+  appointment_completed: "appointment",
+  appointment_no_show: "appointment",
+  cancelled_appointment: "appointment",
+  rescheduled_appointment: "appointment",
+  appointment_end_reminder: "appointment",
+  // clinical — evoluciones, planes, tratamiento
+  evolution_pending: "clinical",
+  treatment_followup: "clinical",
+  // pipeline — movimientos de pipeline, auto-messages
+  pipeline_move: "pipeline",
+  pipeline_stale: "pipeline",
+  // system — templates, errors, billing
   usage_warning: "system",
   usage_limit: "system",
   template_status: "system",
-  pipeline_move: "pipeline",
-  pipeline_stale: "pipeline",
+  // ai
   ai_recommendation: "ai",
   ai_weekly_report: "ai",
 };
+
+// Role-based category access
+const ROLE_CATEGORIES: Record<string, string[]> = {
+  OWNER: ["messages", "appointment", "clinical", "pipeline", "system", "ai"],
+  ADMIN: ["messages", "appointment", "clinical", "pipeline", "system", "ai"],
+  RECEPTIONIST: ["messages", "appointment", "pipeline"],
+  DENTIST: ["appointment", "clinical"],
+};
+
+export function getCategoriesForRole(role: string): string[] {
+  return ROLE_CATEGORIES[role] ?? ["system"];
+}
 
 interface CreateNotificationParams {
   type: string;

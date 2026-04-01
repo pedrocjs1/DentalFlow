@@ -18,6 +18,9 @@ import {
   Tag,
   ExternalLink,
   Loader2,
+  AlertTriangle,
+  Clock,
+  FileText,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -46,6 +49,8 @@ interface Conversation {
   aiEnabled: boolean;
   lastMessageAt: string;
   lastMessagePreview: string | null;
+  lastPatientMessageAt: string | null;
+  aiPausedAt: string | null;
   unreadCount: number;
   patient: PatientInConv;
 }
@@ -60,6 +65,16 @@ interface NextAppointment {
 
 interface ConversationDetail extends Conversation {
   nextAppointment: NextAppointment | null;
+  windowOpen: boolean;
+}
+
+interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  displayName: string | null;
+  category: string;
+  bodyText: string | null;
+  language: string;
 }
 
 interface Message {
@@ -360,6 +375,117 @@ function NewConversationModal({
   );
 }
 
+// ─── Template Selector Modal ─────────────────────────────────────────────
+
+function TemplateSelector({
+  open,
+  onClose,
+  onSelect,
+  conversationId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSelect: (template: WhatsAppTemplate) => void;
+  conversationId: string;
+}) {
+  const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoading(true);
+    apiFetch<{ templates: WhatsAppTemplate[] }>(`/api/v1/conversations/${conversationId}/templates`)
+      .then((data) => setTemplates(data.templates))
+      .catch(() => setTemplates([]))
+      .finally(() => setLoading(false));
+  }, [open, conversationId]);
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h3 className="font-semibold text-gray-900">Enviar template</h3>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
+            <X className="w-4 h-4 text-gray-500" />
+          </button>
+        </div>
+        <div className="p-4 overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex items-center justify-center py-8 text-gray-400">
+              <Loader2 className="w-5 h-5 animate-spin mr-2" />
+              <span className="text-sm">Cargando templates...</span>
+            </div>
+          ) : templates.length === 0 ? (
+            <div className="text-center py-8 text-gray-400">
+              <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No hay templates aprobados disponibles</p>
+              <p className="text-xs mt-1">Creá y aprobá templates en Configuración &gt; Integraciones</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    onSelect(t);
+                    onClose();
+                  }}
+                  className="w-full text-left p-3 rounded-lg border hover:border-primary-300 hover:bg-primary-50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-900">
+                      {t.displayName ?? t.name}
+                    </span>
+                    <span className="text-xs text-gray-400 uppercase">{t.category}</span>
+                  </div>
+                  {t.bodyText && (
+                    <p className="text-xs text-gray-500 mt-1 line-clamp-2">{t.bodyText}</p>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Bot Paused Alert ────────────────────────────────────────────────────────
+
+function BotPausedAlert({
+  aiPausedAt,
+  onReactivate,
+}: {
+  aiPausedAt: string | null;
+  onReactivate: () => void;
+}) {
+  if (!aiPausedAt) return null;
+
+  const pausedMs = Date.now() - new Date(aiPausedAt).getTime();
+  const pausedHours = Math.round(pausedMs / (1000 * 60 * 60));
+
+  // Only show alert if paused for more than 24h
+  if (pausedHours < 24) return null;
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-200 text-xs">
+      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+      <span className="text-amber-700">
+        El bot está pausado hace {pausedHours}hs.
+      </span>
+      <button
+        onClick={onReactivate}
+        className="text-amber-700 font-medium hover:text-amber-800 underline"
+      >
+        ¿Reactivar?
+      </button>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ConversacionesClient() {
@@ -379,6 +505,7 @@ export function ConversacionesClient() {
   const [sending, setSending] = useState(false);
 
   const [newConvOpen, setNewConvOpen] = useState(false);
+  const [templateSelectorOpen, setTemplateSelectorOpen] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -526,6 +653,49 @@ export function ConversacionesClient() {
       // Remove optimistic on error
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
       setMessageInput(content); // restore input
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function sendTemplate(template: WhatsAppTemplate) {
+    if (!activeConv || sending) return;
+    setSending(true);
+
+    const content = `[Template: ${template.displayName ?? template.name}]`;
+    const optimistic: Message = {
+      id: `optimistic-${Date.now()}`,
+      conversationId: activeConv.id,
+      direction: "OUTBOUND",
+      type: "TEMPLATE",
+      content,
+      sentAt: new Date().toISOString(),
+      deliveredAt: null,
+      readAt: null,
+      metadata: { sentBy: "human" },
+    };
+    setMessages((prev) => [...prev, optimistic]);
+
+    try {
+      const msg = await apiFetch<Message>(`/api/v1/conversations/${activeConv.id}/messages`, {
+        method: "POST",
+        body: JSON.stringify({
+          content,
+          type: "template",
+          templateId: template.id,
+          templateName: template.displayName ?? template.name,
+        }),
+      });
+      setMessages((prev) => prev.map((m) => (m.id === optimistic.id ? msg : m)));
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeConv.id
+            ? { ...c, lastMessageAt: msg.sentAt, lastMessagePreview: content.slice(0, 100) }
+            : c
+        )
+      );
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
     } finally {
       setSending(false);
     }
@@ -750,6 +920,29 @@ export function ConversacionesClient() {
             </div>
           </div>
 
+          {/* Bot paused alert */}
+          {!activeConv.aiEnabled && (
+            <BotPausedAlert
+              aiPausedAt={activeConv.aiPausedAt}
+              onReactivate={() => updateConversation({ aiEnabled: true })}
+            />
+          )}
+
+          {/* 24h window banner */}
+          {activeConv.channel === "WHATSAPP" && activeConv.status !== "CLOSED" && (
+            activeConv.windowOpen ? (
+              <div className="flex items-center gap-1.5 px-4 py-1.5 bg-green-50 border-b border-green-100 text-xs text-green-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                Ventana abierta — podés enviar mensajes libremente
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-700">
+                <AlertTriangle className="w-3 h-3" />
+                La ventana de 24hs está cerrada. Solo podés enviar templates.
+              </div>
+            )
+          )}
+
           {/* Patient info bar — next appointment + pipeline */}
           {(activeConv.nextAppointment || activeConv.patient.pipelineEntry) && (
             <div className="flex items-center gap-4 px-4 py-2 bg-gray-50 border-b text-xs text-gray-500 overflow-x-auto">
@@ -849,6 +1042,27 @@ export function ConversacionesClient() {
                   Reabrir
                 </button>
               </div>
+            ) : activeConv.channel === "WHATSAPP" && !activeConv.windowOpen ? (
+              /* Window closed — only template sending */
+              <div className="flex items-center gap-2">
+                <div className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm text-gray-400 bg-gray-50 cursor-not-allowed">
+                  Ventana de 24hs cerrada
+                </div>
+                <button
+                  onClick={() => setTemplateSelectorOpen(true)}
+                  disabled={sending}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-40 text-white rounded-xl text-sm font-medium transition-colors"
+                >
+                  {sending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4" />
+                      <span>Enviar template</span>
+                    </>
+                  )}
+                </button>
+              </div>
             ) : (
               <div className="flex items-end gap-2">
                 <textarea
@@ -891,6 +1105,15 @@ export function ConversacionesClient() {
           selectConversation(conv as unknown as Conversation);
         }}
       />
+
+      {activeConv && (
+        <TemplateSelector
+          open={templateSelectorOpen}
+          onClose={() => setTemplateSelectorOpen(false)}
+          onSelect={sendTemplate}
+          conversationId={activeConv.id}
+        />
+      )}
     </div>
   );
 }

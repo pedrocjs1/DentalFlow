@@ -10,6 +10,7 @@ import { runPipelineAutomations } from "./pipeline-automations.js";
 import { runAppointmentReminders } from "./appointment-reminders.js";
 import { runTreatmentFollowup, runPostProcedureChecks } from "./treatment-followup.js";
 import { runTrialExpirationCheck } from "./trial-expiration.js";
+import { runPostVisitAndAlerts } from "./post-visit-and-alerts.js";
 
 interface JobStatus {
   name: string;
@@ -164,12 +165,14 @@ export async function registerAllJobs(): Promise<void> {
     createPair("treatment-followup", "1 hour", 60 * 60 * 1000, runTreatmentFollowup);
     createPair("post-procedure-check", "1 hour", 60 * 60 * 1000, runPostProcedureChecks);
     createPair("trial-expiration", "1 hour", 60 * 60 * 1000, runTrialExpirationCheck);
+    createPair("post-visit-and-alerts", "30 min", 30 * 60 * 1000, runPostVisitAndAlerts);
 
     console.log("[scheduler] BullMQ jobs registrados:");
     console.log("  - pipeline-automations: cada 15 min");
     console.log("  - appointment-reminders: cada 30 min");
     console.log("  - treatment-followup: cada 1 hora");
     console.log("  - post-procedure-check: cada 1 hora");
+    console.log("  - post-visit-and-alerts: cada 30 min");
   } catch (err) {
     console.warn(`[scheduler] Failed to register BullMQ jobs: ${err instanceof Error ? err.message : String(err)}`);
     console.log("[scheduler] El server continuará sin cron jobs");

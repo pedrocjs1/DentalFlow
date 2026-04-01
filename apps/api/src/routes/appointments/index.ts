@@ -5,6 +5,7 @@ import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { syncPipelineFromAppointment } from "../pipeline/index.js";
 import { createNotification } from "../../services/notifications.js";
+import { sendAppointmentMessage } from "../../services/appointment-messages.js";
 import {
   createCalendarEvent,
   deleteCalendarEvent,
@@ -48,6 +49,7 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         startDate?: string;
         endDate?: string;
         dentistId?: string;
+        patientId?: string;
         status?: string;
       };
 
@@ -55,6 +57,7 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         where: {
           tenantId: user.tenantId,
           ...(query.dentistId && { dentistId: query.dentistId }),
+          ...(query.patientId && { patientId: query.patientId }),
           ...(query.status && { status: query.status as any }),
           ...(query.startDate && query.endDate && {
             startTime: {
@@ -325,9 +328,19 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
         }
         await syncPipelineFromAppointment(user.tenantId, appointment.patientId, body.status, priorCompleted);
 
-        // Notifications for status changes from agenda
         const patientName = `${updated.patient.firstName} ${updated.patient.lastName}`.trim();
         const treatmentName = updated.treatmentType?.name ?? "Consulta";
+        const dentistName = updated.dentist?.name ?? "Profesional";
+
+        // ── IN_PROGRESS: Send welcome message ──
+        if (body.status === "IN_PROGRESS") {
+          sendAppointmentMessage(user.tenantId, appointment.patientId, "welcome", {
+            patientFirstName: updated.patient.firstName,
+            clinicName: undefined, // resolved inside service
+          }).catch(() => {});
+        }
+
+        // ── COMPLETED: notification + schedule post-visit message ──
         if (body.status === "COMPLETED") {
           createNotification(user.tenantId, {
             type: "appointment_completed",
@@ -336,15 +349,42 @@ export async function appointmentRoutes(app: FastifyInstance): Promise<void> {
             link: `/pacientes/${appointment.patientId}`,
             metadata: { appointmentId: id, patientId: appointment.patientId },
           }).catch(() => {});
-        } else if (body.status === "NO_SHOW") {
+
+          // Mark appointment for post-visit follow-up (picked up by cron job in 2h)
+          prisma.appointment.update({
+            where: { id },
+            data: { postVisitSent: false },
+          }).catch(() => {});
+        }
+
+        // ── NO_SHOW: detailed notification for receptionist ──
+        if (body.status === "NO_SHOW") {
+          const timeStr = new Date(appointment.startTime).toLocaleTimeString("es-AR", {
+            hour: "2-digit",
+            minute: "2-digit",
+          });
+          const dateStr = new Date(appointment.startTime).toLocaleDateString("es-AR", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+          });
           createNotification(user.tenantId, {
             type: "appointment_no_show",
-            title: "No asistió",
-            message: `${patientName} no se presentó a su cita`,
+            title: "Paciente no se presentó",
+            message: `${patientName} no se presentó a su cita de ${treatmentName} del ${dateStr} a las ${timeStr} con ${dentistName}. ¿Querés reagendar?`,
             link: `/pacientes/${appointment.patientId}`,
-            metadata: { appointmentId: id, patientId: appointment.patientId },
+            metadata: {
+              appointmentId: id,
+              patientId: appointment.patientId,
+              treatmentName,
+              dentistName,
+              appointmentTime: appointment.startTime.toISOString(),
+            },
           }).catch(() => {});
-        } else if (body.status === "CANCELLED") {
+        }
+
+        // ── CANCELLED ──
+        if (body.status === "CANCELLED") {
           createNotification(user.tenantId, {
             type: "cancelled_appointment",
             title: "Cita cancelada",

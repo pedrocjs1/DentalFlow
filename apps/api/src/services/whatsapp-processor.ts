@@ -13,6 +13,7 @@
 import { prisma } from "@dentiqa/db";
 import {
   sendWhatsAppTextMessage,
+  sendWhatsAppTemplate,
   sendWhatsAppInteractiveButtons,
   markWhatsAppMessageAsRead,
   type IncomingMessage,
@@ -1636,14 +1637,15 @@ export async function processIncomingMessage(
     },
   });
 
-  // Update conversation
+  // Update conversation — track last patient message for 24h window
   await prisma.conversation.update({
     where: { id: conversation.id },
     data: {
       lastMessageAt: now,
       lastMessagePreview: messageContent.slice(0, 100),
-      // If conversation was closed, reopen it
-      ...(conversation.status === "CLOSED" ? { status: "AI_HANDLING", aiEnabled: true } : {}),
+      lastPatientMessageAt: now,
+      // If conversation was closed, reopen it (and clear pause tracker)
+      ...(conversation.status === "CLOSED" ? { status: "AI_HANDLING", aiEnabled: true, aiPausedAt: null } : {}),
     },
   });
 
@@ -2522,6 +2524,78 @@ export async function sendHumanMessageViaWhatsApp(
     return waMessageId;
   } catch (err) {
     log.error({ err, conversationId }, "Failed to send WhatsApp message");
+    return null;
+  }
+}
+
+// ─── Send template from dashboard via WhatsApp ───────────────────────────────
+
+export async function sendTemplateViaWhatsApp(
+  conversationId: string,
+  templateId: string,
+  components: unknown[] | undefined,
+  log: FastifyBaseLogger
+): Promise<string | null> {
+  const conversation = await prisma.conversation.findUnique({
+    where: { id: conversationId },
+    include: {
+      tenant: {
+        select: {
+          id: true,
+          whatsappPhoneNumberId: true,
+          whatsappAccessToken: true,
+          whatsappStatus: true,
+        },
+      },
+      patient: {
+        select: { phone: true, firstName: true },
+      },
+    },
+  });
+
+  if (!conversation) {
+    log.warn({ conversationId }, "Cannot send template — conversation not found");
+    return null;
+  }
+
+  const { whatsappPhoneNumberId, whatsappAccessToken } = conversation.tenant;
+  if (!whatsappPhoneNumberId || !whatsappAccessToken) {
+    log.warn({ conversationId }, "Cannot send template — missing credentials");
+    return null;
+  }
+
+  // Get template details
+  const template = await prisma.whatsAppTemplate.findFirst({
+    where: { id: templateId, tenantId: conversation.tenant.id, status: "APPROVED" },
+  });
+  if (!template) {
+    log.warn({ conversationId, templateId }, "Cannot send template — not found or not approved");
+    return null;
+  }
+
+  let plainToken: string;
+  try {
+    plainToken = decryptToken(whatsappAccessToken);
+  } catch {
+    plainToken = whatsappAccessToken;
+  }
+
+  try {
+    const waMessageId = await sendWhatsAppTemplate({
+      phoneNumberId: whatsappPhoneNumberId,
+      accessToken: plainToken,
+      to: conversation.patient.phone,
+      templateName: template.name,
+      language: template.language ?? "es",
+      components: (components as Record<string, unknown>[]) ?? [],
+    });
+
+    recordUsage(conversation.tenant.id, "WHATSAPP_MESSAGE", 1, { direction: "outbound_template", conversationId }).catch(() => {});
+
+    log.info({ conversationId, waMessageId, templateName: template.name }, "Template sent via WhatsApp");
+    return waMessageId;
+  } catch (err) {
+    log.error({ err, conversationId }, "Failed to send WhatsApp template");
     return null;
   }
 }

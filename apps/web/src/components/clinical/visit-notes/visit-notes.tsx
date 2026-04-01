@@ -809,6 +809,13 @@ function AddNoteModal({
 /*  Main Component                                                     */
 /* ------------------------------------------------------------------ */
 
+interface CompletedAppointmentToday {
+  id: string;
+  treatmentType: { name: string } | null;
+  dentist: { name: string } | null;
+  startTime: string;
+}
+
 export function VisitNotes({ patientId, initialNotes, initialTotal }: Props) {
   const [notes, setNotes] = useState<VisitNote[]>(initialNotes);
   const [total, setTotal] = useState(initialTotal);
@@ -818,6 +825,9 @@ export function VisitNotes({ patientId, initialNotes, initialTotal }: Props) {
   const [dentists, setDentists] = useState<Dentist[]>([]);
   const [treatmentPlans, setTreatmentPlans] = useState<TreatmentPlan[]>([]);
   const [templates, setTemplates] = useState<EvolutionTemplate[]>([]);
+
+  // Completed appointment today without evolution
+  const [completedToday, setCompletedToday] = useState<CompletedAppointmentToday | null>(null);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -840,7 +850,29 @@ export function VisitNotes({ patientId, initialNotes, initialTotal }: Props) {
     apiFetch<EvolutionTemplate[]>("/api/v1/evolution-templates")
       .then((data) => setTemplates(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [patientId]);
+
+    // Check for completed appointments today without evolution
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+    apiFetch<CompletedAppointmentToday[]>(
+      `/api/v1/appointments?patientId=${patientId}&status=COMPLETED&startDate=${startOfDay}&endDate=${endOfDay}`
+    )
+      .then((appts) => {
+        // Only show if there's no evolution today for this patient
+        const arr = Array.isArray(appts) ? appts : [];
+        if (arr.length > 0) {
+          const todayStr = today.toISOString().split("T")[0];
+          const hasEvolutionToday = initialNotes.some((n) =>
+            n.visitDate.startsWith(todayStr) || n.createdAt.startsWith(todayStr)
+          );
+          if (!hasEvolutionToday) {
+            setCompletedToday(arr[0]);
+          }
+        }
+      })
+      .catch(() => {});
+  }, [patientId, initialNotes]);
 
   async function refresh() {
     const data = await apiFetch<{ notes: VisitNote[]; total: number }>(
@@ -892,6 +924,26 @@ export function VisitNotes({ patientId, initialNotes, initialTotal }: Props) {
           + Nueva nota
         </Button>
       </div>
+
+      {/* Completed appointment today banner */}
+      {completedToday && (
+        <div className="flex items-center gap-3 px-4 py-3 bg-blue-50 border border-blue-200 rounded-xl text-sm">
+          <CheckCircle2 className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          <span className="text-blue-800">
+            Cita completada hoy: <strong>{completedToday.treatmentType?.name ?? "Consulta"}</strong>
+            {completedToday.dentist && <> con {completedToday.dentist.name}</>}
+          </span>
+          <button
+            onClick={() => {
+              setCompletedToday(null);
+              setShowAdd(true);
+            }}
+            className="ml-auto px-3 py-1 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Crear evolución
+          </button>
+        </div>
+      )}
 
       {/* Filter bar */}
       <FilterBar

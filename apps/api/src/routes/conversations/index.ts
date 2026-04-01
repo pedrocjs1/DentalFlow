@@ -3,10 +3,17 @@ import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
-import { sendHumanMessageViaWhatsApp } from "../../services/whatsapp-processor.js";
+import { sendHumanMessageViaWhatsApp, sendTemplateViaWhatsApp } from "../../services/whatsapp-processor.js";
 
 type ConversationStatus = "OPEN" | "AI_HANDLING" | "HUMAN_NEEDED" | "CLOSED";
 type Channel = "WHATSAPP" | "EMAIL" | "WEB_CHAT" | "SMS";
+
+const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+function isWindowOpen(lastPatientMessageAt: Date | null): boolean {
+  if (!lastPatientMessageAt) return false;
+  return Date.now() - lastPatientMessageAt.getTime() < WHATSAPP_WINDOW_MS;
+}
 
 export async function conversationRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
@@ -116,7 +123,11 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      return { ...conv, nextAppointment };
+      return {
+        ...conv,
+        nextAppointment,
+        windowOpen: isWindowOpen(conv.lastPatientMessageAt),
+      };
     },
   });
 
@@ -212,15 +223,27 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
 
   // ─── POST /api/v1/conversations/:id/messages ──────────────────────────────
   // Send a manual (human) message in a conversation
+  // Supports type: "text" (default) and type: "template"
   app.post("/api/v1/conversations/:id/messages", {
     preHandler,
     handler: async (request, reply) => {
       const user = request.user as { tenantId: string };
       const { id } = request.params as { id: string };
-      const body = request.body as { content: string; type?: string };
+      const body = request.body as {
+        content: string;
+        type?: string;
+        templateId?: string;
+        templateName?: string;
+        templateComponents?: unknown[];
+      };
 
-      if (!body.content?.trim())
+      const isTemplate = body.type === "template";
+
+      if (!isTemplate && !body.content?.trim())
         throw new AppError(400, "INVALID_INPUT", "El contenido del mensaje es requerido");
+
+      if (isTemplate && !body.templateId)
+        throw new AppError(400, "INVALID_INPUT", "templateId es requerido para enviar templates");
 
       const conv = await prisma.conversation.findFirst({
         where: { id, tenantId: user.tenantId },
@@ -229,16 +252,31 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
       if (conv.status === "CLOSED")
         throw new AppError(400, "CONV_CLOSED", "No se puede enviar mensajes a una conversación cerrada");
 
+      // 24h window check for TEXT messages (templates can always be sent)
+      if (!isTemplate && conv.channel === "WHATSAPP" && !isWindowOpen(conv.lastPatientMessageAt)) {
+        throw new AppError(
+          403,
+          "WINDOW_CLOSED",
+          "La ventana de 24 horas está cerrada. Solo podés enviar templates aprobados."
+        );
+      }
+
       const now = new Date();
+      const messageContent = isTemplate
+        ? `[Template: ${body.templateName ?? body.templateId}]`
+        : body.content.trim();
 
       const [message] = await Promise.all([
         prisma.message.create({
           data: {
             conversationId: id,
             direction: "OUTBOUND",
-            type: (body.type as "TEXT") ?? "TEXT",
-            content: body.content.trim(),
-            metadata: { sentBy: "human" },
+            type: isTemplate ? "TEMPLATE" : "TEXT",
+            content: messageContent,
+            metadata: {
+              sentBy: "human",
+              ...(isTemplate ? { templateId: body.templateId, templateName: body.templateName } : {}),
+            },
             sentAt: now,
           },
         }),
@@ -247,7 +285,7 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
           where: { id },
           data: {
             lastMessageAt: now,
-            lastMessagePreview: body.content.trim().slice(0, 100),
+            lastMessagePreview: messageContent.slice(0, 100),
             // If AI was handling and human sends, switch to OPEN to reflect human takeover
             status: conv.status === "AI_HANDLING" ? "OPEN" : conv.status,
           },
@@ -256,19 +294,69 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
 
       // Send via WhatsApp in background (don't block the API response)
       if (conv.channel === "WHATSAPP") {
-        sendHumanMessageViaWhatsApp(id, body.content.trim(), request.log)
-          .then((waMessageId) => {
-            if (waMessageId) {
-              prisma.message.update({
-                where: { id: message.id },
-                data: { whatsappMessageId: waMessageId },
-              }).catch(() => {});
-            }
-          })
-          .catch(() => {});
+        if (isTemplate) {
+          sendTemplateViaWhatsApp(id, body.templateId!, body.templateComponents, request.log)
+            .then((waMessageId) => {
+              if (waMessageId) {
+                prisma.message.update({
+                  where: { id: message.id },
+                  data: { whatsappMessageId: waMessageId },
+                }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        } else {
+          sendHumanMessageViaWhatsApp(id, body.content.trim(), request.log)
+            .then((waMessageId) => {
+              if (waMessageId) {
+                prisma.message.update({
+                  where: { id: message.id },
+                  data: { whatsappMessageId: waMessageId },
+                }).catch(() => {});
+              }
+            })
+            .catch(() => {});
+        }
       }
 
       return reply.status(201).send(message);
+    },
+  });
+
+  // ─── GET /api/v1/conversations/:id/templates ─────────────────────────────
+  // List approved templates for sending from chat (when 24h window is closed)
+  app.get("/api/v1/conversations/:id/templates", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as { tenantId: string };
+      const { id } = request.params as { id: string };
+
+      const conv = await prisma.conversation.findFirst({
+        where: { id, tenantId: user.tenantId },
+      });
+      if (!conv) throw new AppError(404, "CONV_NOT_FOUND", "Conversación no encontrada");
+
+      const templates = await prisma.whatsAppTemplate.findMany({
+        where: {
+          tenantId: user.tenantId,
+          status: "APPROVED",
+        },
+        select: {
+          id: true,
+          name: true,
+          displayName: true,
+          category: true,
+          bodyText: true,
+          language: true,
+        },
+        orderBy: { displayName: "asc" },
+      });
+
+      return {
+        templates,
+        windowOpen: isWindowOpen(conv.lastPatientMessageAt),
+        lastPatientMessageAt: conv.lastPatientMessageAt,
+      };
     },
   });
 
@@ -286,11 +374,24 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!conv) throw new AppError(404, "CONV_NOT_FOUND", "Conversación no encontrada");
 
+      // Track aiPausedAt for bot-pause alerts
+      const aiPausedData: Record<string, unknown> = {};
+      if (body.aiEnabled !== undefined) {
+        if (!body.aiEnabled && conv.aiEnabled) {
+          // AI being disabled → record pause time
+          aiPausedData.aiPausedAt = new Date();
+        } else if (body.aiEnabled && !conv.aiEnabled) {
+          // AI being re-enabled → clear pause time
+          aiPausedData.aiPausedAt = null;
+        }
+      }
+
       const updated = await prisma.conversation.update({
         where: { id },
         data: {
           ...(body.status !== undefined && { status: body.status }),
           ...(body.aiEnabled !== undefined && { aiEnabled: body.aiEnabled }),
+          ...aiPausedData,
         },
         include: {
           patient: {
@@ -299,7 +400,10 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      return updated;
+      return {
+        ...updated,
+        windowOpen: isWindowOpen(updated.lastPatientMessageAt),
+      };
     },
   });
 

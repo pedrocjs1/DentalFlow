@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
-import { createNotification } from "../../services/notifications.js";
+import { createNotification, getCategoriesForRole } from "../../services/notifications.js";
 
 interface NotifRow {
   id: string;
@@ -19,15 +19,22 @@ interface NotifRow {
 export async function notificationRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
 
-  // GET notifications (latest 50, optional category filter)
+  // GET notifications (latest 50, optional category filter, role-based)
   app.get("/api/v1/notifications", {
     preHandler,
     handler: async (request) => {
-      const user = request.user as { tenantId: string };
+      const user = request.user as { tenantId: string; role?: string; dentistId?: string };
       const query = request.query as { unreadOnly?: string; category?: string };
 
-      // Use raw query for category filtering (Prisma client may be stale for 'category' field)
+      // Role-based filtering: restrict categories based on user role
+      const allowedCategories = getCategoriesForRole(user.role ?? "OWNER");
+
       if (query.category) {
+        // Ensure requested category is allowed for this role
+        if (!allowedCategories.includes(query.category)) {
+          return { notifications: [] };
+        }
+
         const unreadFilter = query.unreadOnly === "true";
         const notifications = unreadFilter
           ? await prisma.$queryRaw<NotifRow[]>`
@@ -43,9 +50,11 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         return { notifications };
       }
 
+      // No specific category → get all allowed categories
       const notifications = await prisma.notification.findMany({
         where: {
           tenantId: user.tenantId,
+          category: { in: allowedCategories },
           ...(query.unreadOnly === "true" ? { isRead: false } : {}),
         },
         orderBy: { createdAt: "desc" },
@@ -55,13 +64,14 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
     },
   });
 
-  // GET unread count — total + per category
+  // GET unread count — total + per category (role-filtered)
   app.get("/api/v1/notifications/unread-count", {
     preHandler,
     handler: async (request) => {
-      const user = request.user as { tenantId: string };
+      const user = request.user as { tenantId: string; role?: string };
 
-      // Use raw SQL to get counts by category (Prisma client may be stale for 'category' field)
+      const allowedCategories = getCategoriesForRole(user.role ?? "OWNER");
+
       const rows = await prisma.$queryRaw<Array<{ category: string; cnt: bigint }>>`
         SELECT category, COUNT(*)::bigint as cnt
         FROM "Notification"
@@ -69,12 +79,17 @@ export async function notificationRoutes(app: FastifyInstance): Promise<void> {
         GROUP BY category
       `;
 
-      const result: Record<string, number> = { messages: 0, system: 0, pipeline: 0, ai: 0 };
+      const result: Record<string, number> = {
+        messages: 0, appointment: 0, clinical: 0, pipeline: 0, system: 0, ai: 0,
+      };
       let total = 0;
       for (const r of rows) {
-        const count = Number(r.cnt);
-        result[r.category] = count;
-        total += count;
+        // Only count categories allowed for this role
+        if (allowedCategories.includes(r.category)) {
+          const count = Number(r.cnt);
+          result[r.category] = count;
+          total += count;
+        }
       }
 
       return { total, ...result };

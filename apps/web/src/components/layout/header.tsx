@@ -55,6 +55,8 @@ interface NotificationItem {
 interface UnreadCounts {
   total: number;
   messages: number;
+  appointment: number;
+  clinical: number;
   system: number;
   pipeline: number;
   ai: number;
@@ -74,13 +76,18 @@ const NOTIF_ICONS: Record<string, React.ReactNode> = {
   pipeline_move: <ArrowRight className="h-4 w-4 text-blue-500" />,
   pipeline_stale: <AlertTriangle className="h-4 w-4 text-orange-400" />,
   template_status: <FileText className="h-4 w-4 text-purple-500" />,
+  bot_paused_alert: <Bot className="h-4 w-4 text-amber-500" />,
+  evolution_pending: <FileText className="h-4 w-4 text-blue-500" />,
+  treatment_followup: <Calendar className="h-4 w-4 text-teal-500" />,
 };
 
-type NotifTab = "messages" | "system" | "pipeline" | "ai";
+type NotifTab = "messages" | "appointment" | "clinical" | "system" | "pipeline" | "ai";
 const TABS: { key: NotifTab; icon: string; label: string }[] = [
   { key: "messages", icon: "💬", label: "Msgs" },
-  { key: "system", icon: "⚙️", label: "Sist." },
+  { key: "appointment", icon: "📅", label: "Citas" },
+  { key: "clinical", icon: "🩺", label: "Clín." },
   { key: "pipeline", icon: "📊", label: "Pipel." },
+  { key: "system", icon: "⚙️", label: "Sist." },
   { key: "ai", icon: "🤖", label: "IA" },
 ];
 
@@ -98,7 +105,7 @@ export function Header() {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<StoredUser | null>(null);
-  const [counts, setCounts] = useState<UnreadCounts>({ total: 0, messages: 0, system: 0, pipeline: 0, ai: 0 });
+  const [counts, setCounts] = useState<UnreadCounts>({ total: 0, messages: 0, appointment: 0, clinical: 0, system: 0, pipeline: 0, ai: 0 });
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [panelOpen, setPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<NotifTab>("messages");
