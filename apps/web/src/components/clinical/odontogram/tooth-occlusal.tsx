@@ -37,56 +37,87 @@ function getDimensions(type: ToothType): { w: number; h: number } {
 }
 
 // ─── Zone paths + explicit inner cross lines ─────────────────────────────────
+// Anatomically shaped outlines with clear internal fissure cross pattern.
+// Each tooth type has a distinct occlusal morphology.
 
 interface ZoneData {
   outline: string;
   zones: Record<ToothSurface, string>;
-  crossLines: string[]; // explicit lines for the inner cross
+  crossLines: string[]; // explicit lines for the inner cross — ALWAYS visible
 }
 
 function getMolarZones(W: number, H: number): ZoneData {
   const cx = W / 2, cy = H / 2;
-  const ix = W * 0.30, iy = H * 0.30;
-  const r = 5;
+  // Inner rectangle for fissure pattern — slightly larger for visibility
+  const ix = W * 0.28, iy = H * 0.28;
+  // Anatomical: rounded trapezoid, wider on buccal (top), slightly narrower on lingual
+  const r = 6;
+  const bw = W * 0.04; // buccal extra width
+  const outline = `M ${r + bw},0
+    L ${W - r - bw},0
+    Q ${W - bw},0 ${W - bw},${r}
+    L ${W},${H * 0.15}
+    L ${W},${H - r}
+    Q ${W},${H} ${W - r},${H}
+    L ${r},${H}
+    Q 0,${H} 0,${H - r}
+    L 0,${H * 0.15}
+    L ${bw},${r}
+    Q ${bw},0 ${r + bw},0 Z`;
   return {
-    outline: `M ${r},0 L ${W - r},0 Q ${W},0 ${W},${r} L ${W},${H - r} Q ${W},${H} ${W - r},${H} L ${r},${H} Q 0,${H} 0,${H - r} L 0,${r} Q 0,0 ${r},0 Z`,
+    outline,
     zones: {
-      VESTIBULAR: `M 0,0 L ${W},0 L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} Z`,
+      VESTIBULAR: `M 0,0 L ${W},0 L ${W},${H * 0.15} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L 0,${H * 0.15} Z`,
       LINGUAL:    `M 0,${H} L ${W},${H} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
-      MESIAL:     `M 0,0 L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy} L 0,${H} Z`,
-      DISTAL:     `M ${W},0 L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${W},${H} Z`,
+      MESIAL:     `M 0,0 L 0,${H} L ${cx - ix},${cy + iy} L ${cx - ix},${cy - iy} L 0,${H * 0.15} Z`,
+      DISTAL:     `M ${W},0 L ${W},${H} L ${cx + ix},${cy + iy} L ${cx + ix},${cy - iy} L ${W},${H * 0.15} Z`,
       OCCLUSAL:   `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
     },
     crossLines: [
+      // Inner rectangle (central fossa)
+      `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      // Diagonal fissures from corners to inner rectangle
       `M 0,0 L ${cx - ix},${cy - iy}`,
       `M ${W},0 L ${cx + ix},${cy - iy}`,
       `M ${W},${H} L ${cx + ix},${cy + iy}`,
       `M 0,${H} L ${cx - ix},${cy + iy}`,
-      `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
     ],
   };
 }
 
 function getPremolarZones(W: number, H: number): ZoneData {
   const cx = W / 2, cy = H / 2;
-  const ix = W * 0.26, iy = H * 0.26;
-  // Horizontal oval
-  const outline = `M ${cx},1 C ${W * 0.82},1 ${W - 1},${H * 0.22} ${W - 1},${cy} C ${W - 1},${H * 0.78} ${W * 0.82},${H - 1} ${cx},${H - 1} C ${W * 0.18},${H - 1} 1,${H * 0.78} 1,${cy} C 1,${H * 0.22} ${W * 0.18},1 ${cx},1 Z`;
+  const ix = W * 0.24, iy = H * 0.24;
+  // Anatomical: oval shape, slightly wider buccolingually
+  const outline = `M ${cx},1
+    C ${W * 0.78},1 ${W - 1},${H * 0.18} ${W - 1},${cy}
+    C ${W - 1},${H * 0.82} ${W * 0.78},${H - 1} ${cx},${H - 1}
+    C ${W * 0.22},${H - 1} 1,${H * 0.82} 1,${cy}
+    C 1,${H * 0.18} ${W * 0.22},1 ${cx},1 Z`;
   return {
     outline,
     zones: {
-      VESTIBULAR: `M ${cx},1 C ${W * 0.82},1 ${W - 1},${H * 0.22} ${W - 1},${cy} L ${cx + ix},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L ${cx - ix},${cy} L 1,${cy} C 1,${H * 0.22} ${W * 0.18},1 ${cx},1 Z`,
-      LINGUAL:    `M ${cx},${H - 1} C ${W * 0.82},${H - 1} ${W - 1},${H * 0.78} ${W - 1},${cy} L ${cx + ix},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L ${cx - ix},${cy} L 1,${cy} C 1,${H * 0.78} ${W * 0.18},${H - 1} ${cx},${H - 1} Z`,
-      MESIAL:     `M 1,${cy} C 1,${H * 0.22} ${W * 0.18},1 ${cx},1 L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy} L ${cx},${H - 1} C ${W * 0.18},${H - 1} 1,${H * 0.78} 1,${cy} Z`,
-      DISTAL:     `M ${W - 1},${cy} C ${W - 1},${H * 0.22} ${W * 0.82},1 ${cx},1 L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx},${H - 1} C ${W * 0.82},${H - 1} ${W - 1},${H * 0.78} ${W - 1},${cy} Z`,
-      OCCLUSAL:   `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      VESTIBULAR: `M ${cx},1 C ${W * 0.78},1 ${W - 1},${H * 0.18} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.18} ${W * 0.22},1 ${cx},1 Z`,
+      LINGUAL: `M ${cx},${H - 1} C ${W * 0.78},${H - 1} ${W - 1},${H * 0.82} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.82} ${W * 0.22},${H - 1} ${cx},${H - 1} Z`,
+      MESIAL: `M 1,${cy} C 1,${H * 0.18} ${W * 0.22},1 ${cx},1
+        L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy}
+        L ${cx},${H - 1} C ${W * 0.22},${H - 1} 1,${H * 0.82} 1,${cy} Z`,
+      DISTAL: `M ${W - 1},${cy} C ${W - 1},${H * 0.18} ${W * 0.78},1 ${cx},1
+        L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy}
+        L ${cx},${H - 1} C ${W * 0.78},${H - 1} ${W - 1},${H * 0.82} ${W - 1},${cy} Z`,
+      OCCLUSAL: `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
     },
     crossLines: [
+      // Inner rectangle
       `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      // Lines from inner rect to outline
       `M ${cx - ix},${cy - iy} L ${cx},1`, `M ${cx + ix},${cy - iy} L ${cx},1`,
       `M ${cx - ix},${cy + iy} L ${cx},${H - 1}`, `M ${cx + ix},${cy + iy} L ${cx},${H - 1}`,
-      `M ${cx - ix},${cy - iy} L 1,${cy}`, `M ${cx - ix},${cy + iy} L 1,${cy}`,
-      `M ${cx + ix},${cy - iy} L ${W - 1},${cy}`, `M ${cx + ix},${cy + iy} L ${W - 1},${cy}`,
+      `M ${cx - ix},${cy} L 1,${cy}`, `M ${cx + ix},${cy} L ${W - 1},${cy}`,
     ],
   };
 }
@@ -94,21 +125,35 @@ function getPremolarZones(W: number, H: number): ZoneData {
 function getCanineZones(W: number, H: number): ZoneData {
   const cx = W / 2, cy = H / 2;
   const ix = W * 0.22, iy = H * 0.22;
+  // Anatomical: pointed oval — buccal tip at top, lingual cingulum rounded at bottom
+  const outline = `M ${cx},2
+    C ${W * 0.72},2 ${W - 1},${H * 0.25} ${W - 1},${cy}
+    C ${W - 1},${H * 0.75} ${W * 0.72},${H - 2} ${cx},${H - 2}
+    C ${W * 0.28},${H - 2} 1,${H * 0.75} 1,${cy}
+    C 1,${H * 0.25} ${W * 0.28},2 ${cx},2 Z`;
   return {
-    outline: `M ${cx},1 L ${W - 1},${cy} L ${cx},${H - 1} L 1,${cy} Z`,
+    outline,
     zones: {
-      VESTIBULAR: `M ${cx},1 L ${W - 1},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L 1,${cy} Z`,
-      LINGUAL:    `M ${cx},${H - 1} L ${W - 1},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L 1,${cy} Z`,
-      MESIAL:     `M ${cx},1 L 1,${cy} L ${cx - ix},${cy - iy} Z M 1,${cy} L ${cx - ix},${cy + iy} L ${cx},${H - 1} Z`,
-      DISTAL:     `M ${cx},1 L ${W - 1},${cy} L ${cx + ix},${cy - iy} Z M ${W - 1},${cy} L ${cx + ix},${cy + iy} L ${cx},${H - 1} Z`,
-      OCCLUSAL:   `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      VESTIBULAR: `M ${cx},2 C ${W * 0.72},2 ${W - 1},${H * 0.25} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.25} ${W * 0.28},2 ${cx},2 Z`,
+      LINGUAL: `M ${cx},${H - 2} C ${W * 0.72},${H - 2} ${W - 1},${H * 0.75} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.75} ${W * 0.28},${H - 2} ${cx},${H - 2} Z`,
+      MESIAL: `M 1,${cy} C 1,${H * 0.25} ${W * 0.28},2 ${cx},2
+        L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy}
+        L ${cx},${H - 2} C ${W * 0.28},${H - 2} 1,${H * 0.75} 1,${cy} Z`,
+      DISTAL: `M ${W - 1},${cy} C ${W - 1},${H * 0.25} ${W * 0.72},2 ${cx},2
+        L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy}
+        L ${cx},${H - 2} C ${W * 0.72},${H - 2} ${W - 1},${H * 0.75} ${W - 1},${cy} Z`,
+      OCCLUSAL: `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
     },
     crossLines: [
+      // Inner rectangle
       `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
-      `M ${cx},1 L ${cx - ix},${cy - iy}`, `M ${cx},1 L ${cx + ix},${cy - iy}`,
-      `M ${cx},${H - 1} L ${cx - ix},${cy + iy}`, `M ${cx},${H - 1} L ${cx + ix},${cy + iy}`,
-      `M 1,${cy} L ${cx - ix},${cy - iy}`, `M 1,${cy} L ${cx - ix},${cy + iy}`,
-      `M ${W - 1},${cy} L ${cx + ix},${cy - iy}`, `M ${W - 1},${cy} L ${cx + ix},${cy + iy}`,
+      // Lines from inner rect to outline
+      `M ${cx},${cy - iy} L ${cx},2`, `M ${cx},${cy + iy} L ${cx},${H - 2}`,
+      `M ${cx - ix},${cy} L 1,${cy}`, `M ${cx + ix},${cy} L ${W - 1},${cy}`,
     ],
   };
 }
@@ -116,18 +161,34 @@ function getCanineZones(W: number, H: number): ZoneData {
 function getIncisorZones(W: number, H: number): ZoneData {
   const cx = W / 2, cy = H / 2;
   const ix = W * 0.22, iy = H * 0.20;
-  const outline = `M ${cx},1 C ${W * 0.85},1 ${W - 1},${H * 0.25} ${W - 1},${cy} C ${W - 1},${H * 0.75} ${W * 0.85},${H - 1} ${cx},${H - 1} C ${W * 0.15},${H - 1} 1,${H * 0.75} 1,${cy} C 1,${H * 0.25} ${W * 0.15},1 ${cx},1 Z`;
+  // Anatomical: elongated oval, wider mesiodistally, narrower labiolingually
+  // Slight cingulum bulge on lingual (bottom)
+  const outline = `M ${cx},1
+    C ${W * 0.82},1 ${W - 1},${H * 0.22} ${W - 1},${cy}
+    C ${W - 1},${H * 0.78} ${W * 0.82},${H - 1} ${cx},${H - 1}
+    C ${W * 0.18},${H - 1} 1,${H * 0.78} 1,${cy}
+    C 1,${H * 0.22} ${W * 0.18},1 ${cx},1 Z`;
   return {
     outline,
     zones: {
-      VESTIBULAR: `M ${cx},1 C ${W * 0.85},1 ${W - 1},${H * 0.25} ${W - 1},${cy} L ${cx + ix},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L ${cx - ix},${cy} L 1,${cy} C 1,${H * 0.25} ${W * 0.15},1 ${cx},1 Z`,
-      LINGUAL:    `M ${cx},${H - 1} C ${W * 0.85},${H - 1} ${W - 1},${H * 0.75} ${W - 1},${cy} L ${cx + ix},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L ${cx - ix},${cy} L 1,${cy} C 1,${H * 0.75} ${W * 0.15},${H - 1} ${cx},${H - 1} Z`,
-      MESIAL:     `M 1,${cy} C 1,${H * 0.25} ${W * 0.15},1 ${cx},1 L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy} L ${cx},${H - 1} C ${W * 0.15},${H - 1} 1,${H * 0.75} 1,${cy} Z`,
-      DISTAL:     `M ${W - 1},${cy} C ${W - 1},${H * 0.25} ${W * 0.85},1 ${cx},1 L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx},${H - 1} C ${W * 0.85},${H - 1} ${W - 1},${H * 0.75} ${W - 1},${cy} Z`,
-      OCCLUSAL:   `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      VESTIBULAR: `M ${cx},1 C ${W * 0.82},1 ${W - 1},${H * 0.22} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy - iy} L ${cx - ix},${cy - iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.22} ${W * 0.18},1 ${cx},1 Z`,
+      LINGUAL: `M ${cx},${H - 1} C ${W * 0.82},${H - 1} ${W - 1},${H * 0.78} ${W - 1},${cy}
+        L ${cx + ix},${cy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} L ${cx - ix},${cy}
+        L 1,${cy} C 1,${H * 0.78} ${W * 0.18},${H - 1} ${cx},${H - 1} Z`,
+      MESIAL: `M 1,${cy} C 1,${H * 0.22} ${W * 0.18},1 ${cx},1
+        L ${cx - ix},${cy - iy} L ${cx - ix},${cy + iy}
+        L ${cx},${H - 1} C ${W * 0.18},${H - 1} 1,${H * 0.78} 1,${cy} Z`,
+      DISTAL: `M ${W - 1},${cy} C ${W - 1},${H * 0.22} ${W * 0.82},1 ${cx},1
+        L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy}
+        L ${cx},${H - 1} C ${W * 0.82},${H - 1} ${W - 1},${H * 0.78} ${W - 1},${cy} Z`,
+      OCCLUSAL: `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
     },
     crossLines: [
+      // Inner rectangle
       `M ${cx - ix},${cy - iy} L ${cx + ix},${cy - iy} L ${cx + ix},${cy + iy} L ${cx - ix},${cy + iy} Z`,
+      // Lines from inner rect to outline — clean cross pattern
       `M ${cx - ix},${cy} L 1,${cy}`, `M ${cx + ix},${cy} L ${W - 1},${cy}`,
       `M ${cx},${cy - iy} L ${cx},1`, `M ${cx},${cy + iy} L ${cx},${H - 1}`,
     ],
@@ -224,14 +285,14 @@ export function ToothOcclusalSVG({ fdi, findings, onZoneClick }: Props) {
             </path>
           ))}
 
-          {/* Cross lines — ALWAYS visible */}
+          {/* Cross lines — ALWAYS visible, prominent */}
           {data.crossLines.map((d, i) => (
             <path
               key={i}
               d={d}
               fill="none"
-              stroke="#C4B5A0"
-              strokeWidth={1}
+              stroke="#9E8E78"
+              strokeWidth={1.2}
               pointerEvents="none"
             />
           ))}
