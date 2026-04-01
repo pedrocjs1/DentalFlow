@@ -1,10 +1,175 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyBaseLogger } from "fastify";
 import { prisma } from "@dentiqa/db";
 import { authMiddleware } from "../../middleware/auth-middleware.js";
 import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { encryptToken, decryptToken } from "../../services/encryption.js";
 import { sendWhatsAppTextMessage } from "@dentiqa/messaging";
+
+// ─── Default templates to create on WhatsApp connect ─────────────────────────
+
+interface DefaultTemplate {
+  name: string;
+  displayName: string;
+  messageType: string;
+  suggestedTrigger: string;
+  category: string;
+  bodyText: string;
+  variablesJson: Array<{ position: number; field: string; example: string }>;
+}
+
+const DEFAULT_TEMPLATES: DefaultTemplate[] = [
+  {
+    name: "appointment_reminder",
+    displayName: "Recordatorio de cita",
+    messageType: "appointment_reminder",
+    suggestedTrigger: "appointment_reminder",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, te recordamos tu cita en {{2}} el día {{3}}. Si necesitás cambiarla, respondé este mensaje.",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+      { position: 3, field: "fecha", example: "lunes 15 de abril a las 14:30" },
+    ],
+  },
+  {
+    name: "post_visit_followup",
+    displayName: "Seguimiento post-visita",
+    messageType: "post_visit",
+    suggestedTrigger: "post_visit",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, gracias por tu visita en {{2}}. Si tenés alguna consulta sobre tu tratamiento, no dudes en escribirnos.",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+    ],
+  },
+  {
+    name: "missed_appointment",
+    displayName: "Cita no asistida",
+    messageType: "missed_appointment",
+    suggestedTrigger: "missed_appointment",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, notamos que no pudiste asistir a tu cita en {{2}}. ¿Te gustaría reagendar? Respondé este mensaje.",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+    ],
+  },
+  {
+    name: "treatment_checkup",
+    displayName: "Control de tratamiento",
+    messageType: "treatment_followup",
+    suggestedTrigger: "follow_up",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, desde {{2}} te recordamos que es momento de tu control de {{3}}. ¿Agendamos?",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+      { position: 3, field: "tratamiento", example: "limpieza dental" },
+    ],
+  },
+  {
+    name: "welcome_visit",
+    displayName: "Bienvenida a cita",
+    messageType: "welcome",
+    suggestedTrigger: "appointment_welcome",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, bienvenido/a a {{2}}. Tu profesional ya está listo para atenderte.",
+    variablesJson: [
+      { position: 1, field: "firstName", example: "María" },
+      { position: 2, field: "clinica", example: "Dental Care" },
+    ],
+  },
+];
+
+async function createDefaultTemplates(
+  tenantId: string,
+  wabaId: string,
+  accessToken: string,
+  log: FastifyBaseLogger
+): Promise<void> {
+  for (const tmpl of DEFAULT_TEMPLATES) {
+    try {
+      // Check if template already exists for this tenant
+      const existing = await prisma.whatsAppTemplate.findFirst({
+        where: { tenantId, name: tmpl.name },
+      });
+      if (existing) {
+        log.info({ templateName: tmpl.name }, "Default template already exists, skipping");
+        continue;
+      }
+
+      // Create in local DB
+      const created = await prisma.whatsAppTemplate.create({
+        data: {
+          tenantId,
+          name: tmpl.name,
+          displayName: tmpl.displayName,
+          category: tmpl.category,
+          language: "es",
+          bodyText: tmpl.bodyText,
+          variablesJson: tmpl.variablesJson,
+          messageType: tmpl.messageType,
+          suggestedTrigger: tmpl.suggestedTrigger,
+          isSystemTemplate: false,
+          status: "DRAFT",
+        },
+      });
+
+      // Submit to Meta Graph API
+      try {
+        const metaResponse = await fetch(
+          `https://graph.facebook.com/v21.0/${wabaId}/message_templates`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              name: tmpl.name,
+              language: "es",
+              category: tmpl.category,
+              components: [
+                {
+                  type: "BODY",
+                  text: tmpl.bodyText,
+                  example: {
+                    body_text: [tmpl.variablesJson.map((v) => v.example)],
+                  },
+                },
+              ],
+            }),
+          }
+        );
+
+        if (metaResponse.ok) {
+          const metaData = await metaResponse.json() as { id?: string; status?: string };
+          await prisma.whatsAppTemplate.update({
+            where: { id: created.id },
+            data: {
+              status: "PENDING",
+              metaTemplateId: metaData.id,
+              submittedAt: new Date(),
+            },
+          });
+          log.info({ templateName: tmpl.name, metaId: metaData.id }, "Default template submitted to Meta");
+        } else {
+          const errorData = await metaResponse.json().catch(() => ({}));
+          log.warn(
+            { templateName: tmpl.name, status: metaResponse.status, error: errorData },
+            "Meta rejected default template submission (non-fatal)"
+          );
+        }
+      } catch (metaErr) {
+        log.warn({ templateName: tmpl.name, err: metaErr }, "Failed to submit template to Meta (non-fatal)");
+      }
+    } catch (err) {
+      log.warn({ templateName: tmpl.name, err }, "Failed to create default template (non-fatal)");
+    }
+  }
+}
 
 export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware];
@@ -174,6 +339,11 @@ export async function whatsappRoutes(app: FastifyInstance): Promise<void> {
         { tenantId: user.tenantId, wabaId, phoneNumberId, displayNumber },
         "WhatsApp Embedded Signup completed successfully"
       );
+
+      // Create default UTILITY templates (fire-and-forget)
+      createDefaultTemplates(user.tenantId, wabaId, accessToken, app.log).catch((err) => {
+        app.log.warn({ err }, "Failed to create default templates (non-fatal)");
+      });
 
       return {
         success: true,

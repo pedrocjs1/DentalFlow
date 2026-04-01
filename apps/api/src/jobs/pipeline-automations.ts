@@ -249,6 +249,24 @@ export async function runPipelineAutomations(): Promise<void> {
           continue;
         }
 
+        // Protect "En Tratamiento": don't auto-move if patient has active plan with pending items
+        if (stage.name.toLowerCase().includes("en tratamiento")) {
+          const activePlan = await prisma.treatmentPlan.findFirst({
+            where: {
+              patientId: patient.id,
+              tenantId: tenant.id,
+              status: "ACTIVE",
+              isActive: true,
+              items: { some: { status: { not: "COMPLETED" } } },
+            },
+            select: { id: true },
+          });
+          if (activePlan) {
+            // Patient has pending treatment items — skip auto-move
+            continue;
+          }
+        }
+
         try {
           await prisma.patientPipeline.update({
             where: { id: entry.id },

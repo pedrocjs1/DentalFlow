@@ -3,19 +3,18 @@
  *
  * Runs every 30 minutes. Sends WhatsApp reminder to patients with
  * appointments in the next 24 hours that haven't been reminded yet.
+ * Uses sendSmartMessage for centralized template/text/notification fallback.
  * Idempotent via reminderSent flag.
  */
 
 import { prisma } from "@dentiqa/db";
-import { sendWhatsAppTemplate } from "@dentiqa/messaging";
-import { decryptToken } from "../services/encryption.js";
+import { sendSmartMessage } from "../services/smart-message.js";
 import { createNotification } from "../services/notifications.js";
 
 export async function runAppointmentReminders(): Promise<void> {
   const now = new Date();
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // Find appointments in next 24h that haven't been reminded
   const appointments = await prisma.appointment.findMany({
     where: {
       startTime: { gte: now, lte: in24h },
@@ -31,9 +30,6 @@ export async function runAppointmentReminders(): Promise<void> {
           id: true,
           name: true,
           timezone: true,
-          whatsappPhoneNumberId: true,
-          whatsappAccessToken: true,
-          whatsappStatus: true,
         },
       },
     },
@@ -48,80 +44,40 @@ export async function runAppointmentReminders(): Promise<void> {
       data: { reminderSent: true },
     });
 
-    // Send WhatsApp reminder if connected
-    if (
-      tenant.whatsappPhoneNumberId &&
-      tenant.whatsappAccessToken &&
-      tenant.whatsappStatus === "CONNECTED"
-    ) {
-      try {
-        const accessToken = decryptToken(tenant.whatsappAccessToken);
+    // Format time in tenant timezone
+    const timeStr = apt.startTime.toLocaleTimeString("es-AR", {
+      timeZone: tenant.timezone,
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const dateStr = apt.startTime.toLocaleDateString("es-AR", {
+      timeZone: tenant.timezone,
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
 
-        // Find the system reminder template
-        const reminderTemplate = await prisma.whatsAppTemplate.findFirst({
-          where: {
-            OR: [
-              { name: "recordatorio_cita" },
-              { suggestedTrigger: "appointment_reminder" },
-            ],
-            status: "APPROVED",
-            isSystemTemplate: true,
-          },
-        });
+    const fallbackText = `Hola ${apt.patient.firstName}, te recordamos tu cita en ${tenant.name} el día ${dateStr} a las ${timeStr}. Si necesitás cambiarla, respondé este mensaje.`;
 
-        if (reminderTemplate) {
-          // Format time in tenant timezone
-          const timeStr = apt.startTime.toLocaleTimeString("es-AR", {
-            timeZone: tenant.timezone,
-            hour: "2-digit",
-            minute: "2-digit",
-          });
-          const dateStr = apt.startTime.toLocaleDateString("es-AR", {
-            timeZone: tenant.timezone,
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          });
-
-          await sendWhatsAppTemplate({
-            phoneNumberId: tenant.whatsappPhoneNumberId,
-            accessToken,
-            to: apt.patient.phone,
-            templateName: reminderTemplate.name,
-            language: reminderTemplate.language.replace("_", "-"),
-            components: [
-              {
-                type: "body",
-                parameters: [
-                  { type: "text", text: apt.patient.firstName },
-                  { type: "text", text: `${dateStr} a las ${timeStr}` },
-                  { type: "text", text: apt.dentist.name },
-                ],
-              },
-            ],
-          });
-
-          console.log(
-            `[appointment-reminders] Sent reminder to ${apt.patient.firstName} for ${dateStr} ${timeStr}`
-          );
-        } else {
-          // No template — send a plain text if within 24h window
-          // Templates work outside 24h window, text only within
-          console.log(
-            `[appointment-reminders] No reminder template found, skipping WhatsApp for ${apt.patient.firstName}`
-          );
-        }
-      } catch (err) {
-        console.error(
-          `[appointment-reminders] Failed to send reminder to ${apt.patient.phone}:`,
-          err
-        );
-      }
-    }
+    await sendSmartMessage({
+      tenantId: tenant.id,
+      patientPhone: apt.patient.phone,
+      patientId: apt.patient.id,
+      messageType: "appointment_reminder",
+      variables: {
+        nombre: apt.patient.firstName,
+        clinica: tenant.name,
+        tratamiento: apt.treatmentType?.name,
+        dentista: apt.dentist.name,
+        fecha: dateStr,
+        hora: timeStr,
+      },
+      fallbackText,
+    });
 
     // Always create in-app notification
     await createNotification(tenant.id, {
-      type: "system",
+      type: "appointment_reminder",
       title: "Recordatorio de cita enviado",
       message: `Recordatorio enviado a ${apt.patient.firstName} para su cita de mañana`,
       link: "/agenda",

@@ -795,15 +795,18 @@ async function handleToolCalls(
         const preferredDentistId = tool.args.dentistId as string | undefined;
         log.info({ patientId, treatmentType, preferredDate, preferredTimeOfDay, preferredDentistId }, "Chatbot: book_appointment tool called");
 
-        // Save interest treatment in pipeline
-        await prisma.patientPipeline.updateMany({
-          where: { patientId },
-          data: { interestTreatment: treatmentType },
-        });
-
         // Check how many dentists can do this treatment
         const treatment = await prisma.treatmentType.findFirst({
           where: { tenantId, isActive: true, name: { contains: treatmentType, mode: "insensitive" } },
+        });
+
+        // Save interest treatment in pipeline (with FK if matched)
+        await prisma.patientPipeline.updateMany({
+          where: { patientId },
+          data: {
+            interestTreatment: treatmentType,
+            ...(treatment ? { interestTreatmentId: treatment.id } : {}),
+          },
         });
 
         if (!preferredDentistId && treatment) {
@@ -1262,11 +1265,20 @@ async function createAppointmentFromSlot(
     }
   }
 
-  // Move patient in pipeline
+  // Move patient in pipeline + save interest treatment
   await movePipelineToStage(tenantId, patientId, "Primera Cita Agendada", log);
+  const matchedTreatment = treatmentName
+    ? await prisma.treatmentType.findFirst({
+        where: { tenantId, isActive: true, name: { contains: treatmentName, mode: "insensitive" } },
+        select: { id: true },
+      })
+    : null;
   await prisma.patientPipeline.updateMany({
     where: { patientId },
-    data: { interestTreatment: treatmentName },
+    data: {
+      interestTreatment: treatmentName,
+      ...(matchedTreatment ? { interestTreatmentId: matchedTreatment.id } : {}),
+    },
   });
 
   // Get clinic address

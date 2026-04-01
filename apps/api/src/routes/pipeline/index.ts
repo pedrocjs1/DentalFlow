@@ -37,6 +37,16 @@ function buildPatientCardSelect(now: Date) {
         dentist: { select: { id: true, name: true, color: true } },
       },
     },
+    // Active treatment plan with item progress
+    treatmentPlans: {
+      where: { status: "ACTIVE", isActive: true },
+      take: 1 as const,
+      select: {
+        id: true,
+        title: true,
+        items: { select: { status: true } },
+      },
+    },
   };
 }
 
@@ -126,14 +136,56 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
           return {
             ...s,
             stageValue,
-            patients: stageEntries.map((e) => ({
-              pipelineId: e.id,
-              movedAt: e.movedAt,
-              notes: e.notes,
-              interestTreatment: e.interestTreatment,
-              lastAutoMessageSentAt: e.lastAutoMessageSentAt,
-              ...e.patient,
-            })),
+            patients: stageEntries.map((e) => {
+              // Compute treatment plan progress
+              const patientData = e.patient as Record<string, unknown>;
+              const plans = (patientData.treatmentPlans ?? []) as Array<{
+                id: string;
+                title: string;
+                items: Array<{ status: string }>;
+              }>;
+              const activePlan = plans[0] ?? null;
+              let treatmentPlanProgress = null;
+              if (activePlan) {
+                const total = activePlan.items.length;
+                const completed = activePlan.items.filter((i) => i.status === "COMPLETED").length;
+                treatmentPlanProgress = {
+                  planId: activePlan.id,
+                  planTitle: activePlan.title,
+                  totalItems: total,
+                  completedItems: completed,
+                };
+              }
+
+              // Get interest treatment price
+              let interestTreatmentPrice = null;
+              if (e.interestTreatmentId) {
+                // Price from interestTreatmentId FK
+                const priceVal = priceByName.get(
+                  (e.interestTreatment ?? "").toLowerCase().trim()
+                );
+                if (priceVal) interestTreatmentPrice = priceVal;
+              } else if (e.interestTreatment) {
+                interestTreatmentPrice = priceByName.get(
+                  e.interestTreatment.toLowerCase().trim()
+                ) ?? null;
+              }
+
+              // Remove treatmentPlans from spread to keep response clean
+              const { treatmentPlans: _plans, ...patientFields } = patientData as Record<string, unknown> & { treatmentPlans?: unknown };
+
+              return {
+                pipelineId: e.id,
+                movedAt: e.movedAt,
+                notes: e.notes,
+                interestTreatment: e.interestTreatment,
+                interestTreatmentId: e.interestTreatmentId,
+                interestTreatmentPrice,
+                lastAutoMessageSentAt: e.lastAutoMessageSentAt,
+                treatmentPlanProgress,
+                ...patientFields,
+              };
+            }),
             patientCount: stageEntries.length,
           };
         }),
@@ -185,6 +237,24 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       const patient = await prisma.patient.findFirst({ where: { id: patientId, tenantId: user.tenantId } });
       if (!patient) throw new AppError(404, "PATIENT_NOT_FOUND", "Paciente no encontrado");
 
+      // Resolve interestTreatmentId from treatment name (fuzzy match)
+      let interestTreatmentId: string | null | undefined;
+      if (body.interestTreatment !== undefined) {
+        if (body.interestTreatment) {
+          const tt = await prisma.treatmentType.findFirst({
+            where: {
+              tenantId: user.tenantId,
+              name: { contains: body.interestTreatment, mode: "insensitive" },
+              isActive: true,
+            },
+            select: { id: true },
+          });
+          interestTreatmentId = tt?.id ?? null;
+        } else {
+          interestTreatmentId = null;
+        }
+      }
+
       const entry = await prisma.patientPipeline.upsert({
         where: { patientId },
         create: {
@@ -192,10 +262,12 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
           stageId: (await prisma.pipelineStage.findFirst({ where: { tenantId: user.tenantId, isDefault: true }, orderBy: { order: "asc" } }))!.id,
           notes: body.notes,
           interestTreatment: body.interestTreatment,
+          ...(interestTreatmentId !== undefined && { interestTreatmentId }),
         },
         update: {
           ...(body.notes !== undefined && { notes: body.notes }),
           ...(body.interestTreatment !== undefined && { interestTreatment: body.interestTreatment }),
+          ...(interestTreatmentId !== undefined && { interestTreatmentId }),
         },
       });
 
@@ -404,22 +476,48 @@ export async function syncPipelineFromAppointment(
     }
 
     case "COMPLETED": {
-      // Use isMultiSession to decide target stage
-      const lastCompleted = await prisma.appointment.findFirst({
-        where: { tenantId, patientId, status: "COMPLETED" },
-        orderBy: { updatedAt: "desc" },
-        select: { treatmentTypeId: true },
+      // Check if patient has an active TreatmentPlan with pending items
+      const activePlan = await prisma.treatmentPlan.findFirst({
+        where: { tenantId, patientId, status: "ACTIVE", isActive: true },
+        include: {
+          items: { select: { status: true } },
+        },
       });
-      let isMulti = false;
-      if (lastCompleted?.treatmentTypeId) {
-        const tt = await prisma.treatmentType.findUnique({
-          where: { id: lastCompleted.treatmentTypeId },
+
+      if (activePlan) {
+        const totalItems = activePlan.items.length;
+        const completedItems = activePlan.items.filter((i) => i.status === "COMPLETED").length;
+        const hasPendingItems = completedItems < totalItems;
+
+        if (hasPendingItems) {
+          // Active plan with pending items → stay in "En Tratamiento"
+          await autoMoveToStageByName(tenantId, patientId, "En Tratamiento");
+        } else {
+          // All items completed → move to "Seguimiento"
+          await autoMoveToStageByName(tenantId, patientId, "Seguimiento");
+          // Mark plan as completed
+          await prisma.treatmentPlan.update({
+            where: { id: activePlan.id },
+            data: { status: "COMPLETED" },
+          }).catch(() => {});
+        }
+      } else {
+        // No active plan → use isMultiSession from the treatment type
+        const lastCompleted = await prisma.appointment.findFirst({
+          where: { tenantId, patientId, status: "COMPLETED" },
+          orderBy: { updatedAt: "desc" },
+          select: { treatmentTypeId: true },
         });
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        isMulti = (tt as any)?.isMultiSession ?? false;
+        let isMulti = false;
+        if (lastCompleted?.treatmentTypeId) {
+          const tt = await prisma.treatmentType.findUnique({
+            where: { id: lastCompleted.treatmentTypeId },
+          });
+          isMulti = (tt as Record<string, unknown>)?.isMultiSession === true;
+        }
+        const targetStage = isMulti ? "En Tratamiento" : "Seguimiento";
+        await autoMoveToStageByName(tenantId, patientId, targetStage);
       }
-      const targetStage = isMulti ? "En Tratamiento" : "Seguimiento";
-      await autoMoveToStageByName(tenantId, patientId, targetStage);
       break;
     }
 

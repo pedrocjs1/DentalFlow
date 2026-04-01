@@ -9,7 +9,15 @@ export interface PipelinePatient {
   movedAt: string;
   notes: string | null;
   interestTreatment: string | null;
+  interestTreatmentId: string | null;
+  interestTreatmentPrice: number | null;
   lastAutoMessageSentAt: string | null;
+  treatmentPlanProgress: {
+    planId: string;
+    planTitle: string;
+    totalItems: number;
+    completedItems: number;
+  } | null;
   id: string;
   firstName: string;
   lastName: string;
@@ -104,12 +112,41 @@ function FullCardContent({ patient }: { patient: PipelinePatient }) {
         <span className="truncate">{patient.phone}</span>
       </div>
 
-      {/* Interest treatment */}
+      {/* Interest treatment + price */}
       {patient.interestTreatment && (
-        <div className="mt-1.5 pl-9">
+        <div className="mt-1.5 pl-9 flex items-center gap-1.5">
           <span className="inline-flex items-center text-xs text-primary-700 bg-primary-50 px-2 py-0.5 rounded-full font-medium">
             {patient.interestTreatment}
           </span>
+          {patient.interestTreatmentPrice != null && patient.interestTreatmentPrice > 0 && (
+            <span className="text-[10px] text-emerald-600 font-medium">
+              ${patient.interestTreatmentPrice.toLocaleString("es-AR")}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Treatment plan progress */}
+      {patient.treatmentPlanProgress && (
+        <div className="mt-1.5 pl-9">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-gray-500 truncate">
+              {patient.treatmentPlanProgress.planTitle}:
+            </span>
+            <span className="text-[10px] font-medium text-primary-700">
+              {patient.treatmentPlanProgress.completedItems}/{patient.treatmentPlanProgress.totalItems}
+            </span>
+          </div>
+          <div className="mt-0.5 h-1 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary-500 rounded-full transition-all"
+              style={{
+                width: `${patient.treatmentPlanProgress.totalItems > 0
+                  ? (patient.treatmentPlanProgress.completedItems / patient.treatmentPlanProgress.totalItems) * 100
+                  : 0}%`,
+              }}
+            />
+          </div>
         </div>
       )}
 

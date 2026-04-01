@@ -16,6 +16,7 @@ const TYPE_TO_CATEGORY: Record<string, string> = {
   new_appointment: "appointment",
   appointment_completed: "appointment",
   appointment_no_show: "appointment",
+  appointment_reminder: "appointment",
   cancelled_appointment: "appointment",
   rescheduled_appointment: "appointment",
   appointment_end_reminder: "appointment",

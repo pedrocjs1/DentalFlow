@@ -227,8 +227,9 @@ model TreatmentType {
   postProcedureDays    Int        @default(7)
   followUpMessage      String?
   isMultiSession       Boolean    @default(false)  // true = ortodoncia, implantes (multi-visit)
-  appointments Appointment[]
-  dentists     DentistTreatment[]
+  appointments      Appointment[]
+  dentists          DentistTreatment[]
+  pipelineInterests PatientPipeline[]  @relation("InterestTreatmentType")
 
   @@index([tenantId])
 }
@@ -630,17 +631,19 @@ model PipelineStage {
 }
 
 model PatientPipeline {
-  id                    String        @id @default(cuid())
-  patientId             String        @unique
-  patient               Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  id                    String         @id @default(cuid())
+  patientId             String         @unique
+  patient               Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
   stageId               String
-  stage                 PipelineStage @relation(fields: [stageId], references: [id])
-  movedAt               DateTime      @default(now())
+  stage                 PipelineStage  @relation(fields: [stageId], references: [id])
+  movedAt               DateTime       @default(now())
   notes                 String?
-  interestTreatment     String?
+  interestTreatment     String?        // Display name (kept for backwards compat)
+  interestTreatmentId   String?        // FK to TreatmentType for price/details
+  interestTreatmentType TreatmentType? @relation("InterestTreatmentType", fields: [interestTreatmentId], references: [id])
   lastAutoMessageSentAt DateTime?
   lastManualMoveAt      DateTime?
-  autoMessageAttempts   Int       @default(0)
+  autoMessageAttempts   Int            @default(0)
 
   @@index([stageId])
   @@index([movedAt])
@@ -853,6 +856,7 @@ model WhatsAppTemplate {
   version          Int       @default(1)
   // Suggested usage
   suggestedTrigger String?                // "appointment_reminder", "follow_up", "reactivation", etc.
+  messageType      String?                // "post_visit", "appointment_reminder", "missed_appointment", "treatment_followup", "welcome", "re_engagement", "remarketing"
 
   events           TemplateEvent[]
 
