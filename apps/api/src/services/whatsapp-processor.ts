@@ -1584,6 +1584,33 @@ export async function processIncomingMessage(
   // 3. Find or create patient
   const patient = await findOrCreatePatient(tenant.id, msg.from, msg.profileName, log);
 
+  // 3b. Re-engagement: if patient is in a "cold" stage, move back to first stage
+  if (patient.pipelineEntry?.stage) {
+    const coldStageNames = ["interesado - no agendó", "remarketing", "inactivo"];
+    const currentStageName = patient.pipelineEntry.stage.name.toLowerCase();
+    if (coldStageNames.some((s) => currentStageName.includes(s))) {
+      const firstStage = await prisma.pipelineStage.findFirst({
+        where: { tenantId: tenant.id },
+        orderBy: { order: "asc" },
+      });
+      if (firstStage && firstStage.id !== patient.pipelineEntry.stage.id) {
+        await prisma.patientPipeline.update({
+          where: { patientId: patient.id },
+          data: {
+            stageId: firstStage.id,
+            movedAt: new Date(),
+            lastAutoMessageSentAt: null,
+            autoMessageAttempts: 0,
+          },
+        });
+        log.info(
+          { patientId: patient.id, from: currentStageName, to: firstStage.name },
+          "Re-engagement: patient moved back to Nuevo Contacto"
+        );
+      }
+    }
+  }
+
   // 4. Find or create conversation
   const conversation = await findOrCreateConversation(tenant.id, patient.id, log);
 

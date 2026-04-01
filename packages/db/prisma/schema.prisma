@@ -639,6 +639,7 @@ model PatientPipeline {
   interestTreatment     String?
   lastAutoMessageSentAt DateTime?
   lastManualMoveAt      DateTime?
+  autoMessageAttempts   Int       @default(0)
 
   @@index([stageId])
   @@index([movedAt])

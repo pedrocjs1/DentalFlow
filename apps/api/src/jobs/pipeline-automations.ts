@@ -6,13 +6,54 @@
  *   1. autoMessage: send WhatsApp template to patients in stage for >= delay hours
  *   2. autoMove: move patients to target stage after delay hours
  *
- * Idempotent: uses lastAutoMessageSentAt and lastManualMoveAt to avoid double actions.
+ * Idempotent: uses lastAutoMessageSentAt, lastManualMoveAt, and autoMessageAttempts.
  */
 
 import { prisma } from "@dentiqa/db";
 import { sendWhatsAppTemplate } from "@dentiqa/messaging";
 import { decryptToken } from "../services/encryption.js";
 import { createNotification } from "../services/notifications.js";
+
+// ─── Variable substitution for template parameters ──────────────────────────
+
+function substituteVariable(
+  field: string,
+  example: string,
+  context: {
+    firstName: string;
+    lastName: string;
+    interestTreatment: string | null;
+    tenantName: string;
+    discountPercent: number;
+    dentistName: string | null;
+  }
+): string {
+  const key = field.toLowerCase().replace(/[{}]/g, "").trim();
+  switch (key) {
+    case "firstname":
+    case "first_name":
+      return context.firstName;
+    case "nombre":
+      return `${context.firstName} ${context.lastName}`.trim() || context.firstName;
+    case "tratamiento_interes":
+    case "treatment_interest":
+    case "tratamiento":
+      return context.interestTreatment || "tu consulta";
+    case "clinica":
+    case "clinic":
+    case "clinic_name":
+      return context.tenantName;
+    case "descuento":
+    case "discount":
+      return context.discountPercent.toString();
+    case "dentista":
+    case "dentist":
+      return context.dentistName || "nuestro equipo";
+    default:
+      // If no mapping found, try firstName as default (most common), else use example
+      return example;
+  }
+}
 
 export async function runPipelineAutomations(): Promise<void> {
   const now = new Date();
@@ -29,11 +70,13 @@ export async function runPipelineAutomations(): Promise<void> {
             select: {
               id: true,
               firstName: true,
+              lastName: true,
               phone: true,
               tenantId: true,
               tenant: {
                 select: {
                   id: true,
+                  name: true,
                   whatsappPhoneNumberId: true,
                   whatsappAccessToken: true,
                   whatsappStatus: true,
@@ -54,6 +97,12 @@ export async function runPipelineAutomations(): Promise<void> {
       now.getTime() - stage.autoMoveDelayHours * 60 * 60 * 1000
     );
 
+    // Max retries for auto-messages (default 3 if stage config says 1 or less)
+    const maxRetries = Math.max(stage.autoMessageMaxRetries, 3);
+
+    // Fetch a dentist name once per stage (for variable substitution)
+    let dentistNameCache: string | null | undefined;
+
     for (const entry of stage.patients) {
       const { patient } = entry;
       const tenant = patient.tenant;
@@ -65,12 +114,27 @@ export async function runPipelineAutomations(): Promise<void> {
         entry.movedAt <= cutoffMessage &&
         !entry.lastAutoMessageSentAt
       ) {
+        // Check retry limit
+        if (entry.autoMessageAttempts >= maxRetries) {
+          // Max retries exceeded — mark as sent to stop retrying
+          console.warn(
+            `[pipeline-automations] Max retries (${maxRetries}) exceeded for ${patient.firstName} (${patient.phone}) in stage "${stage.name}" — giving up`
+          );
+          await prisma.patientPipeline.update({
+            where: { id: entry.id },
+            data: { lastAutoMessageSentAt: now },
+          });
+          continue;
+        }
+
         // Only send if tenant has WhatsApp connected
         if (
           tenant.whatsappPhoneNumberId &&
           tenant.whatsappAccessToken &&
           tenant.whatsappStatus === "CONNECTED"
         ) {
+          let sendSuccess = false;
+
           try {
             const accessToken = decryptToken(tenant.whatsappAccessToken);
 
@@ -83,6 +147,25 @@ export async function runPipelineAutomations(): Promise<void> {
             });
 
             if (template) {
+              // Lazy-load dentist name for variable substitution
+              if (dentistNameCache === undefined) {
+                const dentist = await prisma.dentist.findFirst({
+                  where: { tenantId: tenant.id, isActive: true },
+                  select: { name: true },
+                  orderBy: { createdAt: "asc" },
+                });
+                dentistNameCache = dentist?.name ?? null;
+              }
+
+              const varContext = {
+                firstName: patient.firstName,
+                lastName: patient.lastName,
+                interestTreatment: entry.interestTreatment,
+                tenantName: tenant.name,
+                discountPercent: stage.discountPercent,
+                dentistName: dentistNameCache,
+              };
+
               await sendWhatsAppTemplate({
                 phoneNumberId: tenant.whatsappPhoneNumberId,
                 accessToken,
@@ -101,40 +184,58 @@ export async function runPipelineAutomations(): Promise<void> {
                           }>
                         ).map((v) => ({
                           type: "text",
-                          text:
-                            v.field === "firstName"
-                              ? patient.firstName
-                              : v.example,
+                          text: substituteVariable(v.field, v.example, varContext),
                         })),
                       },
                     ]
                   : [],
               });
 
+              sendSuccess = true;
               console.log(
                 `[pipeline-automations] Sent template "${template.name}" to ${patient.firstName} (${patient.phone}) in stage "${stage.name}"`
               );
+            } else {
+              // Template not found or not approved — mark as sent to avoid infinite loop
+              console.warn(
+                `[pipeline-automations] Template ${stage.autoMessageTemplate} not found/approved for stage "${stage.name}"`
+              );
+              sendSuccess = true; // Don't retry for missing template
             }
           } catch (err) {
             console.error(
-              `[pipeline-automations] Failed to send auto-message to ${patient.phone}:`,
+              `[pipeline-automations] Failed to send auto-message to ${patient.phone} (attempt ${entry.autoMessageAttempts + 1}/${maxRetries}):`,
               err
             );
           }
+
+          if (sendSuccess) {
+            // Mark as sent — successful
+            await prisma.patientPipeline.update({
+              where: { id: entry.id },
+              data: { lastAutoMessageSentAt: now, autoMessageAttempts: 0 },
+            });
+
+            await createNotification(tenant.id, {
+              type: "pipeline_move",
+              title: "Auto-mensaje enviado",
+              message: `Se envió mensaje automático a ${patient.firstName} en etapa "${stage.name}"`,
+              link: "/pipeline",
+            });
+          } else {
+            // Failed — increment attempt counter, will retry next cycle
+            await prisma.patientPipeline.update({
+              where: { id: entry.id },
+              data: { autoMessageAttempts: { increment: 1 } },
+            });
+          }
+        } else {
+          // WhatsApp not connected — mark as sent to avoid retrying forever
+          await prisma.patientPipeline.update({
+            where: { id: entry.id },
+            data: { lastAutoMessageSentAt: now },
+          });
         }
-
-        // Mark as sent regardless (idempotent — don't retry forever)
-        await prisma.patientPipeline.update({
-          where: { id: entry.id },
-          data: { lastAutoMessageSentAt: now },
-        });
-
-        await createNotification(tenant.id, {
-          type: "pipeline_move",
-          title: "Auto-mensaje enviado",
-          message: `Se envió mensaje automático a ${patient.firstName} en etapa "${stage.name}"`,
-          link: "/pipeline",
-        });
       }
 
       // --- Auto-move ---
@@ -155,6 +256,7 @@ export async function runPipelineAutomations(): Promise<void> {
               stageId: stage.autoMoveTargetStageId,
               movedAt: now,
               lastAutoMessageSentAt: null,
+              autoMessageAttempts: 0,
             },
           });
 

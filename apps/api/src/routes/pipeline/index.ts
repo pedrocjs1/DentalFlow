@@ -155,10 +155,11 @@ export async function pipelineRoutes(app: FastifyInstance): Promise<void> {
       if (!patient) throw new AppError(404, "PATIENT_NOT_FOUND", "Paciente no encontrado");
       if (!stage) throw new AppError(404, "STAGE_NOT_FOUND", "Stage no encontrado");
 
+      const now = new Date();
       const entry = await prisma.patientPipeline.upsert({
         where: { patientId: body.patientId },
-        create: { patientId: body.patientId, stageId: body.stageId, movedAt: new Date() },
-        update: { stageId: body.stageId, movedAt: new Date() },
+        create: { patientId: body.patientId, stageId: body.stageId, movedAt: now, lastManualMoveAt: now },
+        update: { stageId: body.stageId, movedAt: now, lastManualMoveAt: now, lastAutoMessageSentAt: null, autoMessageAttempts: 0 },
       });
 
       createNotification(user.tenantId, {
