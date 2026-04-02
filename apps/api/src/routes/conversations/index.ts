@@ -374,6 +374,12 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
       });
       if (!conv) throw new AppError(404, "CONV_NOT_FOUND", "Conversación no encontrada");
 
+      // When re-enabling AI on a HUMAN_NEEDED conversation, auto-reset status
+      // so the bot guard (aiEnabled && status !== "HUMAN_NEEDED") allows processing
+      if (body.aiEnabled && !conv.aiEnabled && conv.status === "HUMAN_NEEDED" && body.status === undefined) {
+        body.status = "AI_HANDLING" as ConversationStatus;
+      }
+
       // Track aiPausedAt for bot-pause alerts
       const aiPausedData: Record<string, unknown> = {};
       if (body.aiEnabled !== undefined) {

@@ -749,11 +749,18 @@ async function getConversationHistory(conversationId: string): Promise<Conversat
     select: { direction: true, content: true },
   });
 
-  // Reverse to get chronological order
-  return msgs.reverse().map((m) => ({
-    role: m.direction === "INBOUND" ? ("user" as const) : ("assistant" as const),
-    content: m.content,
-  }));
+  // Reverse to get chronological order and filter out transfer-to-human messages
+  // so Haiku doesn't see a prior escalation and decide to escalate again
+  return msgs.reverse()
+    .map((m) => ({
+      role: m.direction === "INBOUND" ? ("user" as const) : ("assistant" as const),
+      content: m.content,
+    }))
+    .filter((m) => {
+      if (m.role !== "assistant") return true;
+      const lower = m.content.toLowerCase();
+      return !lower.includes("comunicarte con nuestro equipo") && !lower.includes("te van a responder");
+    });
 }
 
 // ─── Handle tool calls from chatbot ───────────────────────────────────────────
