@@ -1575,6 +1575,8 @@ export async function processIncomingMessage(
   phoneNumberId: string,
   log: FastifyBaseLogger
 ): Promise<void> {
+  console.log("=== WEBHOOK V2 ACTIVE ===", new Date().toISOString());
+
   // 1. Resolve tenant from phone_number_id
   const tenant = await resolveTenant(phoneNumberId);
   if (!tenant) {

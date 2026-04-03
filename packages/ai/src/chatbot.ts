@@ -529,6 +529,10 @@ async function callAnthropic(
   systemPrompt: string,
   messages: Anthropic.MessageParam[]
 ): Promise<ChatbotResponse> {
+  console.log("=== CALLING HAIKU WITH TOOLS:", CHATBOT_TOOLS.map(t => t.name).join(", "));
+  console.log("=== SYSTEM PROMPT CONTAINS REGLA_ABSOLUTA:", systemPrompt.includes("REGLA ABSOLUTA"));
+  console.log("=== TRANSFER_TO_HUMAN TOOL DESC:", CHATBOT_TOOLS.find(t => t.name === "transfer_to_human")?.description?.slice(0, 80));
+
   const response = await client.messages.create({
     model,
     max_tokens: CHATBOT_MAX_TOKENS,
@@ -551,6 +555,8 @@ async function callAnthropic(
       });
     }
   }
+
+  console.log("=== HAIKU RESPONSE:", { model, text: text.slice(0, 100), toolCalls: toolCalls.map(t => `${t.toolName}(${JSON.stringify(t.args)})`) });
 
   return { text, toolCalls };
 }
