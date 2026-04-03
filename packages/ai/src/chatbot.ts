@@ -83,13 +83,13 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
   {
     name: "book_appointment",
     description:
-      "Search for available appointment slots. Use when the patient wants to schedule a visit. Always ask what treatment they need first. If the patient mentions a specific day (e.g., 'el lunes', 'mañana', '20 de abril'), calculate the date and pass it as preferredDate. If they say 'a la mañana' or 'a la tarde', pass preferredTimeOfDay. If they reject offered slots and ask for a different day, call this tool again with the new preferredDate.",
+      "Search for available appointment slots. ALWAYS use this tool when the patient wants to schedule, book, or asks about any dental treatment (limpieza, blanqueamiento, extracción, ortodoncia, consulta, control, revisión, implante, corona, endodoncia, prótesis, etc.). Pass whatever treatment the patient mentioned — the system does fuzzy matching internally. If the patient mentions a specific day, calculate the date and pass it as preferredDate. If they say 'a la mañana' or 'a la tarde', pass preferredTimeOfDay. If they reject offered slots, call this tool again with the new preferredDate.",
     input_schema: {
       type: "object" as const,
       properties: {
         treatmentType: {
           type: "string",
-          description: "The type of dental treatment requested (e.g., limpieza, ortodoncia, extracción)",
+          description: "The dental treatment the patient mentioned, in their own words (e.g., 'limpieza bucal', 'me duele una muela', 'blanqueamiento'). Does NOT need to match the clinic's treatment list exactly — the system handles fuzzy matching.",
         },
         preferredDate: {
           type: "string",
@@ -233,7 +233,7 @@ const CHATBOT_TOOLS: Anthropic.Tool[] = [
   {
     name: "transfer_to_human",
     description:
-      "Transfer the conversation to a human team member. Use when: (1) you cannot resolve the patient's request, (2) the patient explicitly asks to speak with a person, or (3) the situation requires human judgment (complaints, complex clinical questions, billing issues).",
+      "Transfer the conversation to a human team member. Use ONLY when: (1) the patient EXPLICITLY asks to speak with a person/human, (2) the patient has a serious complaint or is very frustrated, or (3) there is a dental emergency. NEVER use this for appointment booking, treatment questions, pricing, or schedule inquiries — use book_appointment or answer_faq for those instead.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -449,17 +449,19 @@ Registro de pacientes:
 - Si el paciente te da datos extra (email, dirección, etc.) durante la conversación, usá update_patient_data para guardarlos.
 - NO pidas datos de registro proactivamente. Solo guardá lo que el paciente ofrezca voluntariamente.
 
-PRIORIDAD DE AGENDAMIENTO:
-- Si el paciente quiere agendar (dice "agendar", "cita", "turno", "reservar", "consulta"), SIEMPRE usá book_appointment PRIMERO.
-- NUNCA uses transfer_to_human para solicitudes de agendamiento sin antes intentar book_appointment.
-- La tool book_appointment busca el mejor match de tratamiento — pasale lo que dijo el paciente, aunque no sea un nombre exacto de la lista.
+REGLA ABSOLUTA DE AGENDAMIENTO (MÁXIMA PRIORIDAD):
+- Cuando el paciente mencione CUALQUIER tratamiento dental (limpieza, ortodoncia, extracción, blanqueamiento, consulta, control, revisión, implante, corona, endodoncia, prótesis, o CUALQUIER otro procedimiento dental), SIEMPRE usá la tool book_appointment con el texto que dijo el paciente.
+- NUNCA transfieras a humano para solicitudes de agendamiento. La tool book_appointment se encarga de buscar el mejor match internamente.
+- Si la tool book_appointment falla o no encuentra turnos, AHÍ SÍ podés ofrecer contactar al equipo, pero SIEMPRE intentá book_appointment primero.
+- Si el paciente describe un síntoma ("me duele una muela", "tengo los dientes sucios", "se me rompió un diente"), interpretalo como un tratamiento (extracción, limpieza, reconstrucción) y usá book_appointment.
+- "Limpieza bucal" = "limpieza dental" = "limpieza" = "profilaxis". Son sinónimos. Pasá lo que dijo el paciente a book_appointment.
 - Si llegan mensajes fragmentados ("quiero agendar" + "limpieza"), unilos mentalmente como una sola solicitud.
 
 Reglas críticas:
 - UNA COSA A LA VEZ. Nunca pidas múltiples datos en el mismo mensaje.
-- Si no podés resolver algo (que NO sea agendamiento), usá transfer_to_human. No improvises.
+- Usá transfer_to_human ÚNICAMENTE cuando: el paciente pide EXPLÍCITAMENTE hablar con una persona, tiene un reclamo/queja grave, o hay una emergencia dental. NUNCA para agendamiento, preguntas sobre tratamientos, precios, o horarios.
 - Nunca des consejos médicos.
-- NUNCA inventés precios o tratamientos que no estén listados.
+- NUNCA inventés precios. Si no sabés el precio, usá answer_faq o decí "consultá con la clínica".
 - Tratá al paciente por su nombre (${patient.firstName}).
 
 REGLAS DE SEGURIDAD (NUNCA IGNORAR):
