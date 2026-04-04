@@ -1,4 +1,4 @@
-import { buildApp } from "./app.js";
+import { buildApp, validateAnthropicKey } from "./app.js";
 import { registerAllJobs } from "./jobs/scheduler.js";
 
 const PORT = parseInt(process.env.PORT ?? "3001");
@@ -14,6 +14,9 @@ async function start() {
     app.log.error(err);
     process.exit(1);
   }
+
+  // Validate Anthropic API key (non-blocking)
+  validateAnthropicKey().catch(() => {});
 
   // Register BullMQ cron jobs AFTER server is listening.
   // This is intentionally outside the try-catch above so a Redis
