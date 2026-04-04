@@ -27,6 +27,21 @@ function getPreviousPeriodStart(period: string, periodStart: Date): Date {
   return new Date(periodStart.getTime() - diff);
 }
 
+// ── In-memory cache (60s TTL) ────────────────────────────────────────────
+const statsCache = new Map<string, { data: unknown; expiresAt: number }>();
+const CACHE_TTL = 60_000; // 60 seconds
+
+function getCached<T>(key: string): T | null {
+  const entry = statsCache.get(key);
+  if (entry && entry.expiresAt > Date.now()) return entry.data as T;
+  statsCache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: unknown): void {
+  statsCache.set(key, { data, expiresAt: Date.now() + CACHE_TTL });
+}
+
 export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
   const preHandler = [authMiddleware, tenantMiddleware, requireRole("OWNER", "ADMIN")];
 
@@ -36,6 +51,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:overview:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const prevStart = getPreviousPeriodStart(period, periodStart);
       const tid = user.tenantId;
@@ -190,7 +208,7 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         ? Math.round((appointedCount / totalPipelinePatients) * 100)
         : 0;
 
-      return {
+      const result = {
         appointments: {
           total: totalAppointments,
           completed: completedAppointments,
@@ -220,6 +238,8 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
           humanEscalations,
         },
       };
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -229,6 +249,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:appointments-chart:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
@@ -266,9 +289,11 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         else if (apt.status === "NO_SHOW") g.noShow++;
       }
 
-      return Array.from(grouped.entries())
+      const result = Array.from(grouped.entries())
         .map(([date, counts]) => ({ date, ...counts }))
         .sort((a, b) => a.date.localeCompare(b.date));
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -278,6 +303,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:revenue-chart:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
@@ -316,13 +344,15 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         else g.pending += cost;
       }
 
-      return Array.from(grouped.entries())
+      const result = Array.from(grouped.entries())
         .map(([date, val]) => ({
           date,
           billed: Math.round(val.billed * 100) / 100,
           pending: Math.round(val.pending * 100) / 100,
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -332,20 +362,24 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:patients-chart:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
-      const patients = await prisma.patient.findMany({
-        where: { tenantId: tid, createdAt: { gte: periodStart } },
-        select: { createdAt: true },
-        orderBy: { createdAt: "asc" },
-      });
-
-      const appointments = await prisma.appointment.findMany({
-        where: { tenantId: tid, startTime: { gte: periodStart } },
-        select: { startTime: true },
-        orderBy: { startTime: "asc" },
-      });
+      const [patients, appointments] = await Promise.all([
+        prisma.patient.findMany({
+          where: { tenantId: tid, createdAt: { gte: periodStart } },
+          select: { createdAt: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        prisma.appointment.findMany({
+          where: { tenantId: tid, startTime: { gte: periodStart } },
+          select: { startTime: true },
+          orderBy: { startTime: "asc" },
+        }),
+      ]);
 
       const groupBy = period === "7d" ? "day" : period === "12m" ? "month" : "week";
       const grouped = new Map<string, { newPatients: number; appointments: number }>();
@@ -371,9 +405,11 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         grouped.get(key)!.appointments++;
       }
 
-      return Array.from(grouped.entries())
+      const result = Array.from(grouped.entries())
         .map(([date, val]) => ({ date, ...val }))
         .sort((a, b) => a.date.localeCompare(b.date));
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -383,6 +419,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:top-treatments:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
@@ -392,7 +431,8 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
           startTime: { gte: periodStart },
           treatmentTypeId: { not: null },
         },
-        include: {
+        select: {
+          status: true,
           treatmentType: { select: { name: true, price: true } },
         },
       });
@@ -411,7 +451,7 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
-      return Array.from(treatmentMap.values())
+      const result = Array.from(treatmentMap.values())
         .map((t) => ({
           ...t,
           revenue: Math.round(t.revenue * 100) / 100,
@@ -419,6 +459,8 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         }))
         .sort((a, b) => b.revenue - a.revenue)
         .slice(0, 10);
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -428,6 +470,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:dentist-performance:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
@@ -444,7 +489,7 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         },
       });
 
-      return dentists.map((d) => ({
+      const result = dentists.map((d) => ({
         dentistId: d.id,
         name: d.name,
         color: d.color,
@@ -458,6 +503,8 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
             .reduce((sum, a) => sum + Number(a.treatmentType?.price ?? 0), 0) * 100
         ) / 100,
       })).sort((a, b) => b.completed - a.completed);
+      setCache(cacheKey, result);
+      return result;
     },
   });
 
@@ -467,6 +514,9 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
     handler: async (request) => {
       const user = request.user as UserPayload;
       const { period = "30d" } = request.query as { period?: string };
+      const cacheKey = `${user.tenantId}:hours-heatmap:${period}`;
+      const cached = getCached(cacheKey);
+      if (cached) return cached;
       const periodStart = getPeriodStart(period);
       const tid = user.tenantId;
 
@@ -504,7 +554,30 @@ export async function statisticsRoutes(app: FastifyInstance): Promise<void> {
         }
       }
 
+      setCache(cacheKey, heatmap);
       return heatmap;
+    },
+  });
+
+  // ─── Combined All Stats ──────────────────────────────────────────────────
+  app.get("/api/v1/statistics/all", {
+    preHandler,
+    handler: async (request) => {
+      const user = request.user as UserPayload;
+      const { period = "30d" } = request.query as { period?: string };
+      const base = `/api/v1/statistics`;
+
+      const [overview, appointmentsChart, revenueChart, patientsChart, topTreatments, dentistPerformance, hoursHeatmap] = await Promise.all([
+        app.inject({ method: "GET", url: `${base}/overview?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/appointments-chart?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/revenue-chart?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/patients-chart?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/top-treatments?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/dentist-performance?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+        app.inject({ method: "GET", url: `${base}/hours-heatmap?period=${period}`, headers: { authorization: request.headers.authorization as string } }).then(r => JSON.parse(r.body)),
+      ]);
+
+      return { overview, appointmentsChart, revenueChart, patientsChart, topTreatments, dentistPerformance, hoursHeatmap };
     },
   });
 }

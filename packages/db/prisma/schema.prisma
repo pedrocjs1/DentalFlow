@@ -538,6 +538,8 @@ model TreatmentPlanItem {
 
   @@index([planId])
   @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, status, completedAt])
 }
 
 enum TreatmentItemStatus {
@@ -647,6 +649,7 @@ model PatientPipeline {
 
   @@index([stageId])
   @@index([movedAt])
+  @@index([patientId, stageId])
 }
 
 // ═══════════════════════════════════════
@@ -707,6 +710,7 @@ model Message {
 
   @@index([conversationId])
   @@index([conversationId, sentAt])
+  @@index([direction, readAt])
 }
 
 enum MessageDirection {

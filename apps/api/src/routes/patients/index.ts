@@ -71,10 +71,28 @@ export async function patientRoutes(app: FastifyInstance): Promise<void> {
           appointments: {
             orderBy: { startTime: "desc" },
             take: 10,
-            include: { dentist: true, treatmentType: true },
+            select: {
+              id: true,
+              startTime: true,
+              endTime: true,
+              status: true,
+              notes: true,
+              dentist: { select: { id: true, name: true, color: true } },
+              treatmentType: { select: { id: true, name: true, price: true } },
+            },
           },
-          clinicalNotes: { orderBy: { createdAt: "desc" }, take: 20 },
-          pipelineEntry: { include: { stage: true } },
+          clinicalNotes: {
+            orderBy: { createdAt: "desc" },
+            take: 20,
+            select: { id: true, content: true, type: true, createdAt: true },
+          },
+          pipelineEntry: {
+            select: {
+              id: true,
+              stageId: true,
+              stage: { select: { id: true, name: true, color: true } },
+            },
+          },
         },
       });
 

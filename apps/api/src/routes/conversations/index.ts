@@ -44,7 +44,16 @@ export async function conversationRoutes(app: FastifyInstance): Promise<void> {
         prisma.conversation.findMany({
           where,
           orderBy: { lastMessageAt: "desc" },
-          include: {
+          select: {
+            id: true,
+            patientId: true,
+            channel: true,
+            status: true,
+            aiEnabled: true,
+            lastMessageAt: true,
+            lastMessagePreview: true,
+            lastPatientMessageAt: true,
+            aiPausedAt: true,
             patient: {
               select: { id: true, firstName: true, lastName: true, phone: true, tags: true },
             },

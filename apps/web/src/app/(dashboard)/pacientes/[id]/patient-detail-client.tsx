@@ -8,14 +8,43 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getUserRole, canSeePatientTab } from "@/lib/permissions";
-import { Odontogram } from "@/components/clinical/odontogram/odontogram";
-import { MedicalHistoryForm } from "@/components/clinical/medical-history/medical-history-form";
-import { TreatmentPlanView } from "@/components/clinical/treatment-plan/treatment-plan";
-import { VisitNotes } from "@/components/clinical/visit-notes/visit-notes";
-import { Periodontogram } from "@/components/clinical/periodontogram/periodontogram";
+import dynamic from "next/dynamic";
 import { SummaryTab } from "@/components/clinical/summary/summary-tab";
-import { ImagesTab } from "@/components/clinical/images/images-tab";
-import { DocumentsTab } from "@/components/clinical/documents/documents-tab";
+
+const TabLoader = () => (
+  <div className="flex items-center justify-center py-20">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-200 border-t-primary-600" />
+  </div>
+);
+
+const Odontogram = dynamic(
+  () => import("@/components/clinical/odontogram/odontogram").then(m => m.Odontogram),
+  { ssr: false, loading: TabLoader }
+);
+const MedicalHistoryForm = dynamic(
+  () => import("@/components/clinical/medical-history/medical-history-form").then(m => m.MedicalHistoryForm),
+  { ssr: false, loading: TabLoader }
+);
+const TreatmentPlanView = dynamic(
+  () => import("@/components/clinical/treatment-plan/treatment-plan").then(m => m.TreatmentPlanView),
+  { ssr: false, loading: TabLoader }
+);
+const VisitNotes = dynamic(
+  () => import("@/components/clinical/visit-notes/visit-notes").then(m => m.VisitNotes),
+  { ssr: false, loading: TabLoader }
+);
+const Periodontogram = dynamic(
+  () => import("@/components/clinical/periodontogram/periodontogram").then(m => m.Periodontogram),
+  { ssr: false, loading: TabLoader }
+);
+const ImagesTab = dynamic(
+  () => import("@/components/clinical/images/images-tab").then(m => m.ImagesTab),
+  { ssr: false, loading: TabLoader }
+);
+const DocumentsTab = dynamic(
+  () => import("@/components/clinical/documents/documents-tab").then(m => m.DocumentsTab),
+  { ssr: false, loading: TabLoader }
+);
 
 type Tab = "resumen" | "odontograma" | "periodoncia" | "tratamiento" | "evoluciones" | "historia" | "imagenes" | "documentos";
 

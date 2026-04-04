@@ -109,20 +109,21 @@ export function EstadisticasClient() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [ov, ac, rc, tt, dp, hm] = await Promise.all([
-        apiFetch<Overview>(`/api/v1/statistics/overview?period=${period}`),
-        apiFetch<ChartPoint[]>(`/api/v1/statistics/appointments-chart?period=${period}`),
-        apiFetch<ChartPoint[]>(`/api/v1/statistics/revenue-chart?period=${period}`),
-        apiFetch<TopTreatment[]>(`/api/v1/statistics/top-treatments?period=${period}`),
-        apiFetch<DentistPerf[]>(`/api/v1/statistics/dentist-performance?period=${period}`),
-        apiFetch<HeatmapPoint[]>(`/api/v1/statistics/hours-heatmap?period=${period}`),
-      ]);
-      setOverview(ov);
-      setAppointmentsChart(ac);
-      setRevenueChart(rc);
-      setTopTreatments(tt);
-      setDentistPerf(dp);
-      setHeatmap(hm);
+      const all = await apiFetch<{
+        overview: Overview;
+        appointmentsChart: ChartPoint[];
+        revenueChart: ChartPoint[];
+        patientsChart: ChartPoint[];
+        topTreatments: TopTreatment[];
+        dentistPerformance: DentistPerf[];
+        hoursHeatmap: HeatmapPoint[];
+      }>(`/api/v1/statistics/all?period=${period}`);
+      setOverview(all.overview);
+      setAppointmentsChart(all.appointmentsChart);
+      setRevenueChart(all.revenueChart);
+      setTopTreatments(all.topTreatments);
+      setDentistPerf(all.dentistPerformance);
+      setHeatmap(all.hoursHeatmap);
     } catch (err) {
       console.error("Error fetching statistics:", err);
     } finally {
