@@ -1111,7 +1111,7 @@ async function handleToolCalls(
           type: "human_needed",
           title: "Paciente necesita atención",
           message: `${patientForHuman?.firstName ?? ""} ${patientForHuman?.lastName ?? ""} pidió hablar con un humano`,
-          link: "/conversaciones",
+          link: `/conversaciones?id=${conversationId}`,
           metadata: { patientId, conversationId, reason: tool.args.reason },
         }).catch(() => {});
         break;

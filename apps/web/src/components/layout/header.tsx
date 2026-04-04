@@ -163,13 +163,13 @@ export function Header() {
   async function markAsRead(id: string) {
     await apiFetch(`/api/v1/notifications/${id}/read`, { method: "PATCH", body: JSON.stringify({}) }).catch(() => {});
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
-    fetchCounts();
+    await fetchCounts();
   }
 
   async function markAllRead() {
     await apiFetch("/api/v1/notifications/read-all", { method: "PATCH", body: JSON.stringify({ category: activeTab }) }).catch(() => {});
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
-    fetchCounts();
+    await fetchCounts();
   }
 
   // Quick action: complete or no-show an appointment from the notification
@@ -189,10 +189,10 @@ export function Header() {
     setActionLoading(null);
   }
 
-  function handleNotifClick(notif: NotificationItem) {
-    if (!notif.isRead) markAsRead(notif.id);
-    if (notif.link) router.push(notif.link);
+  async function handleNotifClick(notif: NotificationItem) {
+    if (!notif.isRead) await markAsRead(notif.id);
     setPanelOpen(false);
+    if (notif.link) router.push(notif.link);
   }
 
   const handleLogout = () => {

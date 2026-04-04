@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Search,
   Send,
@@ -489,11 +490,13 @@ function BotPausedAlert({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function ConversacionesClient() {
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<ConversationStatus | "ALL">("ALL");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const autoSelectedRef = useRef(false);
 
   const [activeConv, setActiveConv] = useState<ConversationDetail | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -531,6 +534,18 @@ export function ConversacionesClient() {
   }, [statusFilter, debouncedSearch]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
+
+  // Auto-select conversation from URL ?id= param (e.g. from notifications)
+  useEffect(() => {
+    if (autoSelectedRef.current || loading || conversations.length === 0) return;
+    const targetId = searchParams.get("id");
+    if (!targetId) return;
+    const conv = conversations.find((c) => c.id === targetId);
+    if (conv) {
+      autoSelectedRef.current = true;
+      selectConversation(conv);
+    }
+  }, [conversations, loading, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poll conversation list every 10 seconds for real-time updates
   useEffect(() => {
