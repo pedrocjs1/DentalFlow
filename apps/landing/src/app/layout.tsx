@@ -91,21 +91,6 @@ const orgJsonLd = {
   },
 };
 
-const faqJsonLd = {
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  mainEntity: [
-    { "@type": "Question", name: "¿Qué necesito para empezar?", acceptedAnswer: { "@type": "Answer", text: "Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar Dentiqa. Sin instalaciones, sin hardware especial." } },
-    { "@type": "Question", name: "¿Funciona en mi país?", acceptedAnswer: { "@type": "Answer", text: "Sí, Dentiqa funciona en toda Latinoamérica. Soportamos múltiples zonas horarias y formatos locales." } },
-    { "@type": "Question", name: "¿Puedo migrar mis datos desde otro software?", acceptedAnswer: { "@type": "Answer", text: "Sí. Podemos importar tus pacientes desde un archivo CSV/Excel. Nuestro equipo te ayuda a migrar desde Kommo, Dentalink, o cualquier herramienta que uses actualmente." } },
-    { "@type": "Question", name: "¿Es seguro?", acceptedAnswer: { "@type": "Answer", text: "Muy seguro. Usamos encriptación AES-256-GCM para todos los datos sensibles, tokens encriptados, audit logs de seguridad y base de datos PostgreSQL con respaldos automáticos." } },
-    { "@type": "Question", name: "¿Qué pasa después de los 14 días gratis?", acceptedAnswer: { "@type": "Answer", text: "Elegís un plan y pagás con Mercado Pago. Si no te convence, cancelás sin costo. Nunca se bloquea el acceso a tus datos." } },
-    { "@type": "Question", name: "¿Necesito instalar algo?", acceptedAnswer: { "@type": "Answer", text: "No. Dentiqa funciona 100% en el navegador, en cualquier dispositivo — computadora, tablet o celular." } },
-    { "@type": "Question", name: "¿Puedo usar Dentiqa sin el chatbot de WhatsApp?", acceptedAnswer: { "@type": "Answer", text: "Sí. El chatbot es una funcionalidad que podés activar o desactivar. El resto del sistema funciona independientemente." } },
-    { "@type": "Question", name: "¿Ofrecen soporte?", acceptedAnswer: { "@type": "Answer", text: "Sí, por WhatsApp y email. Los planes Professional y Enterprise tienen soporte prioritario." } },
-  ],
-};
-
 export default function LandingLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="scroll-smooth">
@@ -113,7 +98,6 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       </head>
       <body className={inter.className}>{children}</body>
     </html>
