@@ -1110,8 +1110,8 @@ function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-2.5">
-              <li><a href="/legal/politica-de-privacidad" className="text-sm hover:text-white transition-colors">Política de privacidad</a></li>
-              <li><a href="/legal/terminos-de-servicio" className="text-sm hover:text-white transition-colors">Términos de servicio</a></li>
+              <li><a href="/legal/politica-de-privacidad" className="text-sm text-gray-300 font-medium hover:text-white transition-colors underline underline-offset-2">Política de privacidad</a></li>
+              <li><a href="/legal/terminos-de-servicio" className="text-sm text-gray-300 font-medium hover:text-white transition-colors underline underline-offset-2">Términos de servicio</a></li>
               <li><a href="/legal/eliminacion-de-datos" className="text-sm hover:text-white transition-colors">Eliminación de datos</a></li>
             </ul>
           </div>
@@ -1129,6 +1129,10 @@ function Footer() {
           <p className="text-xs text-gray-500">
             &copy; 2026 Dentiqa by Violet Wave IA. Todos los derechos reservados.
           </p>
+          <div className="flex items-center gap-4">
+            <a href="/legal/politica-de-privacidad" className="text-xs text-gray-400 hover:text-white transition-colors">Privacidad</a>
+            <a href="/legal/terminos-de-servicio" className="text-xs text-gray-400 hover:text-white transition-colors">Términos</a>
+          </div>
           <p className="text-xs text-gray-600">
             Hecho con 💙 en Argentina para toda Latinoamérica
           </p>

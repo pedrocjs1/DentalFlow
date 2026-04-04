@@ -96,6 +96,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
     <html lang="es" className="scroll-smooth">
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="privacy-policy" href="https://dentiqa.app/legal/politica-de-privacidad" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
       </head>

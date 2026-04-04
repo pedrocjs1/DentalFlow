@@ -58,6 +58,23 @@ export function MobileNav() {
               >
                 Empezar gratis
               </a>
+              <hr className="border-gray-200" />
+              <div className="space-y-2">
+                <a
+                  href="/legal/politica-de-privacidad"
+                  onClick={() => setOpen(false)}
+                  className="block text-xs text-gray-500 hover:text-primary-600 transition-colors"
+                >
+                  Política de privacidad
+                </a>
+                <a
+                  href="/legal/terminos-de-servicio"
+                  onClick={() => setOpen(false)}
+                  className="block text-xs text-gray-500 hover:text-primary-600 transition-colors"
+                >
+                  Términos de servicio
+                </a>
+              </div>
             </nav>
           </div>
         </div>
