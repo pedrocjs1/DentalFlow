@@ -1,4 +1,4 @@
-# CLAUDE.md — Dentiqa SaaS Platform (v1.1.0)
+# CLAUDE.md — Dentiqa SaaS Platform (v1.2.0)
 
 ## IDENTIDAD DEL PROYECTO
 
@@ -61,8 +61,8 @@ Webhooks producción:
 | Pacientes | /pacientes | Tabla + ficha profesional con 8 tabs (ver abajo) |
 | Pipeline | /pipeline | Kanban 8 stages, drag-and-drop, valor monetario, auto-config. UX expedientes (compact mode + hover expand). |
 | Campañas | /campanas | Wizard 4 pasos, 8 campañas default, 15 templates, segmentación |
-| Estadísticas | /estadisticas | 7 endpoints analytics, 6 gráficos Recharts (lazy loaded), heatmap, filtro período |
-| Conversaciones | /conversaciones | Inbox WhatsApp Web, burbujas, delivery status, toggle IA |
+| Estadísticas | /estadisticas | Endpoint combinado /statistics/all, 6 gráficos Recharts (lazy loaded), heatmap, filtro período |
+| Conversaciones | /conversaciones | Inbox WhatsApp Web, burbujas, delivery status, toggle IA, ventana 24hs |
 | Configuración | /configuracion | 9 tabs: Clínica, Chatbot IA (5 sub-tabs), Profesionales, Tratamientos, Sillones, Pipeline, Integraciones, Facturación, Equipo |
 
 ### Permisos por Rol (implementado 30/03/2026)
@@ -98,16 +98,18 @@ Agenda: DENTIST filtrado por dentistId directo del JWT (vinculación User.dentis
 - Frontend: contador "X/Y usuarios" en sección Equipo
 - Downgrade: banner warning si usuarios > límite, no se desactivan automáticamente
 
-### Ficha del Paciente — 8 Tabs
+### Ficha del Paciente — 8 Tabs (7 lazy loaded)
 
 1. **Resumen**: alertas médicas, stats cards, plan activo, próximas citas, timeline
-2. **Odontograma**: DUAL VIEW (frontal + oclusal), versionado (snapshot/restaurar), permanente/temporal (32 vs 20), 5 zonas clickeables por diente, 13 tipos de hallazgo con colores
+2. **Odontograma**: DUAL VIEW (frontal + oclusal), versionado (snapshot/restaurar), permanente/temporal (32 vs 20), 5 zonas clickeables por diente, 13 tipos de hallazgo con colores. SVGs open source (outlines orgánicos biomathcode/react-odontogram)
 3. **Periodontograma**: métricas BOP/NIC/placa, versionado, furca/supuración por sitio
 4. **Plan de Tratamiento**: múltiples planes, secciones/fases, descuento por ítem, subtotales/totales, estado dropdown
 5. **Evoluciones**: plantillas pre-llenables, firma digital (canvas), vinculación dentista/plan, timeline filtrable
 6. **Historia Médica**: factor RH, alergias con severidad, medicamentos con dosis, condiciones con tratamiento, antecedentes familiares, audit trail
 7. **Imágenes**: galería con categorías, drag-drop upload, visor zoom/rotar, validación MIME+magic bytes
 8. **Recetas y Documentos**: recetas con plantillas + firma, consentimientos + firma paciente/profesional + revocar
+
+**Performance**: Solo el tab Resumen se carga de entrada. Los otros 7 tabs usan `next/dynamic` con `ssr: false` (lazy loaded on-demand).
 
 ### Chatbot IA — Arquitectura 3 Capas
 
@@ -116,17 +118,20 @@ Agenda: DENTIST filtrado por dentistId directo del JWT (vinculación User.dentis
 - **Capa 1.5 — Botones** (0 tokens): slots, dentistas, cancelación confirm/keep
 - **Capa 2 — Haiku 4.5**: 8 tools function calling, system prompt dinámico con BotConfig, 300 tokens, temp 0.3
 - **Capa 3 — Sonnet**: escalación si Haiku falla (3x usage)
+- **Fallback final**: si ambos modelos (Haiku+Sonnet) fallan → transfer_to_human con reason "AI models unavailable"
 - **Seguridad**: sanitizeForLLM() + detectPromptInjection() + reglas anti-injection en system prompt
 - **Debounce**: 10-20s configurable, processing lock, FRUSTRATION/HUMAN bypass
 - **Filtro mensajes sistema Meta**: ignora mensajes de setup/sistema de Meta (isMetaSystemMessage filter)
+- **REGLA ABSOLUTA DE AGENDAMIENTO**: book_appointment SIEMPRE se intenta primero; transfer_to_human restringido a: pedido explícito de humano, quejas graves, emergencias médicas
+- **Historial filtrado**: excluye mensajes de escalación previos del contexto enviado al LLM
 
 ### Cron Jobs — BullMQ (5 workers)
 
 | Job | Intervalo | Función |
 |-----|-----------|---------|
-| pipeline-automations | 15 min | Auto-mensaje WhatsApp + auto-move entre etapas |
+| pipeline-automations | 15 min | Auto-mensaje WhatsApp + auto-move entre etapas (sendSmartMessage) |
 | appointment-reminders | 30 min | Recordatorio 24h antes de cita |
-| treatment-followup | 1 hora | Seguimiento post-tratamiento (followUpMonths) |
+| treatment-followup | 1 hora | Seguimiento post-tratamiento (followUpMonths dinámico del TreatmentType) |
 | post-procedure-check | 1 hora | Control post-procedimiento (postProcedureDays) |
 | trial-expiration | 1 hora | Verifica trials vencidos → TRIAL_EXPIRED |
 
@@ -140,10 +145,11 @@ Agenda: DENTIST filtrado por dentistId directo del JWT (vinculación User.dentis
 - **Google Calendar**: OAuth2 por dentista, bidireccional, slots bloqueados, graceful degradation
 - **Mercado Pago**: preapproval API (suscripciones recurrentes ARS), webhook con verificación, dunning 3 intentos
 - **Meta Templates**: submit/check/sync vía API Graph, timeline de eventos, panel Super Admin
+- **sendSmartMessage**: servicio centralizado con fallback (template → texto libre → notificación interna)
 
 ### Estadísticas (Recharts — lazy loaded)
 
-7 endpoints: overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap. Filtro por período (7d/30d/90d/12m). Comparación vs período anterior.
+7 endpoints individuales + 1 endpoint combinado `/api/v1/statistics/all` (1 request vs 6-7). Cache in-memory 60s TTL por tenant+period. Filtro por período (7d/30d/90d/12m). Comparación vs período anterior.
 
 ### Registro Self-service
 
@@ -188,6 +194,29 @@ Agenda: DENTIST filtrado por dentistId directo del JWT (vinculación User.dentis
 - Se activa cuando hay >5 pacientes en una columna
 - Drag-and-drop funciona en ambos modos
 - CSV import NO crea entradas en pipeline (solo Patient). Pipeline entry se crea por WhatsApp, creación manual, o cita.
+- Pipeline inteligente: vinculado a Plan de Tratamiento (no mueve si items pendientes)
+- interestTreatment como FK a TreatmentType (con precio y detalles)
+
+### Notificaciones — 6 Categorías por Rol
+
+- Categorías: messages, appointment, clinical, pipeline, system, ai
+- Filtrado por rol del usuario (DENTIST solo ve clinical/appointment, etc.)
+- Notificación "requiere atención humana" navega a /conversaciones?id=CONVERSATION_ID
+- Contador se actualiza inmediatamente al marcar como leída (await fetchCounts)
+- Bot pausado >24hs genera alerta automática + notificación
+
+### Ventana 24hs WhatsApp
+
+- Detección automática si la ventana de 24hs está abierta o cerrada
+- Chat bloqueado fuera de ventana (solo templates disponibles)
+- Envío de templates directamente desde la interfaz de chat
+
+### Flujo de Citas Mejorado
+
+- Estados: PENDING → CONFIRMED → IN_PROGRESS → COMPLETED/NO_SHOW/CANCELLED
+- Mensajes automáticos de WhatsApp en cada cambio de estado
+- Notificación "turno finalizado" con quick actions (completar / no asistió)
+- Pre-llenar evolución clínica con datos de la cita completada
 
 ### Seguridad
 
@@ -231,14 +260,22 @@ Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + E
 - Multi-WABA: identifica tenant por phone_number_id
 - Webhook fields suscritos: messages ✅
 - App Violet Wave IA (vieja): webhook ELIMINADO, no interfiere
+- 8 templates default al conectar WhatsApp (5 UTILITY + 3 MARKETING)
 
-### Performance (optimizado 30/03/2026)
+### Performance (optimizado 04/04/2026)
 
 - Polling reducido ~70%: de 60 req/min a 25 req/min
 - Recharts: lazy loaded con next/dynamic (ssr: false) — ahorra ~126KB
 - TanStack Query: staleTime configurado por tipo de dato
 - Conversaciones: no pollea con tab oculto (document.hidden check)
 - Pacientes: refresh-on-focus en vez de polling timer
+- **Ficha paciente**: 7/8 tabs lazy loaded con next/dynamic (solo Resumen se carga de entrada)
+- **Estadísticas**: endpoint combinado /statistics/all (1 request vs 6-7)
+- **Cache in-memory 60s** para los 7 endpoints de estadísticas
+- **Conversaciones lista**: select 11 campos específicos (no SELECT *)
+- **Paciente detalle**: select en appointments, clinicalNotes, pipelineEntry (solo campos necesarios)
+- **next.config**: optimizePackageImports para lucide-react, date-fns, recharts
+- **Índices DB nuevos**: PatientPipeline(patientId,stageId), Message(direction,readAt), TreatmentPlanItem(tenantId,status), TreatmentPlanItem(tenantId,status,completedAt)
 
 ### Favicons
 
@@ -264,7 +301,7 @@ Navbar + Hero + Social Proof + Problema→Solución + 6 Features con mockups + E
 **Pipeline**: GET stages, GET patients, PATCH move (OWNER/ADMIN/RECEPTIONIST only)
 **Campañas**: CRUD + segment-count + setup-defaults + duplicate + sends + retry-failed (OWNER/ADMIN/RECEPTIONIST only)
 **Conversaciones**: CRUD + messages + toggle IA
-**Estadísticas**: GET overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap (OWNER/ADMIN only)
+**Estadísticas**: GET all (combinado), GET overview, appointments-chart, revenue-chart, patients-chart, top-treatments, dentist-performance, hours-heatmap (OWNER/ADMIN only)
 **Config**: clínica/working-hours/equipo/dentists/treatments/chairs/bot/pipeline (OWNER/ADMIN only)
 **Billing**: GET subscription, POST create-subscription, POST change-plan, POST cancel
 **Pricing**: GET pricing?country=XX, GET pricing/countries (públicos)
@@ -300,7 +337,7 @@ ENCRYPTION_KEY, RESEND_API_KEY, FROM_EMAIL, S3_*
 
 ---
 
-## PRODUCCIÓN — DEPLOY COMPLETADO (27/03/2026, actualizado 30/03/2026)
+## PRODUCCIÓN — DEPLOY COMPLETADO (27/03/2026, actualizado 04/04/2026)
 
 ### Infraestructura
 
@@ -372,6 +409,7 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 - PORT no setear manualmente en Railway (Railway lo inyecta, si lo ponés puede conflictear)
 - Supabase Free plan pausa proyectos inactivos — reactivar antes de usar
 - next/dynamic con ssr: false requiere "use client" en Next.js 15
+- useSearchParams() requiere Suspense boundary en Next.js 15 (wrappear componente en `<Suspense>`)
 
 ---
 
@@ -402,7 +440,7 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 
 ---
 
-## COMPLETADO (actualizado 30/03/2026)
+## COMPLETADO (actualizado 04/04/2026)
 
 1. ✅ Mercado Pago webhook configurado + validación x-signature + notification_url en preapprovals + MP_WEBHOOK_SECRET en Railway
 2. ✅ Facebook Login URIs actualizadas (ngrok → dashboard.dentiqa.app)
@@ -431,16 +469,33 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 25. ✅ Performance: polling 60→25 req/min, lazy load Recharts
 26. ✅ Odontograma dual view (frontal + oclusal) con dientes anatómicos SVG
 27. ✅ SEO: metadata, JSON-LD, sitemap, robots.txt, OG image, H1/H2 keywords
+28. ✅ Bot fix: API key inválida en producción — resuelta con key nueva
+29. ✅ Bot fix: system prompt REGLA ABSOLUTA DE AGENDAMIENTO — book_appointment siempre primero, transfer_to_human restringido
+30. ✅ Bot fix: HUMAN_NEEDED no se limpiaba al reactivar IA — auto-reset a AI_HANDLING
+31. ✅ Bot fix: historial filtrado — excluye mensajes de escalación previos
+32. ✅ Ventana 24hs WhatsApp — detección, bloqueo chat, envío templates desde chat
+33. ✅ Bot pausado >24hs — alerta automática + notificación
+34. ✅ Flujo citas mejorado — IN_PROGRESS/COMPLETED/NO_SHOW con mensajes automáticos + pre-llenar evolución
+35. ✅ Notificaciones por rol — 6 categorías filtradas (messages, appointment, clinical, pipeline, system, ai)
+36. ✅ Pipeline inteligente — vinculado a Plan de Tratamiento (no mueve si items pendientes)
+37. ✅ Seguimiento dinámico — usa followUpMonths del TreatmentType
+38. ✅ sendSmartMessage — servicio centralizado con fallback (template → texto → notificación)
+39. ✅ 8 templates default al conectar WhatsApp (5 UTILITY + 3 MARKETING)
+40. ✅ interestTreatment como FK a TreatmentType
+41. ✅ Notificación navega al chat correctamente (/conversaciones?id=CONVERSATION_ID)
+42. ✅ Contador notificaciones se actualiza al leer (await fetchCounts)
+43. ✅ Performance mega-optimización: lazy tabs paciente, endpoint combinado estadísticas, cache 60s stats, select específicos, índices DB
+44. ✅ Odontograma: SVGs open source integrados (outlines orgánicos biomathcode/react-odontogram)
 
 ---
 
 ## PENDIENTE
 
-- Registrar dentiqa.app en Google Search Console + enviar sitemap
-- Respuesta Meta sobre Test WABA (ticket abierto)
+- SEO avanzado — posicionar "software dental" (blog, backlinks, landing pages por keyword)
+- Templates admin — fix visualización estado (aprobado/rechazado/borrador)
 - Google OAuth verificación (quitar cartel "no verificado")
 - Precio MP vs Landing consistencia (roundToNice)
-- Odontograma: refinar SVGs con ilustraciones más anatómicas (diseñador o IA de ilustración)
+- Odontograma: refinamiento visual (ilustrador profesional)
 - Testing e2e automatizado
 - Monitoreo y alertas en producción
 
@@ -455,6 +510,7 @@ NEXT_PUBLIC_API_URL=https://api.dentiqa.app, NEXT_PUBLIC_APP_URL=https://dashboa
 **Timezone** → DB siempre UTC. Tabla 14 días en system prompt con timezone Argentina.
 **ECONNREFUSED Redis** → TCP probe antes de BullMQ. `.on("error")` swallows. Server continúa sin cron jobs.
 **next/dynamic ssr:false** → Requiere "use client" directive en Next.js 15.
+**useSearchParams()** → Requiere `<Suspense>` boundary en Next.js 15. Wrappear el componente que lo usa.
 **Prisma migrate vs db push** → Producción usa db push, tabla _prisma_migrations puede no existir. Migraciones manuales ejecutar en Supabase SQL Editor.
 
 ---
