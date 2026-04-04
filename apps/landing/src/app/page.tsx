@@ -1,3 +1,4 @@
+import { fetchPricing, getLocalPrice, type PricingResult } from "@/lib/pricing";
 import {
   Calendar,
   Users,
@@ -713,12 +714,12 @@ function Comparison() {
 
 /* ─── Pricing ─────────────────────────────────────────────────────────────── */
 
-function Pricing() {
+function Pricing({ pricing }: { pricing: PricingResult | null }) {
   const plans = [
     {
       name: "Starter",
       usd: 89,
-      localApprox: "125.000",
+      localApprox: getLocalPrice(pricing, "STARTER", "125.000"),
       ideal: "Clínicas pequeñas",
       popular: false,
       badges: [] as string[],
@@ -735,7 +736,7 @@ function Pricing() {
     {
       name: "Professional",
       usd: 149,
-      localApprox: "210.000",
+      localApprox: getLocalPrice(pricing, "PROFESSIONAL", "210.000"),
       ideal: "Clínicas medianas",
       popular: true,
       badges: ["Funcionalidades Starter +"],
@@ -753,7 +754,7 @@ function Pricing() {
     {
       name: "Enterprise",
       usd: 249,
-      localApprox: "350.000",
+      localApprox: getLocalPrice(pricing, "ENTERPRISE", "350.000"),
       ideal: "Clínicas grandes",
       popular: false,
       badges: ["Funcionalidades Starter +", "Funcionalidades Professional +"],
@@ -1175,7 +1176,9 @@ const faqJsonLd = {
 
 /* ─── Main Page ───────────────────────────────────────────────────────────── */
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const pricing = await fetchPricing("AR");
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
@@ -1187,7 +1190,7 @@ export default function LandingPage() {
         <Features />
         <ExtraFeatures />
         <Comparison />
-        <Pricing />
+        <Pricing pricing={pricing} />
         <HowItWorks />
         <Testimonials />
         <Faq />

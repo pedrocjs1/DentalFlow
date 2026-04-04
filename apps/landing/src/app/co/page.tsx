@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { fetchPricing, getFormattedPrice } from "@/lib/pricing";
 import {
   Calendar,
   Users,
@@ -164,58 +165,62 @@ const features = [
   },
 ];
 
-const plans = [
-  {
-    name: "Starter",
-    price: "$359.900",
-    currency: "COP",
-    period: "/mes",
-    description: "Para consultorios y clinicas pequenas",
-    features: [
-      "Hasta 5 usuarios",
-      "2.000 mensajes WhatsApp/mes",
-      "2.000 interacciones IA/mes",
-      "Agenda inteligente",
-      "Historia clinica digital",
-      "Soporte por email",
-    ],
-  },
-  {
-    name: "Professional",
-    price: "$599.900",
-    currency: "COP",
-    period: "/mes",
-    description: "Para clinicas medianas",
-    popular: true,
-    features: [
-      "Hasta 10 usuarios",
-      "5.000 mensajes WhatsApp/mes",
-      "5.000 interacciones IA/mes",
-      "Todo lo de Starter",
-      "Estadisticas avanzadas",
-      "Soporte prioritario",
-    ],
-  },
-  {
-    name: "Enterprise",
-    price: "$999.900",
-    currency: "COP",
-    period: "/mes",
-    description: "Para clinicas grandes y cadenas",
-    features: [
-      "Usuarios ilimitados",
-      "10.000 mensajes WhatsApp/mes",
-      "10.000 interacciones IA/mes",
-      "Todo lo de Professional",
-      "Campanas de marketing",
-      "Soporte dedicado",
-    ],
-  },
-];
+function buildPlans(pricing: Awaited<ReturnType<typeof fetchPricing>>) {
+  return [
+    {
+      name: "Starter",
+      price: getFormattedPrice(pricing, "STARTER", "$ 365.000"),
+      currency: "COP",
+      period: "/mes",
+      description: "Para consultorios y clinicas pequenas",
+      features: [
+        "Hasta 5 usuarios",
+        "2.000 mensajes WhatsApp/mes",
+        "2.000 interacciones IA/mes",
+        "Agenda inteligente",
+        "Historia clinica digital",
+        "Soporte por email",
+      ],
+    },
+    {
+      name: "Professional",
+      price: getFormattedPrice(pricing, "PROFESSIONAL", "$ 611.000"),
+      currency: "COP",
+      period: "/mes",
+      description: "Para clinicas medianas",
+      popular: true as const,
+      features: [
+        "Hasta 10 usuarios",
+        "5.000 mensajes WhatsApp/mes",
+        "5.000 interacciones IA/mes",
+        "Todo lo de Starter",
+        "Estadisticas avanzadas",
+        "Soporte prioritario",
+      ],
+    },
+    {
+      name: "Enterprise",
+      price: getFormattedPrice(pricing, "ENTERPRISE", "$ 1.021.000"),
+      currency: "COP",
+      period: "/mes",
+      description: "Para clinicas grandes y cadenas",
+      features: [
+        "Usuarios ilimitados",
+        "10.000 mensajes WhatsApp/mes",
+        "10.000 interacciones IA/mes",
+        "Todo lo de Professional",
+        "Campanas de marketing",
+        "Soporte dedicado",
+      ],
+    },
+  ];
+}
 
 /* ─── Page Component ────────────────────────────────────────────────────── */
 
-export default function ColombiaPage() {
+export default async function ColombiaPage() {
+  const pricing = await fetchPricing("CO");
+  const plans = buildPlans(pricing);
   return (
     <>
       {/* JSON-LD */}
