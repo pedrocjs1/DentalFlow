@@ -64,6 +64,7 @@ function Navbar() {
           <a href="#precios" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Precios</a>
           <a href="#testimonios" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Testimonios</a>
           <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">FAQ</a>
+          <a href="/blog" className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors">Blog</a>
         </nav>
 
         <div className="hidden md:flex items-center gap-3">
@@ -1053,7 +1054,7 @@ function Footer() {
   return (
     <footer className="bg-gray-900 text-gray-400 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-12">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-8 mb-12">
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -1088,10 +1089,20 @@ function Footer() {
             </ul>
           </div>
           <div>
+            <h4 className="text-sm font-semibold text-white mb-4">Recursos</h4>
+            <ul className="space-y-2.5">
+              <li><a href="/blog" className="text-sm hover:text-white transition-colors">Blog</a></li>
+              <li><a href="/blog/mejor-software-dental-2026" className="text-sm hover:text-white transition-colors">Mejor software dental 2026</a></li>
+              <li><a href="/blog/whatsapp-para-clinicas-dentales" className="text-sm hover:text-white transition-colors">WhatsApp para clínicas</a></li>
+              <li><a href="/blog/historia-clinica-dental-digital" className="text-sm hover:text-white transition-colors">Historia clínica digital</a></li>
+              <li><a href="/blog/agenda-turnos-dentista-online" className="text-sm hover:text-white transition-colors">Agenda de turnos online</a></li>
+            </ul>
+          </div>
+          <div>
             <h4 className="text-sm font-semibold text-white mb-4">Empresa</h4>
             <ul className="space-y-2.5">
               <li><a href="#" className="text-sm hover:text-white transition-colors">Sobre nosotros</a></li>
-              <li><a href="#" className="text-sm hover:text-white transition-colors">Blog (próximamente)</a></li>
+              <li><a href="/blog" className="text-sm hover:text-white transition-colors">Blog</a></li>
               <li><a href={WA_URL} target="_blank" rel="noopener noreferrer" className="text-sm hover:text-white transition-colors">Contacto</a></li>
             </ul>
           </div>

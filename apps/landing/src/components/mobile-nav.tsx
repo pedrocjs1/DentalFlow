@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { href: "#precios", label: "Precios" },
   { href: "#testimonios", label: "Testimonios" },
   { href: "#faq", label: "FAQ" },
+  { href: "/blog", label: "Blog" },
 ];
 
 export function MobileNav() {

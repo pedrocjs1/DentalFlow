@@ -6,7 +6,7 @@ import { ChevronDown } from "lucide-react";
 const FAQS = [
   {
     q: "¿Qué necesito para empezar?",
-    a: "Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar Dentiqa. Sin instalaciones, sin hardware especial.",
+    a: 'Sólo un email y un número de WhatsApp Business. Te registrás, conectás tu WhatsApp en pocos clics, y empezás a usar Dentiqa. Sin instalaciones, sin hardware especial. Más info en nuestro artículo sobre <a href="/blog/mejor-software-dental-2026" class="text-blue-600 hover:underline">cómo elegir el mejor software dental</a>.',
   },
   {
     q: "¿Funciona en mi país?",
@@ -14,11 +14,11 @@ const FAQS = [
   },
   {
     q: "¿Puedo migrar mis datos desde otro software?",
-    a: "Sí. Podemos importar tus pacientes desde un archivo CSV/Excel. Nuestro equipo te ayuda a migrar desde Kommo, Dentalink, o cualquier herramienta que uses actualmente. La migración está incluida.",
+    a: 'Sí. Podemos importar tus pacientes desde un archivo CSV/Excel. Nuestro equipo te ayuda a migrar desde Kommo, Dentalink, o cualquier herramienta que uses actualmente. La migración está incluida. Conocé más sobre <a href="/blog/software-gestion-clinica-dental" class="text-blue-600 hover:underline">gestión integral de clínicas dentales</a>.',
   },
   {
     q: "¿Es seguro?",
-    a: "Muy seguro. Usamos encriptación AES-256-GCM para todos los datos sensibles, tokens encriptados, audit logs de seguridad, protección anti prompt-injection en la IA, y validación de archivos. Base de datos PostgreSQL con respaldos automáticos.",
+    a: 'Muy seguro. Usamos encriptación AES-256-GCM para todos los datos sensibles, tokens encriptados, audit logs de seguridad, protección anti prompt-injection en la IA, y validación de archivos. Base de datos PostgreSQL con respaldos automáticos. Leé más sobre nuestra <a href="/blog/historia-clinica-dental-digital" class="text-blue-600 hover:underline">historia clínica digital segura</a>.',
   },
   {
     q: "¿Qué pasa después de los 14 días gratis?",
@@ -66,7 +66,7 @@ export function FaqAccordion() {
                 isOpen ? "max-h-96 pb-4" : "max-h-0"
               }`}
             >
-              <p className="px-6 text-sm text-gray-600 leading-relaxed">{faq.a}</p>
+              <p className="px-6 text-sm text-gray-600 leading-relaxed" dangerouslySetInnerHTML={{ __html: faq.a }} />
             </div>
           </div>
         );

@@ -76,6 +76,21 @@ const softwareJsonLd = {
   aggregateRating: { "@type": "AggregateRating", ratingValue: "4.9", ratingCount: "47" },
 };
 
+const orgJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Dentiqa",
+  url: "https://dentiqa.app",
+  logo: "https://dentiqa.app/favicon.svg",
+  sameAs: [],
+  contactPoint: {
+    "@type": "ContactPoint",
+    email: "hola@dentiqa.app",
+    contactType: "sales",
+    availableLanguage: "Spanish",
+  },
+};
+
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -97,6 +112,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
       <head>
         <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       </head>
       <body className={inter.className}>{children}</body>
