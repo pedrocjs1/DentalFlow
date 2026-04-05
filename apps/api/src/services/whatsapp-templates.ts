@@ -66,27 +66,39 @@ function buildComponents(template: {
 }): MetaComponent[] {
   const components: MetaComponent[] = [];
 
+  // Parse variables once — used for both header and body examples
+  const variables = (template.variablesJson ?? []) as Variable[];
+  const sortedVars = variables.sort((a, b) => a.position - b.position);
+
   // Header
   if (template.headerType && template.headerType !== "NONE" && template.headerText) {
-    components.push({
+    const headerComponent: MetaComponent = {
       type: "HEADER",
       format: template.headerType,
       text: template.headerText,
-    });
+    };
+    // If header has variables ({{1}} etc.), add example
+    if (/\{\{\d+\}\}/.test(template.headerText)) {
+      const headerVarCount = (template.headerText.match(/\{\{\d+\}\}/g) ?? []).length;
+      headerComponent.example = {
+        header_text: sortedVars.slice(0, headerVarCount).map((v) => v.example),
+      };
+    }
+    components.push(headerComponent);
   }
 
   // Body (always required)
-  const variables = (template.variablesJson ?? []) as Variable[];
   const bodyComponent: MetaComponent = {
     type: "BODY",
     text: template.bodyText,
   };
 
-  // Add examples for variables
-  if (variables.length > 0) {
-    const examples = variables
-      .sort((a, b) => a.position - b.position)
-      .map((v) => v.example);
+  // If body has variables, add example (Meta requires this for approval)
+  const bodyVarMatches = template.bodyText.match(/\{\{\d+\}\}/g);
+  if (bodyVarMatches && bodyVarMatches.length > 0) {
+    const examples = sortedVars.length > 0
+      ? sortedVars.map((v) => v.example)
+      : bodyVarMatches.map((_, i) => `ejemplo${i + 1}`);
     bodyComponent.example = { body_text: [examples] };
   }
 
