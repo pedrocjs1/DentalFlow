@@ -86,8 +86,6 @@ function buildComponents(template: {
 
   // Parse variables robustly — handles null, string, double-stringified, wrong field names
   const sortedVars = parseVariables(template.variablesJson);
-  console.log("[buildComponents] variablesJson raw:", JSON.stringify(template.variablesJson));
-  console.log("[buildComponents] parsed sortedVars:", JSON.stringify(sortedVars));
 
   let headerVarCount = 0;
 
@@ -108,7 +106,6 @@ function buildComponents(template: {
       headerComponent.example = {
         header_text: headerExamples,
       };
-      console.log("[buildComponents] HEADER component:", JSON.stringify(headerComponent));
     }
     components.push(headerComponent);
   }
@@ -132,7 +129,6 @@ function buildComponents(template: {
     bodyComponent.example = { body_text: [examples] };
   }
 
-  console.log("[buildComponents] BODY component:", JSON.stringify(bodyComponent));
   components.push(bodyComponent);
 
   // Footer
@@ -206,9 +202,6 @@ export async function submitTemplate(
   };
 
   try {
-    console.log(`[TEMPLATE SUBMIT] POST ${META_GRAPH_URL}/${wabaId}/message_templates`);
-    console.log("[TEMPLATE SUBMIT] Payload:", JSON.stringify(payload, null, 2));
-
     const res = await fetch(`${META_GRAPH_URL}/${wabaId}/message_templates`, {
       method: "POST",
       headers: {
@@ -219,11 +212,6 @@ export async function submitTemplate(
     });
 
     const data = (await res.json()) as MetaTemplateResponse;
-    if (data.error) {
-      console.error("[TEMPLATE SUBMIT] Meta error response:", JSON.stringify(data.error, null, 2));
-    } else {
-      console.log("[TEMPLATE SUBMIT] Success:", JSON.stringify({ id: data.id, status: data.status }));
-    }
 
     if (data.error) {
       const errorMsg = `Meta API error (${data.error.code}): ${data.error.message}`;
