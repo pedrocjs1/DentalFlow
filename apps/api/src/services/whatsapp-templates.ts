@@ -56,6 +56,24 @@ interface MetaTemplateListResponse {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 
+function parseVariables(raw: unknown): Variable[] {
+  if (!raw) return [];
+  // Handle double-stringified JSON from DB
+  let parsed = raw;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { return []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .filter((v: Record<string, unknown>) => v && typeof v.position === "number")
+    .map((v: Record<string, unknown>) => ({
+      position: v.position as number,
+      field: String(v.field ?? ""),
+      example: String(v.example ?? v.exampleValue ?? v.sampleValue ?? `ejemplo`),
+    }))
+    .sort((a: Variable, b: Variable) => a.position - b.position);
+}
+
 function buildComponents(template: {
   headerType?: string | null;
   headerText?: string | null;
@@ -66,9 +84,12 @@ function buildComponents(template: {
 }): MetaComponent[] {
   const components: MetaComponent[] = [];
 
-  // Parse variables once — used for both header and body examples
-  const variables = (template.variablesJson ?? []) as Variable[];
-  const sortedVars = variables.sort((a, b) => a.position - b.position);
+  // Parse variables robustly — handles null, string, double-stringified, wrong field names
+  const sortedVars = parseVariables(template.variablesJson);
+  console.log("[buildComponents] variablesJson raw:", JSON.stringify(template.variablesJson));
+  console.log("[buildComponents] parsed sortedVars:", JSON.stringify(sortedVars));
+
+  let headerVarCount = 0;
 
   // Header
   if (template.headerType && template.headerType !== "NONE" && template.headerText) {
@@ -78,11 +99,16 @@ function buildComponents(template: {
       text: template.headerText,
     };
     // If header has variables ({{1}} etc.), add example
-    if (/\{\{\d+\}\}/.test(template.headerText)) {
-      const headerVarCount = (template.headerText.match(/\{\{\d+\}\}/g) ?? []).length;
+    const headerMatches = template.headerText.match(/\{\{\d+\}\}/g);
+    if (headerMatches && headerMatches.length > 0) {
+      headerVarCount = headerMatches.length;
+      const headerExamples = sortedVars.length >= headerVarCount
+        ? sortedVars.slice(0, headerVarCount).map((v) => v.example)
+        : headerMatches.map((_, i) => `ejemplo${i + 1}`);
       headerComponent.example = {
-        header_text: sortedVars.slice(0, headerVarCount).map((v) => v.example),
+        header_text: headerExamples,
       };
+      console.log("[buildComponents] HEADER component:", JSON.stringify(headerComponent));
     }
     components.push(headerComponent);
   }
@@ -93,15 +119,20 @@ function buildComponents(template: {
     text: template.bodyText,
   };
 
-  // If body has variables, add example (Meta requires this for approval)
+  // If body has variables, add example (Meta REQUIRES this for approval)
   const bodyVarMatches = template.bodyText.match(/\{\{\d+\}\}/g);
   if (bodyVarMatches && bodyVarMatches.length > 0) {
-    const examples = sortedVars.length > 0
-      ? sortedVars.map((v) => v.example)
-      : bodyVarMatches.map((_, i) => `ejemplo${i + 1}`);
+    // Skip header vars — body vars start after headerVarCount
+    const bodyVars = sortedVars.slice(headerVarCount);
+    const examples: string[] = bodyVarMatches.map((_, i) => {
+      const v = bodyVars[i];
+      return (v && v.example) ? String(v.example) : `ejemplo${i + 1}`;
+    });
+    // Meta requires body_text as array of arrays: [["val1","val2",...]]
     bodyComponent.example = { body_text: [examples] };
   }
 
+  console.log("[buildComponents] BODY component:", JSON.stringify(bodyComponent));
   components.push(bodyComponent);
 
   // Footer
