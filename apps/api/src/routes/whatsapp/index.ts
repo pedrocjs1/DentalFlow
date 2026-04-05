@@ -8,122 +8,235 @@ import { sendWhatsAppTextMessage } from "@dentiqa/messaging";
 import { submitTemplate } from "../../services/whatsapp-templates.js";
 
 // ─── Default templates to create on WhatsApp connect ─────────────────────────
+// 7 UTILITY (variante A) + 7 UTILITY (variante B backup) + 3 MARKETING = 17
 
 interface DefaultTemplate {
   name: string;
   displayName: string;
+  description: string;
   messageType: string;
   suggestedTrigger: string;
   category: string;
   bodyText: string;
   variablesJson: Array<{ position: number; field: string; example: string }>;
+  isBackup: boolean;
 }
 
+const VARS_PATIENT_CLINIC = [
+  { position: 1, field: "firstName", example: "Pedro" },
+  { position: 2, field: "clinicName", example: "Clínica Dental" },
+];
+
+const VARS_PATIENT_CLINIC_TREATMENT = [
+  ...VARS_PATIENT_CLINIC,
+  { position: 3, field: "treatmentName", example: "limpieza" },
+];
+
+const VARS_APPOINTMENT = [
+  { position: 1, field: "firstName", example: "Pedro" },
+  { position: 2, field: "time", example: "10:00" },
+  { position: 3, field: "dentistName", example: "Dra. González" },
+  { position: 4, field: "clinicName", example: "Clínica Dental" },
+];
+
 const DEFAULT_TEMPLATES: DefaultTemplate[] = [
+  // ── UTILITY — Variante A (primarios) ──────────────────────────────────────
   {
-    name: "appointment_reminder",
-    displayName: "Recordatorio de cita",
+    name: "appointment_reminder_24h",
+    displayName: "Recordatorio de cita 24hs",
+    description: "Se envía 24hs antes de la cita programada",
     messageType: "appointment_reminder",
-    suggestedTrigger: "appointment_reminder",
+    suggestedTrigger: "Recordatorio de cita",
     category: "UTILITY",
-    bodyText: "Hola {{1}}, te recordamos tu cita en {{2}} el día {{3}}. Si necesitás cambiarla, respondé este mensaje.",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-      { position: 3, field: "fecha", example: "lunes 15 de abril a las 14:30" },
-    ],
+    bodyText: "Hola {{1}}, te recordamos tu cita programada para mañana a las {{2}} con {{3}} en {{4}}. Si necesitás reprogramar, escribinos con anticipación.",
+    variablesJson: VARS_APPOINTMENT,
+    isBackup: false,
   },
   {
     name: "post_visit_followup",
     displayName: "Seguimiento post-visita",
-    messageType: "post_visit",
+    description: "Se envía después de una visita para seguimiento",
+    messageType: "post_visit_followup",
     suggestedTrigger: "post_visit",
     category: "UTILITY",
-    bodyText: "Hola {{1}}, gracias por tu visita en {{2}}. Si tenés alguna consulta sobre tu tratamiento, no dudes en escribirnos.",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-    ],
+    bodyText: "Hola {{1}}, desde {{2}} queremos saber cómo te sentís después de tu última visita. Si tenés alguna molestia o consulta, no dudes en escribirnos.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
   },
   {
-    name: "missed_appointment",
-    displayName: "Cita no asistida",
-    messageType: "missed_appointment",
-    suggestedTrigger: "missed_appointment",
-    category: "UTILITY",
-    bodyText: "Hola {{1}}, notamos que no pudiste asistir a tu cita en {{2}}. ¿Te gustaría reagendar? Respondé este mensaje.",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-    ],
-  },
-  {
-    name: "treatment_checkup",
+    name: "treatment_followup_6m",
     displayName: "Control de tratamiento",
+    description: "Recordatorio de control periódico vinculado a tratamiento",
     messageType: "treatment_followup",
     suggestedTrigger: "follow_up",
     category: "UTILITY",
-    bodyText: "Hola {{1}}, desde {{2}} te recordamos que es momento de tu control de {{3}}. ¿Agendamos?",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-      { position: 3, field: "tratamiento", example: "limpieza dental" },
-    ],
+    bodyText: "Hola {{1}}, te escribimos de {{2}} respecto a tu tratamiento de {{3}}. Según el plan indicado, corresponde un control de seguimiento. Escribinos para coordinar el turno.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: false,
   },
   {
-    name: "welcome_visit",
-    displayName: "Bienvenida a cita",
-    messageType: "welcome",
-    suggestedTrigger: "appointment_welcome",
+    name: "post_procedure_check",
+    displayName: "Control post-procedimiento",
+    description: "Control post-procedimiento",
+    messageType: "post_procedure_check",
+    suggestedTrigger: "post_procedure",
     category: "UTILITY",
-    bodyText: "Hola {{1}}, bienvenido/a a {{2}}. Tu profesional ya está listo para atenderte.",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-    ],
+    bodyText: "Hola {{1}}, te escribimos de {{2}} para saber cómo evolucionás después de tu tratamiento de {{3}}. Si tenés alguna molestia, escribinos.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: false,
   },
   {
-    name: "no_booking_followup",
-    displayName: "Seguimiento sin agendar",
-    messageType: "no_booking_followup",
+    name: "no_show_followup",
+    displayName: "Cita no asistida",
+    description: "Se envía cuando el paciente no asiste a la cita",
+    messageType: "no_show_followup",
+    suggestedTrigger: "missed_appointment",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, notamos que no pudiste asistir a tu cita en {{2}}. Entendemos que pueden surgir imprevistos. Escribinos cuando quieras reprogramar.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
+  },
+  {
+    name: "interested_not_booked",
+    displayName: "Interesado sin agendar",
+    description: "Para interesados que no agendaron cita",
+    messageType: "interested_not_booked",
     suggestedTrigger: "no_booking_followup",
     category: "UTILITY",
-    bodyText: "Hola {{1}}, desde {{2}} vimos que te interesó {{3}}. Todavía tenemos turnos disponibles esta semana. ¿Te agendamos?",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-      { position: 3, field: "tratamiento", example: "limpieza dental" },
-    ],
+    bodyText: "Hola {{1}}, te escribimos desde {{2}}. Vimos que consultaste por {{3}} y queremos ayudarte a coordinar una cita. Respondé este mensaje y te agendamos.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: false,
   },
   {
-    name: "re_engagement",
-    displayName: "Re-engagement",
-    messageType: "re_engagement",
+    name: "welcome_new_patient",
+    displayName: "Bienvenida paciente nuevo",
+    description: "Primer contacto con paciente cargado manualmente",
+    messageType: "welcome_new_patient",
+    suggestedTrigger: "welcome",
+    category: "UTILITY",
+    bodyText: 'Hola {{1}}, te contactamos desde {{2}}. Respondé "Hola" para que podamos asistirte.',
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
+  },
+
+  // ── UTILITY — Variante B (backups) ────────────────────────────────────────
+  {
+    name: "appointment_reminder_24h_b",
+    displayName: "Recordatorio de cita 24hs (B)",
+    description: "Backup - Recordatorio de cita 24hs",
+    messageType: "appointment_reminder",
+    suggestedTrigger: "Recordatorio de cita",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, mañana tenés turno a las {{2}} en {{4}}. Profesional: {{3}}. Respondé este mensaje si necesitás hacer algún cambio.",
+    variablesJson: VARS_APPOINTMENT,
+    isBackup: true,
+  },
+  {
+    name: "post_visit_followup_b",
+    displayName: "Seguimiento post-visita (B)",
+    description: "Backup - Seguimiento post-visita",
+    messageType: "post_visit_followup",
+    suggestedTrigger: "post_visit",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, te escribimos de {{2}} para tu seguimiento post-consulta. ¿Está todo bien? Cualquier duda estamos a disposición.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: true,
+  },
+  {
+    name: "treatment_followup_6m_b",
+    displayName: "Control de tratamiento (B)",
+    description: "Backup - Control periódico vinculado a tratamiento",
+    messageType: "treatment_followup",
+    suggestedTrigger: "follow_up",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, desde {{2}} te informamos que tu tratamiento de {{3}} requiere una revisión de control. Respondé este mensaje para agendar.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: true,
+  },
+  {
+    name: "post_procedure_check_b",
+    displayName: "Control post-procedimiento (B)",
+    description: "Backup - Control post-procedimiento",
+    messageType: "post_procedure_check",
+    suggestedTrigger: "post_procedure",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, desde {{2}} hacemos seguimiento de tu {{3}}. ¿Cómo te sentís? Ante cualquier duda, respondé este mensaje.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: true,
+  },
+  {
+    name: "no_show_followup_b",
+    displayName: "Cita no asistida (B)",
+    description: "Backup - Seguimiento de cita no asistida",
+    messageType: "no_show_followup",
+    suggestedTrigger: "missed_appointment",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, te habíamos reservado un turno en {{2}} pero no pudimos atenderte. Si querés coordinar una nueva fecha, respondé este mensaje.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: true,
+  },
+  {
+    name: "interested_not_booked_b",
+    displayName: "Interesado sin agendar (B)",
+    description: "Backup - Interesados que no agendaron cita",
+    messageType: "interested_not_booked",
+    suggestedTrigger: "no_booking_followup",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, desde {{2}} queremos retomar tu consulta sobre {{3}}. ¿Te gustaría agendar un turno? Escribinos y te damos los horarios disponibles.",
+    variablesJson: VARS_PATIENT_CLINIC_TREATMENT,
+    isBackup: true,
+  },
+  {
+    name: "welcome_new_patient_b",
+    displayName: "Bienvenida paciente nuevo (B)",
+    description: "Backup - Primer contacto con paciente nuevo",
+    messageType: "welcome_new_patient",
+    suggestedTrigger: "welcome",
+    category: "UTILITY",
+    bodyText: "Hola {{1}}, somos {{2}}. Escribinos por acá y te ayudamos a coordinar tu consulta.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: true,
+  },
+
+  // ── MARKETING (sin backup) ────────────────────────────────────────────────
+  {
+    name: "reactivation_standard",
+    displayName: "Reactivación estándar",
+    description: "Para pacientes inactivos hace tiempo",
+    messageType: "reactivation_standard",
     suggestedTrigger: "re_engagement",
     category: "MARKETING",
-    bodyText: "Hola {{1}}, en {{2}} queremos ayudarte con tu salud dental. Agendá tu primera consulta y recibí una evaluación completa.",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-    ],
+    bodyText: "Hola {{1}}, hace tiempo que no nos visitás en {{2}}. Tu salud dental es importante y nos gustaría verte pronto. Escribinos para agendar tu próxima visita.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
   },
   {
-    name: "remarketing_discount",
-    displayName: "Remarketing con descuento",
-    messageType: "remarketing",
+    name: "reactivation_discount",
+    displayName: "Reactivación con descuento",
+    description: "Para pacientes inactivos con oferta",
+    messageType: "reactivation_discount",
     suggestedTrigger: "remarketing",
     category: "MARKETING",
-    bodyText: "Hola {{1}}, en {{2}} tenemos un {{3}}% de descuento en {{4}} este mes. ¡Agendá tu turno!",
-    variablesJson: [
-      { position: 1, field: "firstName", example: "María" },
-      { position: 2, field: "clinica", example: "Dental Care" },
-      { position: 3, field: "descuento", example: "15" },
-      { position: 4, field: "tratamiento", example: "blanqueamiento" },
-    ],
+    bodyText: "Hola {{1}}, en {{2}} tenemos una promoción especial para vos. Escribinos para conocer los detalles y agendar tu visita.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
+  },
+  {
+    name: "birthday_greeting",
+    displayName: "Saludo de cumpleaños",
+    description: "Saludo automático de cumpleaños",
+    messageType: "birthday_greeting",
+    suggestedTrigger: "birthday",
+    category: "MARKETING",
+    bodyText: "Hola {{1}}, desde {{2}} te deseamos un muy feliz cumpleaños. Esperamos que pases un gran día.",
+    variablesJson: VARS_PATIENT_CLINIC,
+    isBackup: false,
   },
 ];
 
-async function createDefaultTemplates(
+export { DEFAULT_TEMPLATES };
+
+export async function createDefaultTemplates(
   tenantId: string,
   wabaId: string,
   accessToken: string,
@@ -149,13 +262,15 @@ async function createDefaultTemplates(
           tenantId,
           name: tmpl.name,
           displayName: tmpl.displayName,
+          description: tmpl.description,
           category: tmpl.category,
-          language: "es",
+          language: "es_AR",
           bodyText: tmpl.bodyText,
           variablesJson: tmpl.variablesJson,
           messageType: tmpl.messageType,
           suggestedTrigger: tmpl.suggestedTrigger,
           isSystemTemplate: false,
+          isBackup: tmpl.isBackup,
           status: "DRAFT",
         },
       });

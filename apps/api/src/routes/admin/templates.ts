@@ -9,6 +9,7 @@ import {
   syncAllTemplates,
   deleteTemplateFromMeta,
 } from "../../services/whatsapp-templates.js";
+import { createDefaultTemplates, DEFAULT_TEMPLATES } from "../whatsapp/index.js";
 
 // Validate template name: only lowercase, numbers, underscores
 const TEMPLATE_NAME_REGEX = /^[a-z0-9_]+$/;
@@ -369,6 +370,72 @@ export async function adminTemplateRoutes(app: FastifyInstance): Promise<void> {
       }
 
       return { success: true, updated: result.updated };
+    },
+  });
+
+  // ─── POST /api/v1/admin/templates/recreate-defaults — Recreate default templates for a tenant
+  app.post("/api/v1/admin/templates/recreate-defaults", {
+    preHandler,
+    handler: async (request) => {
+      const body = request.body as { tenantId: string; force?: boolean };
+
+      if (!body.tenantId) {
+        throw new AppError(400, "INVALID_INPUT", "Seleccioná una clínica");
+      }
+
+      const tenant = await prisma.tenant.findUnique({
+        where: { id: body.tenantId },
+        select: { wabaId: true, whatsappAccessToken: true, whatsappStatus: true, name: true },
+      });
+
+      if (!tenant?.wabaId || !tenant.whatsappAccessToken || tenant.whatsappStatus !== "CONNECTED") {
+        throw new AppError(400, "NO_WABA", "La clínica seleccionada no tiene WhatsApp conectado");
+      }
+
+      // Check for existing default templates
+      const existingNames = await prisma.whatsAppTemplate.findMany({
+        where: {
+          tenantId: body.tenantId,
+          name: { in: DEFAULT_TEMPLATES.map((t) => t.name) },
+        },
+        select: { id: true, name: true },
+      });
+
+      if (existingNames.length > 0 && !body.force) {
+        return {
+          success: false,
+          error: `Ya existen ${existingNames.length} templates default. Enviá force: true para eliminarlos y recrearlos.`,
+          existing: existingNames.map((t) => t.name),
+        };
+      }
+
+      // Delete existing if force
+      if (existingNames.length > 0) {
+        await prisma.whatsAppTemplate.deleteMany({
+          where: { id: { in: existingNames.map((t) => t.id) } },
+        });
+      }
+
+      const accessToken = decryptToken(tenant.whatsappAccessToken);
+      await createDefaultTemplates(body.tenantId, tenant.wabaId, accessToken, app.log);
+
+      // Count results
+      const created = await prisma.whatsAppTemplate.findMany({
+        where: { tenantId: body.tenantId, name: { in: DEFAULT_TEMPLATES.map((t) => t.name) } },
+        select: { name: true, status: true, metaTemplateId: true },
+      });
+
+      const submitted = created.filter((t) => t.status === "PENDING" && t.metaTemplateId).length;
+      const failed = created.filter((t) => t.status === "DRAFT" && !t.metaTemplateId).length;
+
+      return {
+        success: true,
+        created: created.length,
+        submitted,
+        failed,
+        replaced: existingNames.length,
+        templates: created,
+      };
     },
   });
 

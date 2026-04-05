@@ -22,14 +22,22 @@ const WHATSAPP_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 export type SmartMessageType =
   | "post_visit"
+  | "post_visit_followup"
   | "appointment_reminder"
   | "missed_appointment"
+  | "no_show_followup"
   | "treatment_followup"
+  | "post_procedure_check"
   | "welcome"
+  | "welcome_new_patient"
   | "re_engagement"
+  | "reactivation_standard"
+  | "reactivation_discount"
   | "remarketing"
   | "post_procedure"
-  | "no_booking_followup";
+  | "no_booking_followup"
+  | "interested_not_booked"
+  | "birthday_greeting";
 
 export interface SmartMessageParams {
   tenantId: string;
@@ -45,6 +53,10 @@ export interface SmartMessageParams {
     descuento?: string;
     fecha?: string;
     hora?: string;
+    time?: string;
+    clinicName?: string;
+    dentistName?: string;
+    treatmentName?: string;
   };
   fallbackText?: string;
 }
@@ -111,47 +123,53 @@ function isWindowOpen(lastPatientMessageAt: Date | null): boolean {
   return Date.now() - lastPatientMessageAt.getTime() < WHATSAPP_WINDOW_MS;
 }
 
-/**
- * Find the best approved template for a given messageType.
- * Searches by: messageType field → suggestedTrigger → name contains.
- */
-async function findBestTemplate(
-  tenantId: string,
-  messageType: string
-): Promise<{
+interface TemplateCandidate {
   id: string;
   name: string;
   language: string;
   bodyText: string;
   variablesJson: unknown;
-} | null> {
-  // 1. Try exact messageType match (tenant-specific first, then system)
-  const byMessageType = await prisma.whatsAppTemplate.findFirst({
+  isBackup: boolean;
+}
+
+/**
+ * Find approved templates for a given messageType.
+ * Returns candidates ordered: primary (A) first, then backup (B).
+ * Searches by: messageType field → suggestedTrigger → name contains.
+ */
+async function findTemplates(
+  tenantId: string,
+  messageType: string
+): Promise<TemplateCandidate[]> {
+  const select = { id: true, name: true, language: true, bodyText: true, variablesJson: true, isBackup: true } as const;
+
+  // 1. Try exact messageType match (tenant-specific first, then system; primary before backup)
+  const byMessageType = await prisma.whatsAppTemplate.findMany({
     where: {
       status: "APPROVED",
       isActive: true,
       messageType,
       OR: [{ tenantId }, { tenantId: null }],
     },
-    orderBy: { tenantId: "desc" }, // Prefer tenant-specific over system
-    select: { id: true, name: true, language: true, bodyText: true, variablesJson: true },
+    orderBy: [{ isBackup: "asc" }, { tenantId: "desc" }],
+    select,
   });
-  if (byMessageType) return byMessageType;
+  if (byMessageType.length > 0) return byMessageType;
 
   // 2. Try suggestedTrigger match
-  const byTrigger = await prisma.whatsAppTemplate.findFirst({
+  const byTrigger = await prisma.whatsAppTemplate.findMany({
     where: {
       status: "APPROVED",
       isActive: true,
       suggestedTrigger: messageType,
       OR: [{ tenantId }, { tenantId: null }],
     },
-    orderBy: { tenantId: "desc" },
-    select: { id: true, name: true, language: true, bodyText: true, variablesJson: true },
+    orderBy: [{ isBackup: "asc" }, { tenantId: "desc" }],
+    select,
   });
-  if (byTrigger) return byTrigger;
+  if (byTrigger.length > 0) return byTrigger;
 
-  // 3. Try name contains (fuzzy)
+  // 3. Try name contains (fuzzy) — only returns first match
   const normalized = messageType.replace(/_/g, "");
   const byName = await prisma.whatsAppTemplate.findFirst({
     where: {
@@ -161,9 +179,9 @@ async function findBestTemplate(
       OR: [{ tenantId }, { tenantId: null }],
     },
     orderBy: { tenantId: "desc" },
-    select: { id: true, name: true, language: true, bodyText: true, variablesJson: true },
+    select,
   });
-  return byName;
+  return byName ? [byName] : [];
 }
 
 /**
@@ -175,19 +193,28 @@ function buildTemplateComponents(
 ): Record<string, unknown>[] {
   if (!variablesJson || !Array.isArray(variablesJson)) return [];
 
+  const clinicName = variables.clinicName ?? variables.clinica;
+  const treatmentName = variables.treatmentName ?? variables.tratamiento;
+  const dentistName = variables.dentistName ?? variables.dentista;
+  const time = variables.time ?? variables.hora;
+
   const fieldMap: Record<string, string | undefined> = {
     firstName: variables.nombre?.split(" ")[0],
     nombre: variables.nombre,
-    clinica: variables.clinica,
-    clinic_name: variables.clinica,
-    tratamiento: variables.tratamiento,
-    treatment: variables.tratamiento,
-    dentista: variables.dentista,
-    dentist: variables.dentista,
+    clinica: clinicName,
+    clinic_name: clinicName,
+    clinicName: clinicName,
+    tratamiento: treatmentName,
+    treatment: treatmentName,
+    treatmentName: treatmentName,
+    dentista: dentistName,
+    dentist: dentistName,
+    dentistName: dentistName,
     descuento: variables.descuento,
     discount: variables.descuento,
     fecha: variables.fecha,
-    hora: variables.hora,
+    hora: time,
+    time: time,
   };
 
   const params = (variablesJson as Array<{ position: number; field: string; example: string }>)
@@ -221,16 +248,17 @@ export async function sendSmartMessage(params: SmartMessageParams): Promise<Smar
     return { sent: false, method: "none", error: "WhatsApp not connected" };
   }
 
-  const clinicName = variables.clinica ?? creds.tenantName;
+  const clinicName = variables.clinica ?? variables.clinicName ?? creds.tenantName;
   variables.clinica = clinicName;
+  variables.clinicName = clinicName;
 
   const conversation = await findConversation(tenantId, patientId, conversationId);
   const windowOpen = conversation ? isWindowOpen(conversation.lastPatientMessageAt) : false;
 
-  // 1. Try to find an approved template
-  const template = await findBestTemplate(tenantId, messageType);
+  // 1. Try to find approved templates (primary A first, then backup B)
+  const templates = await findTemplates(tenantId, messageType);
 
-  if (template) {
+  for (const template of templates) {
     try {
       const components = buildTemplateComponents(template.variablesJson, variables);
       const waMessageId = await sendWhatsAppTemplate({
@@ -238,7 +266,7 @@ export async function sendSmartMessage(params: SmartMessageParams): Promise<Smar
         accessToken: creds.accessToken,
         to: patientPhone,
         templateName: template.name,
-        language: template.language ?? "es",
+        language: template.language ?? "es_AR",
         components,
       });
 
@@ -253,7 +281,12 @@ export async function sendSmartMessage(params: SmartMessageParams): Promise<Smar
               type: "TEMPLATE",
               content: preview,
               whatsappMessageId: waMessageId,
-              metadata: { sentBy: "bot", messageType, templateName: template.name },
+              metadata: {
+                sentBy: "bot",
+                messageType,
+                templateName: template.name,
+                isBackup: template.isBackup,
+              },
             },
           }),
           prisma.conversation.update({
@@ -263,15 +296,19 @@ export async function sendSmartMessage(params: SmartMessageParams): Promise<Smar
         ]);
       }
 
+      if (template.isBackup) {
+        console.warn(`[smart-message] Used backup template ${template.name} for ${messageType}`);
+      }
+
       recordUsage(tenantId, "WHATSAPP_MESSAGE", 1, { direction: `outbound_smart_template`, messageType }).catch(() => {});
       return { sent: true, method: "template", waMessageId };
     } catch (err) {
-      console.error(`[smart-message] Template send failed for ${messageType}:`, err);
-      // Fall through to text fallback
+      console.error(`[smart-message] Template ${template.name} failed for ${messageType}:`, err);
+      // Try next template (backup) in the loop
     }
   }
 
-  // 2. No template (or template failed) → try text if window is open
+  // 2. All templates failed (or none found) → try text if window is open
   if (windowOpen && fallbackText) {
     try {
       const waMessageId = await sendWhatsAppTextMessage({
@@ -313,7 +350,7 @@ export async function sendSmartMessage(params: SmartMessageParams): Promise<Smar
     type: "bot_paused_alert",
     title: `No se pudo enviar mensaje (${messageType})`,
     message: `No se pudo contactar a ${firstName}${variables.tratamiento ? ` sobre ${variables.tratamiento}` : ""}. ${
-      !template ? "No hay template aprobado." : "La ventana de 24hs está cerrada."
+      templates.length === 0 ? "No hay template aprobado." : "Templates fallaron y la ventana de 24hs está cerrada."
     } Contactalo manualmente.`,
     link: "/conversaciones",
     metadata: { patientId, messageType, patientPhone },

@@ -857,10 +857,11 @@ model WhatsAppTemplate {
   // Control
   isSystemTemplate Boolean   @default(true)  // true = created by Super Admin
   isActive         Boolean   @default(true)
+  isBackup         Boolean   @default(false) // true = variante B (fallback si la A falla)
   version          Int       @default(1)
   // Suggested usage
   suggestedTrigger String?                // "appointment_reminder", "follow_up", "reactivation", etc.
-  messageType      String?                // "post_visit", "appointment_reminder", "missed_appointment", "treatment_followup", "welcome", "re_engagement", "remarketing"
+  messageType      String?                // "appointment_reminder", "post_visit_followup", "treatment_followup", "post_procedure_check", "no_show_followup", "interested_not_booked", "welcome_new_patient", etc.
 
   events           TemplateEvent[]
 
