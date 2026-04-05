@@ -5,6 +5,7 @@ import { tenantMiddleware } from "../../middleware/tenant-middleware.js";
 import { AppError } from "../../errors/app-error.js";
 import { encryptToken, decryptToken } from "../../services/encryption.js";
 import { sendWhatsAppTextMessage } from "@dentiqa/messaging";
+import { submitTemplate } from "../../services/whatsapp-templates.js";
 
 // ─── Default templates to create on WhatsApp connect ─────────────────────────
 
@@ -128,6 +129,9 @@ async function createDefaultTemplates(
   accessToken: string,
   log: FastifyBaseLogger
 ): Promise<void> {
+  let succeeded = 0;
+  let failed = 0;
+
   for (const tmpl of DEFAULT_TEMPLATES) {
     try {
       // Check if template already exists for this tenant
@@ -139,7 +143,7 @@ async function createDefaultTemplates(
         continue;
       }
 
-      // Create in local DB
+      // Create in local DB as DRAFT
       const created = await prisma.whatsAppTemplate.create({
         data: {
           tenantId,
@@ -156,58 +160,31 @@ async function createDefaultTemplates(
         },
       });
 
-      // Submit to Meta Graph API
+      // Submit to Meta via the shared service (handles status update, metaTemplateId, and TemplateEvents)
       try {
-        const metaResponse = await fetch(
-          `https://graph.facebook.com/v21.0/${wabaId}/message_templates`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              name: tmpl.name,
-              language: "es",
-              category: tmpl.category,
-              components: [
-                {
-                  type: "BODY",
-                  text: tmpl.bodyText,
-                  example: {
-                    body_text: [tmpl.variablesJson.map((v) => v.example)],
-                  },
-                },
-              ],
-            }),
-          }
-        );
-
-        if (metaResponse.ok) {
-          const metaData = await metaResponse.json() as { id?: string; status?: string };
-          await prisma.whatsAppTemplate.update({
-            where: { id: created.id },
-            data: {
-              status: "PENDING",
-              metaTemplateId: metaData.id,
-              submittedAt: new Date(),
-            },
-          });
-          log.info({ templateName: tmpl.name, metaId: metaData.id }, "Default template submitted to Meta");
+        const result = await submitTemplate(created.id, wabaId, accessToken);
+        if (result.success) {
+          succeeded++;
+          log.info({ templateName: tmpl.name, metaId: result.metaTemplateId }, "Default template submitted to Meta");
         } else {
-          const errorData = await metaResponse.json().catch(() => ({}));
-          log.warn(
-            { templateName: tmpl.name, status: metaResponse.status, error: errorData },
-            "Meta rejected default template submission (non-fatal)"
-          );
+          failed++;
+          log.warn({ templateName: tmpl.name, error: result.error }, "Meta rejected default template (non-fatal)");
         }
-      } catch (metaErr) {
-        log.warn({ templateName: tmpl.name, err: metaErr }, "Failed to submit template to Meta (non-fatal)");
+      } catch (submitErr) {
+        failed++;
+        // submitTemplate() already creates TemplateEvents on error, but log for visibility
+        log.warn({ templateName: tmpl.name, err: submitErr }, "Failed to submit template to Meta (non-fatal)");
       }
     } catch (err) {
+      failed++;
       log.warn({ templateName: tmpl.name, err }, "Failed to create default template (non-fatal)");
     }
   }
+
+  log.info(
+    { succeeded, failed, total: DEFAULT_TEMPLATES.length },
+    `Default templates: ${succeeded}/${DEFAULT_TEMPLATES.length} submitted, ${failed} failed`
+  );
 }
 
 export async function whatsappRoutes(app: FastifyInstance): Promise<void> {

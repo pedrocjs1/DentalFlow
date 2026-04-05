@@ -360,7 +360,7 @@ export async function syncAllTemplates(
     // Get our submitted/pending/approved templates
     const ourTemplates = await prisma.whatsAppTemplate.findMany({
       where: {
-        status: { in: ["SUBMITTED", "PENDING", "APPROVED", "PAUSED"] },
+        status: { in: ["DRAFT", "SUBMITTED", "PENDING", "APPROVED", "PAUSED"] },
       },
     });
 
