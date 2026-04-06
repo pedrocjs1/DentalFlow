@@ -447,7 +447,7 @@ function Toast({
   if (!toast) return null;
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium transition-all ${
+      className={`fixed top-4 right-4 sm:top-auto sm:bottom-6 sm:right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium transition-all ${
         toast.type === "success" ? "bg-primary-600" : "bg-red-500"
       }`}
     >
@@ -1245,7 +1245,7 @@ function CampaignWizard({
         </div>
 
         {/* Step indicator */}
-        <div className="flex items-center px-6 py-4 border-b">
+        <div className="flex items-center px-3 sm:px-6 py-3 sm:py-4 border-b overflow-x-auto">
           {STEPS.map((label, i) => {
             const stepNum = i + 1;
             const done = step > stepNum;
@@ -1376,7 +1376,7 @@ function Step1({
         <label className="block text-sm font-medium text-gray-700 mb-3">
           Tipo de campaña
         </label>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           {types.map((type) => {
             const conf = TYPE_CONFIG[type];
             const selected = data.type === type;
@@ -1667,7 +1667,7 @@ function Step3({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Última visita
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="text-xs text-gray-500 mb-1 block">
               Hace más de (meses)
@@ -1717,7 +1717,7 @@ function Step3({
       </div>
 
       {/* Age & gender */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
             Edad mínima

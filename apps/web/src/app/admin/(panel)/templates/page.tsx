@@ -474,7 +474,7 @@ export default function AdminTemplatesPage() {
   if (detailTemplate) {
     const st = STATUS_CONFIG[detailTemplate.status] ?? STATUS_CONFIG.DRAFT;
     return (
-      <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
         {/* Back button */}
         <button
           onClick={() => setDetailTemplate(null)}
@@ -637,7 +637,7 @@ export default function AdminTemplatesPage() {
 
   // LIST VIEW
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

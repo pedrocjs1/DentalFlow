@@ -642,7 +642,7 @@ function TabTratamientos() {
                 <label className="text-xs text-gray-500 mb-1 block">Nombre *</label>
                 <input type="text" value={form.name ?? ""} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">Duración (min) *</label>
                   <input type="number" min={5} step={5} value={form.durationMin ?? 30} onChange={(e) => setForm((f) => ({ ...f, durationMin: Number(e.target.value) }))} className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500" />
@@ -1473,7 +1473,7 @@ function WhatsAppConfig() {
         ) : isConnected ? (
           /* ─── Connected state ─── */
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-gray-500">Número:</span>
                 <span className="ml-2 font-semibold text-gray-800">{waStatus.displayNumber}</span>
@@ -1921,12 +1921,12 @@ function TabChatbotIA() {
       <Toast toast={toast} />
 
       {/* Sub-tabs */}
-      <div className="flex gap-1 mb-5 border-b">
+      <div className="flex gap-1 mb-5 border-b overflow-x-auto scrollbar-hide">
         {SUB_TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setSubTab(tab.key)}
-            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
               subTab === tab.key
                 ? "border-primary-600 text-primary-700"
                 : "border-transparent text-gray-500 hover:text-gray-700"
@@ -2840,12 +2840,12 @@ function ConfiguracionContent() {
       <h2 className="text-2xl font-bold text-gray-900 mb-5">Configuración</h2>
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-6 flex-wrap border-b">
+      <div className="flex gap-1 mb-6 border-b overflow-x-auto scrollbar-hide">
         {TABS.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+            className={`px-3 sm:px-4 py-2.5 text-xs sm:text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
               activeTab === tab.key
                 ? "border-primary-600 text-primary-700"
                 : "border-transparent text-gray-500 hover:text-gray-700"

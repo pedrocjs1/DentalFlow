@@ -91,7 +91,7 @@ export function PacientesClient({ data, search: initialSearch }: Props) {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200/80 shadow-sm overflow-x-auto">
         {data.patients.length === 0 ? (
           <div className="px-5 py-16 text-center">
             <div className="w-16 h-16 bg-primary-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
