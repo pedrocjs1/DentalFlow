@@ -235,7 +235,7 @@ export function Header() {
 
           {/* Panel with 4 tabs */}
           {panelOpen && (
-            <div className="absolute right-0 top-12 w-[420px] bg-white rounded-xl border border-gray-200 shadow-2xl z-50 overflow-hidden">
+            <div className="fixed inset-x-2 top-16 sm:inset-x-auto sm:absolute sm:right-0 sm:top-12 sm:w-[420px] bg-white rounded-xl border border-gray-200 shadow-2xl z-50 overflow-hidden">
               {/* Header */}
               <div className="px-4 py-3 border-b flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-900">Notificaciones</span>

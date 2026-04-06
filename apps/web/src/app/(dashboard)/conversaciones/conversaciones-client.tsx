@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Clock,
   FileText,
+  ArrowLeft,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -748,7 +749,7 @@ export function ConversacionesClient() {
   return (
     <div className="flex h-full bg-white rounded-xl border overflow-hidden">
       {/* ── LEFT PANEL — Conversation List ── */}
-      <div className="w-80 flex-shrink-0 flex flex-col border-r">
+      <div className={`w-full md:w-64 lg:w-80 flex-shrink-0 flex flex-col border-r ${activeConv ? "hidden md:flex" : "flex"}`}>
         {/* Header */}
         <div className="px-4 pt-4 pb-3 border-b">
           <div className="flex items-center justify-between mb-3">
@@ -839,15 +840,23 @@ export function ConversacionesClient() {
 
       {/* ── RIGHT PANEL — Chat ── */}
       {!activeConv ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
+        <div className="flex-1 hidden md:flex flex-col items-center justify-center text-gray-400">
           <MessageSquare className="w-12 h-12 mb-3 opacity-30" />
           <p className="text-sm font-medium">Seleccioná una conversación</p>
           <p className="text-xs mt-1 opacity-70">o creá una nueva con el botón +</p>
         </div>
       ) : (
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className={`flex-1 flex flex-col min-w-0 ${!activeConv ? "hidden md:flex" : "flex"}`}>
           {/* Chat header */}
           <div className="flex items-center gap-3 px-4 py-3 border-b bg-white">
+            {/* Mobile back button */}
+            <button
+              onClick={() => setActiveConv(null)}
+              className="md:hidden p-1 -ml-1 rounded-lg hover:bg-gray-100 text-gray-500"
+              aria-label="Volver a conversaciones"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
             {/* Avatar */}
             <div className={`w-9 h-9 rounded-full ${getAvatarColor(activeConv.patient.firstName + activeConv.patient.lastName)} flex items-center justify-center text-white text-sm font-semibold flex-shrink-0`}>
               {getInitials(activeConv.patient.firstName, activeConv.patient.lastName)}

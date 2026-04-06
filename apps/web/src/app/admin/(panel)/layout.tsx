@@ -66,6 +66,7 @@ export default function AdminPanelLayout({ children }: { children: React.ReactNo
   const router = useRouter();
   const pathname = usePathname();
   const [adminName, setAdminName] = useState("Admin");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("df_admin_token");
@@ -89,71 +90,126 @@ export default function AdminPanelLayout({ children }: { children: React.ReactNo
       });
   }, [router]);
 
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   function handleLogout() {
     localStorage.removeItem("df_admin_token");
     router.push("/admin/login");
   }
 
-  return (
-    <div className="flex h-screen bg-gray-950">
-      {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
-        {/* Logo */}
-        <div className="h-14 flex items-center gap-3 px-5 border-b border-gray-800">
-          <div className="w-7 h-7 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
-            <span className="text-white text-xs font-bold">DQ</span>
-          </div>
-          <span className="font-semibold text-white text-sm">Admin Panel</span>
+  const sidebarContent = (showLabels: boolean) => (
+    <>
+      {/* Logo */}
+      <div className="h-14 flex items-center gap-3 px-5 border-b border-gray-800 flex-shrink-0">
+        <div className="w-7 h-7 rounded-lg bg-primary-500 flex items-center justify-center flex-shrink-0">
+          <span className="text-white text-xs font-bold">DQ</span>
         </div>
+        {showLabels && <span className="font-semibold text-white text-sm">Admin Panel</span>}
+      </div>
 
-        {/* Nav */}
-        <nav className="flex-1 p-3 space-y-0.5">
-          {NAV_ITEMS.map((item) => {
-            const active = pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-primary-500/10 text-primary-400"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
-                }`}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* Nav */}
+      <nav className="flex-1 p-3 space-y-0.5">
+        {NAV_ITEMS.map((item) => {
+          const active = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={item.label}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                active
+                  ? "bg-primary-500/10 text-primary-400"
+                  : "text-gray-400 hover:text-white hover:bg-gray-800"
+              } ${!showLabels ? "justify-center" : ""}`}
+            >
+              {item.icon}
+              {showLabels && item.label}
+            </Link>
+          );
+        })}
+      </nav>
 
-        {/* User */}
-        <div className="p-3 border-t border-gray-800">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-primary-400 text-xs font-semibold">
-                {adminName.charAt(0).toUpperCase()}
-              </span>
-            </div>
+      {/* User */}
+      <div className="p-3 border-t border-gray-800 flex-shrink-0">
+        <div className={`flex items-center gap-3 px-3 py-2 ${!showLabels ? "justify-center" : ""}`}>
+          <div className="w-8 h-8 rounded-full bg-primary-500/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-primary-400 text-xs font-semibold">
+              {adminName.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          {showLabels && (
             <div className="flex-1 min-w-0">
               <p className="text-white text-xs font-medium truncate">{adminName}</p>
               <p className="text-gray-500 text-xs">Super Admin</p>
             </div>
-            <button
-              onClick={handleLogout}
-              title="Cerrar sesión"
-              className="text-gray-500 hover:text-white transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-              </svg>
-            </button>
-          </div>
+          )}
+          <button
+            onClick={handleLogout}
+            title="Cerrar sesión"
+            className="text-gray-500 hover:text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+          </button>
         </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex h-screen bg-gray-950">
+      {/* Mobile hamburger */}
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="fixed top-3 left-3 z-50 p-2 rounded-lg bg-gray-800 shadow-md border border-gray-700 md:hidden"
+        aria-label="Abrir menú"
+      >
+        <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
+      {/* Mobile sidebar (slide-out) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-60 bg-gray-900 border-r border-gray-800 flex flex-col transform transition-transform duration-200 md:hidden ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-3 right-3 p-1 rounded-lg hover:bg-gray-800 text-gray-400"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        {sidebarContent(true)}
+      </aside>
+
+      {/* Tablet sidebar (icons only) */}
+      <aside className="hidden md:flex lg:hidden w-16 bg-gray-900 border-r border-gray-800 flex-col flex-shrink-0">
+        {sidebarContent(false)}
+      </aside>
+
+      {/* Desktop sidebar (full) */}
+      <aside className="hidden lg:flex w-60 bg-gray-900 border-r border-gray-800 flex-col flex-shrink-0">
+        {sidebarContent(true)}
       </aside>
 
       {/* Main */}
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto pt-14 md:pt-0">{children}</main>
     </div>
   );
 }

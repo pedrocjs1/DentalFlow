@@ -52,78 +52,65 @@ export function Sidebar() {
     }
   }, [pathname, role, router]);
 
-  const sidebarContent = (
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  function renderNavItem(item: typeof navigation[0], showLabel: boolean) {
+    const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        title={item.name}
+        className={cn(
+          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+          isActive
+            ? "bg-primary-50 text-primary-700 border-l-[3px] border-primary-600 pl-[9px]"
+            : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+          !showLabel && "justify-center px-0"
+        )}
+      >
+        <item.icon
+          className={cn(
+            "h-[18px] w-[18px] flex-shrink-0",
+            isActive ? "text-primary-600" : "text-gray-400"
+          )}
+        />
+        {showLabel && item.name}
+      </Link>
+    );
+  }
+
+  const sidebarContent = (showLabels: boolean) => (
     <>
       {/* Logo */}
       <div className="h-16 flex items-center gap-2.5 px-5 border-b border-gray-100 flex-shrink-0">
         <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center flex-shrink-0">
           <span className="text-white text-sm font-bold">DQ</span>
         </div>
-        <span className="text-lg font-bold text-gray-900 tracking-tight">
-          Denti<span className="text-primary-600">qa</span>
-        </span>
+        {showLabels && (
+          <span className="text-lg font-bold text-gray-900 tracking-tight">
+            Denti<span className="text-primary-600">qa</span>
+          </span>
+        )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto scrollbar-thin">
-        <p className="px-3 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">
-          Menu
-        </p>
-        {visibleNav.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "bg-primary-50 text-primary-700 border-l-[3px] border-primary-600 pl-[9px]"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
-            >
-              <item.icon
-                className={cn(
-                  "h-[18px] w-[18px] flex-shrink-0",
-                  isActive ? "text-primary-600" : "text-gray-400"
-                )}
-              />
-              {item.name}
-            </Link>
-          );
-        })}
+        {showLabels && (
+          <p className="px-3 mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">
+            Menu
+          </p>
+        )}
+        {visibleNav.map((item) => renderNavItem(item, showLabels))}
       </nav>
 
       {/* Bottom section */}
       <div className="px-3 pb-3 space-y-1 border-t border-gray-100 pt-3 flex-shrink-0">
-        {visibleBottom.map((item) => {
-          const isActive =
-            pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link
-              key={item.name}
-              href={item.href}
-              onClick={() => setMobileOpen(false)}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                isActive
-                  ? "bg-primary-50 text-primary-700 border-l-[3px] border-primary-600 pl-[9px]"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              )}
-            >
-              <item.icon
-                className={cn(
-                  "h-[18px] w-[18px] flex-shrink-0",
-                  isActive ? "text-primary-600" : "text-gray-400"
-                )}
-              />
-              {item.name}
-            </Link>
-          );
-        })}
-        <p className="text-[10px] text-gray-300 text-center pt-2">v0.5.0</p>
+        {visibleBottom.map((item) => renderNavItem(item, showLabels))}
+        {showLabels && <p className="text-[10px] text-gray-300 text-center pt-2">v0.5.0</p>}
       </div>
     </>
   );
@@ -147,7 +134,7 @@ export function Sidebar() {
         />
       )}
 
-      {/* Mobile sidebar */}
+      {/* Mobile sidebar (slide-out, full labels) */}
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-white flex flex-col transform transition-transform duration-200 md:hidden",
@@ -160,12 +147,17 @@ export function Sidebar() {
         >
           <X className="h-4 w-4 text-gray-400" />
         </button>
-        {sidebarContent}
+        {sidebarContent(true)}
       </div>
 
-      {/* Desktop sidebar */}
-      <div className="hidden md:flex w-64 bg-white border-r border-gray-200/80 flex-col flex-shrink-0">
-        {sidebarContent}
+      {/* Tablet sidebar (icons only, w-16) */}
+      <div className="hidden md:flex lg:hidden w-16 bg-white border-r border-gray-200/80 flex-col flex-shrink-0">
+        {sidebarContent(false)}
+      </div>
+
+      {/* Desktop sidebar (full, w-64) */}
+      <div className="hidden lg:flex w-64 bg-white border-r border-gray-200/80 flex-col flex-shrink-0">
+        {sidebarContent(true)}
       </div>
     </>
   );

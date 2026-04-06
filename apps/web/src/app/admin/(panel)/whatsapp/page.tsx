@@ -84,7 +84,7 @@ export default function AdminWhatsAppPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
           <p className="text-gray-400 text-xs font-medium uppercase tracking-wide">Conectadas</p>
           <p className="text-3xl font-bold text-green-400 mt-1">{connected.length}</p>
@@ -100,8 +100,8 @@ export default function AdminWhatsAppPage() {
       </div>
 
       {/* Table */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[600px]">
           <thead>
             <tr className="border-b border-gray-800">
               <th className="text-left text-gray-400 font-medium px-5 py-3">Clínica</th>

@@ -48,7 +48,7 @@ export function PipelineColumn({ stage, onPatientClick, isOver }: Props) {
   const useCompact = stage.patients.length > FULL_CARD_COUNT + 2;
 
   return (
-    <div className="flex-shrink-0 w-[272px] flex flex-col bg-gray-50/80 rounded-xl border border-gray-200/80 overflow-hidden">
+    <div className="flex-shrink-0 w-[85vw] sm:w-[272px] snap-start flex flex-col bg-gray-50/80 rounded-xl border border-gray-200/80 overflow-hidden">
       {/* Color top border */}
       <div className="h-1 w-full" style={{ backgroundColor: stage.color }} />
       {/* Column header */}

@@ -104,8 +104,8 @@ export default function AdminUsoPage() {
         </div>
       )}
 
-      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+        <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b border-gray-800">
               <th className="text-left text-gray-400 font-medium px-5 py-3">Clínica</th>

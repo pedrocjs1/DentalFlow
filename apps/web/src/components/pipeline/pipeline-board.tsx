@@ -267,7 +267,7 @@ export function PipelineBoard() {
       </div>
 
       {/* Kanban board */}
-      <div className="flex-1 overflow-x-auto pb-4">
+      <div className="flex-1 overflow-x-auto pb-4 snap-x snap-mandatory md:snap-none">
         {loading && stages.length === 0 ? (
           <div className="flex items-center justify-center h-64 text-gray-400">
             <RefreshCw className="h-6 w-6 animate-spin mr-2" />
