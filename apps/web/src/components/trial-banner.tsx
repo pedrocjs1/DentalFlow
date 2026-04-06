@@ -32,7 +32,7 @@ export function TrialBanner() {
     const daysLeft = Math.max(0, Math.ceil((new Date(sub.trialEndDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
 
     return (
-      <div className="bg-primary-50 border-b border-primary-200 px-4 py-2.5 flex items-center justify-between text-sm">
+      <div className="bg-primary-50 border-b border-primary-200 px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
           <Zap className="h-4 w-4 text-primary-600" />
           <span className="text-primary-800">
@@ -54,7 +54,7 @@ export function TrialBanner() {
   // Trial expired
   if (status === "TRIAL_EXPIRED") {
     return (
-      <div className="bg-orange-50 border-b border-orange-200 px-4 py-3 flex items-center justify-between text-sm">
+      <div className="bg-orange-50 border-b border-orange-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-orange-600" />
           <span className="text-orange-800">
@@ -71,7 +71,7 @@ export function TrialBanner() {
   // Past due
   if (status === "PAST_DUE") {
     return (
-      <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex items-center justify-between text-sm">
+      <div className="bg-red-50 border-b border-red-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
         <div className="flex items-center gap-2">
           <CreditCard className="h-4 w-4 text-red-600" />
           <span className="text-red-800">
@@ -88,7 +88,7 @@ export function TrialBanner() {
   // Cancelled
   if (status === "CANCELLED") {
     return (
-      <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex items-center justify-between text-sm">
+      <div className="bg-gray-100 border-b border-gray-200 px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-sm">
         <span className="text-gray-700">
           Tu suscripción está cancelada. <strong>Reactivá tu plan</strong> para acceder a todas las funcionalidades.
         </span>

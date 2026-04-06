@@ -36,7 +36,10 @@ type ViewMode = "week" | "day";
 
 export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTenantHours }: Props) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>("week");
+  // Default to day view on mobile
+  const [viewMode, setViewMode] = useState<ViewMode>(
+    typeof window !== "undefined" && window.innerWidth < 768 ? "day" : "week"
+  );
   const [selectedDentistId, setSelectedDentistId] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<AgendaAppointment[]>([]);
   const [dentistHours, setDentistHours] = useState<Array<WorkingHoursEntry & { dentistId: string }>>([]);
@@ -184,8 +187,8 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h2 className="text-2xl font-bold text-gray-900 mr-2">Agenda</h2>
+      <div className="flex items-center gap-2 md:gap-3 mb-4 flex-wrap">
+        <h2 className="text-lg md:text-2xl font-bold text-gray-900 mr-1 md:mr-2">Agenda</h2>
 
         {/* Navigation */}
         <div className="flex items-center gap-1">
@@ -209,7 +212,7 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
           </button>
         </div>
 
-        <h3 className="text-base font-semibold text-gray-700 flex-1 capitalize">{headerTitle}</h3>
+        <h3 className="text-xs md:text-base font-semibold text-gray-700 flex-1 capitalize truncate">{headerTitle}</h3>
 
         {/* View toggle */}
         <div className="flex rounded-lg border border-gray-200 overflow-hidden">
@@ -239,6 +242,22 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
 
         {/* Dentist filter */}
         <div className={`flex items-center gap-2 ${isDentistLocked ? "opacity-60 pointer-events-none" : ""}`}>
+          {/* Mobile: always dropdown */}
+          <div className="md:hidden">
+            <select
+              value={selectedDentistId ?? ""}
+              onChange={(e) => setSelectedDentistId(e.target.value || null)}
+              className="appearance-none text-sm border border-gray-200 rounded-full pl-3 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white text-gray-700 cursor-pointer"
+            >
+              <option value="">Todos</option>
+              {initialDentists.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Desktop: buttons or dropdown */}
+          <div className="hidden md:flex items-center gap-2">
           <button
             onClick={() => setSelectedDentistId(null)}
             className={`px-3 py-1.5 text-sm font-medium rounded-full transition-colors ${
@@ -317,6 +336,7 @@ export function AgendaClient({ initialDentists, initialTreatmentTypes, initialTe
               <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-xs">▾</span>
             </div>
           )}
+          </div>
         </div>
 
         <Button size="sm" onClick={() => { setCreateInitialDate(null); setCreateOpen(true); }}>

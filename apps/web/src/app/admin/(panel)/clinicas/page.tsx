@@ -110,9 +110,9 @@ export default function AdminClinicasPage() {
   }
 
   return (
-    <div className="p-8 space-y-6 bg-gray-950 min-h-screen">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 bg-gray-950 min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Clinicas</h1>
           <p className="text-gray-400 text-sm mt-1">
@@ -137,7 +137,7 @@ export default function AdminClinicasPage() {
           placeholder="Buscar por nombre o slug..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
+          className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 w-full sm:w-64"
         />
         <select
           value={planFilter}

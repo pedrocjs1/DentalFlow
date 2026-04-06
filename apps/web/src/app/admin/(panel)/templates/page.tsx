@@ -854,7 +854,7 @@ export default function AdminTemplatesPage() {
               )}
 
               {/* Name */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">
                     Nombre interno *
@@ -893,7 +893,7 @@ export default function AdminTemplatesPage() {
               </div>
 
               {/* Category & Language */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Categoría *</label>
                   <select

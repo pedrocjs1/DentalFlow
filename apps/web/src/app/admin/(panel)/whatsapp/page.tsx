@@ -74,7 +74,7 @@ export default function AdminWhatsAppPage() {
   const disconnected = tenants.filter((t) => t.whatsappStatus !== "CONNECTED");
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-white">WhatsApp — Monitoreo</h1>
         <p className="text-gray-400 text-sm mt-1">

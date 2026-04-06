@@ -55,13 +55,13 @@ export default function AdminDashboardPage() {
 
   if (error) {
     return (
-      <div className="p-8 text-red-400">{error}</div>
+      <div className="p-4 md:p-8 text-red-400">{error}</div>
     );
   }
 
   if (!stats) {
     return (
-      <div className="p-8 text-gray-500">Cargando...</div>
+      <div className="p-4 md:p-8 text-gray-500">Cargando...</div>
     );
   }
 
@@ -74,7 +74,7 @@ export default function AdminDashboardPage() {
   const maxGrowth = Math.max(...stats.growth.map((g) => g.count), 1);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 md:p-6 lg:p-8 space-y-6 md:space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-white">Dashboard Global</h1>
         <p className="text-gray-400 text-sm mt-1">Métricas globales de la plataforma Dentiqa</p>
@@ -83,7 +83,7 @@ export default function AdminDashboardPage() {
       {/* MRR hero */}
       <div className="bg-gradient-to-br from-primary-500/20 to-primary-600/10 border border-primary-500/30 rounded-2xl p-6">
         <p className="text-primary-400 text-sm font-medium">Monthly Recurring Revenue</p>
-        <p className="text-5xl font-bold text-white mt-1">{mrrFormatted}</p>
+        <p className="text-2xl md:text-4xl lg:text-5xl font-bold text-white mt-1">{mrrFormatted}</p>
         <p className="text-gray-400 text-sm mt-2">
           {stats.activeTenants} clínicas activas ·{" "}
           {stats.pastDueTenants > 0 && (
@@ -94,7 +94,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Total Clínicas" value={stats.totalTenants} sub={`${stats.activeTenants} activas`} />
         <StatCard label="Total Pacientes" value={stats.totalPatients.toLocaleString("es-AR")} />
         <StatCard label="Citas hoy" value={stats.appointmentsToday} sub={`${stats.appointmentsThisMonth} este mes`} />

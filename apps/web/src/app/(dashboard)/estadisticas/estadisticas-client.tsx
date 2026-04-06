@@ -154,14 +154,14 @@ export function EstadisticasClient() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Estadísticas</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Estadísticas</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Métricas y análisis de tu clínica
           </p>
         </div>
-        <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1">
+        <div className="flex gap-1 bg-white rounded-lg border border-gray-200 p-1 overflow-x-auto">
           {PERIODS.map((p) => (
             <button
               key={p.value}
